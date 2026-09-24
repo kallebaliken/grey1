@@ -21,6 +21,7 @@ required = [
     "actors/capabilities.lua",
     "combat/health.lua",
     "combat/registry.lua",
+    "combat/attacks.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -58,10 +59,12 @@ assert "gui.set_enabled(self.nodes[index], false)" in gui_script
 assert "vmath.vector3(x, y, 0)" in gui_script
 assert "gui.move_above(node, self.nodes[index - 1])" in gui_script
 assert "command.order" not in gui_script
+binding = (ROOT / "input/game.input_binding").read_text()
+assert 'input: KEY_K action: "attack"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
-for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "save_manager.save", "movement.begin", "renderer.build"):
+for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 print("Greyhaven project wiring passed")

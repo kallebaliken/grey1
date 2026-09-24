@@ -14,6 +14,7 @@ local movement = require "simulation.movement"
 local movement_controller = require "simulation.movement_controller"
 local health = require "combat.health"
 local combat_registry = require "combat.registry"
+local attacks = require "combat.attacks"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -433,6 +434,121 @@ test("save v4 preserves player combat state and a fresh registry resets health",
     fresh_world:place_actor(fresh_actor)
     local fresh_combat = combat_registry.create(fresh_world); combat_registry.add(fresh_combat, fresh_actor.id, 100)
     equal(combat_registry.get(fresh_combat, fresh_actor.id).health, 100)
+end)
+
+local function attack_fixture()
+    local world = path_world(5, 4)
+    local combat = combat_registry.create(world, events)
+    local service = attacks.create(world, combat, events)
+    local function add(id, actor_type, x, y, health_value, profile)
+        local actor = actor_api.new(id, actor_type, x, y, 7, "east"); world:place_actor(actor)
+        if health_value then assert(combat_registry.add(combat, id, health_value)) end
+        if profile then assert(attacks.add_profile(service, id, profile)) end
+        return actor
+    end
+    return world, combat, service, add
+end
+
+test("attack profiles validate and stay isolated from Actors and callers", function()
+    events.clear()
+    local world, combat, service, add = attack_fixture()
+    local player = add("attack.profile.player", "player", 0, 0, 10)
+    assert(service.profiles == nil and player.attack == nil)
+    local profile = assert(attacks.add_profile(service, player.id, { damage = 5, range = 1, cooldown = 0.75 }))
+    equal(profile.damage, 5); equal(profile.range, 1); equal(profile.cooldown, 0.75); equal(profile.cooldown_remaining, 0)
+    profile.damage = 99; equal(attacks.get_profile(service, player.id).damage, 5)
+    local bad, reason = attacks.add_profile(service, "missing", { damage = 1, range = 1, cooldown = 1 })
+    assert(bad == nil); equal(reason, "unknown_actor")
+    local no_damage = add("attack.profile.damage", "npc", 1, 0, 10)
+    bad, reason = attacks.add_profile(service, no_damage.id, { damage = 0, range = 1, cooldown = 1 })
+    assert(bad == nil); equal(reason, "invalid_damage")
+    local no_range = add("attack.profile.range", "npc", 2, 0, 10)
+    bad, reason = attacks.add_profile(service, no_range.id, { damage = 1, range = 2, cooldown = 1 })
+    assert(bad == nil); equal(reason, "invalid_range")
+    local no_cooldown = add("attack.profile.cooldown", "npc", 3, 0, 10)
+    bad, reason = attacks.add_profile(service, no_cooldown.id, { damage = 1, range = 1, cooldown = 0 })
+    assert(bad == nil); equal(reason, "invalid_cooldown")
+end)
+
+test("attacks validate Actors, combat state, range, movement, and failed cooldown policy", function()
+    events.clear()
+    local world, combat, service, add = attack_fixture()
+    local player = add("attack.validation.player", "player", 0, 0, 10, { damage = 3, range = 1, cooldown = 0.5 })
+    local target = add("attack.validation.target", "monster", 1, 0, 10)
+    equal(attacks.try_attack(service, "missing", target.id).reason, "unknown_attacker")
+    equal(attacks.try_attack(service, target.id, player.id).reason, "cannot_attack")
+    equal(attacks.try_attack(service, player.id, player.id).reason, "invalid_target")
+    equal(attacks.try_attack(service, player.id, "missing").reason, "unknown_target")
+
+    local no_combat = add("attack.validation.no_combat", "npc", 4, 3, nil, { damage = 1, range = 1, cooldown = 1 })
+    equal(attacks.try_attack(service, no_combat.id, player.id).reason, "attacker_has_no_combat_state")
+    local target_no_combat = add("attack.validation.target_no_combat", "npc", 1, 1)
+    movement.teleport(world, player, position.new(0, 1, 7))
+    equal(attacks.try_attack(service, player.id, target_no_combat.id).reason, "target_has_no_combat_state")
+    equal(attacks.get_profile(service, player.id).cooldown_remaining, 0)
+
+    movement.teleport(world, player, position.new(0, 0, 7))
+    assert(combat_registry.add(combat, target_no_combat.id, 10))
+    equal(attacks.try_attack(service, player.id, target_no_combat.id).reason, "out_of_range")
+    local far = add("attack.validation.far", "monster", 3, 0, 10)
+    equal(attacks.try_attack(service, player.id, far.id).reason, "out_of_range")
+    equal(attacks.get_profile(service, player.id).cooldown_remaining, 0)
+
+    local z_map = { id = "attack_z", version = 1, tile_size = 32, width = 2, height = 1, placements = {
+        placement("attack.z7", "grass", 0, 0, 7), placement("attack.z6", "basement_floor", 1, 0, 6),
+    } }
+    local z_world = world_api.new(z_map, registry_api.new(definitions), state_api.new())
+    local z_attacker = actor_api.new("attack.z.attacker", "player", 0, 0, 7); z_world:place_actor(z_attacker)
+    local z_target = actor_api.new("attack.z.target", "monster", 1, 0, 6); z_world:place_actor(z_target)
+    local z_combat = combat_registry.create(z_world); combat_registry.add(z_combat, z_attacker.id, 10); combat_registry.add(z_combat, z_target.id, 10)
+    local z_service = attacks.create(z_world, z_combat); attacks.add_profile(z_service, z_attacker.id, { damage = 1, range = 1, cooldown = 1 })
+    equal(attacks.try_attack(z_service, z_attacker.id, z_target.id).reason, "different_z")
+
+    assert(movement.begin(world, player, 0, 1))
+    equal(attacks.try_attack(service, player.id, target.id).reason, "attacker_moving")
+    movement.update(player, 1); movement.teleport(world, player, position.new(0, 0, 7))
+    player.active = false; equal(attacks.try_attack(service, player.id, target.id).reason, "attacker_inactive"); player.active = true
+
+    local dead_attacker = add("attack.validation.dead", "npc", 0, 2, 1, { damage = 1, range = 1, cooldown = 1 })
+    combat_registry.apply_damage(combat, dead_attacker.id, 1)
+    equal(attacks.try_attack(service, dead_attacker.id, target.id).reason, "attacker_dead")
+end)
+
+test("generic attacks deal exact damage, cool down, preserve movement, and order lethal events", function()
+    events.clear()
+    local world, combat, service, add = attack_fixture()
+    local player = add("attack.player", "player", 0, 0, 10, { damage = 5, range = 1, cooldown = 0.75 })
+    local rat = add("attack.rat", "monster", 1, 0, 10, { damage = 2, range = 1, cooldown = 1 })
+    local order_seen = {}
+    events.on("actor_attacked", function(payload)
+        order_seen[#order_seen + 1] = "attacked"; equal(payload.damage, 5); equal(payload.target_id, rat.id)
+    end)
+    events.on("actor_damaged", function() order_seen[#order_seen + 1] = "damaged" end)
+    events.on("actor_died", function() order_seen[#order_seen + 1] = "died" end)
+
+    local result = attacks.try_attack(service, player.id, rat.id)
+    assert(result.success); equal(result.damage, 5); equal(result.target_health, 5); assert(not result.target_died)
+    equal(combat_registry.get(combat, rat.id).health, 5)
+    equal(order_seen[1], "attacked"); equal(order_seen[2], "damaged")
+    equal(attacks.try_attack(service, player.id, rat.id).reason, "cooldown")
+    assert(movement.begin(world, player, 0, 1)); movement.update(player, 1)
+    attacks.update(service, 0.74); assert(attacks.get_profile(service, player.id).cooldown_remaining > 0)
+    attacks.update(service, 0.02); equal(attacks.get_profile(service, player.id).cooldown_remaining, 0)
+    movement.teleport(world, player, position.new(0, 0, 7))
+    result = attacks.try_attack(service, player.id, rat.id)
+    assert(result.success and result.target_died); equal(result.target_health, 0)
+    equal(order_seen[3], "attacked"); equal(order_seen[4], "damaged"); equal(order_seen[5], "died")
+    attacks.update(service, 1)
+    equal(attacks.try_attack(service, player.id, rat.id).reason, "target_dead")
+    equal(#order_seen, 5); equal(combat_registry.get(combat, rat.id).health, 0)
+
+    -- The inert monster uses the same API only because this test explicitly invokes it.
+    events.clear()
+    local monster_world, monster_combat, monster_service, monster_add = attack_fixture()
+    local monster = monster_add("attack.monster", "monster", 0, 0, 10, { damage = 2, range = 1, cooldown = 1 })
+    local npc = monster_add("attack.npc", "npc", 1, 0, 10)
+    local monster_hit = attacks.try_attack(monster_service, monster.id, npc.id)
+    assert(monster_hit.success); equal(monster_combat and combat_registry.get(monster_combat, npc.id).health, 8)
 end)
 
 test("tile retrieval, deterministic stack, removal", function()

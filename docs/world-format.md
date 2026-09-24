@@ -8,10 +8,12 @@ return {
   width = 18, height = 14,
   player_spawn = { x = 9, y = 2, z = 7, facing = "west" },
   player_max_health = 100,
+  player_attack = { damage = 5, range = 1, cooldown = 0.75 },
   actor_placements = {
     { id = "npc_test_villager", type = "npc", x = 12, y = 5, z = 7, facing = "south" },
     { id = "monster_test_rat", type = "monster", x = 14, y = 10, z = 7,
-      facing = "west", max_health = 20 }
+      facing = "west", max_health = 20,
+      attack = { damage = 2, range = 1, cooldown = 1 } }
   },
   placements = {
     { id = "greyhaven.house01.front_door", type = "wood_door",
@@ -39,6 +41,8 @@ Every placement ID is a stable, unique string. `type` resolves a definition. `st
 `item_placements` is optional immutable map input. Its outer ID identifies the world placement, while `item.id` is the stable logical item identity that survives pickup and drop. The embedded item record uses the same item-instance schema as inventories and containers; runtime transfers never rewrite this source table.
 
 `player_max_health` is the authored positive-integer new-game maximum. `actor_placements.max_health` optionally gives a static Actor combat state; omitted Actors retain normal movement/interaction capability without combat state during incremental migration.
+
+`player_attack` and optional `actor_placements.attack` records grant explicit attack capability without adding fields to Actor. This foundation accepts fixed positive-integer damage, `range = 1`, and a positive cooldown in seconds. Cooldown runtime is session-only and is not map or save mutation.
 
 `player_inventory` is the authored new-game inventory. Save v4 replaces it with the saved inventory snapshot on load; reset returns to this authored value. It is content input, not a live runtime container.
 

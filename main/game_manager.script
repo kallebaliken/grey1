@@ -21,6 +21,7 @@ local item_transfers = require "simulation.item_transfers"
 local pathfinding = require "simulation.pathfinding"
 local movement_controller = require "simulation.movement_controller"
 local combat_registry = require "combat.registry"
+local attacks = require "combat.attacks"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -65,6 +66,7 @@ local function render(self)
     local npc_next = movement_controller.get_next_target(self.path_controller, npc_id)
     local player_combat = combat_registry.get(self.combat, self.player.id)
     local rat_combat = combat_registry.get(self.combat, "monster_test_rat")
+    local player_attack = attacks.get_profile(self.attacks, self.player.id)
     view_model.frame = { commands = commands,
         player_x = visual.x, player_y = visual.y,
         actor_id = self.player.id, actor_type = self.player.type,
@@ -78,7 +80,8 @@ local function render(self)
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
         npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
         player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
-        rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead }
+        rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,
+        player_attack = player_attack.damage, player_attack_cooldown = player_attack.cooldown_remaining }
     msg.post("#view", "render_world")
 end
 
@@ -109,6 +112,11 @@ local function create_session(self, map, loaded)
         saved_combat and saved_combat.health or nil))
     for _, placement in ipairs(self.map.actor_placements or {}) do
         if placement.max_health then assert(combat_registry.add(self.combat, placement.id, placement.max_health)) end
+    end
+    self.attacks = attacks.create(self.world, self.combat, events)
+    assert(attacks.add_profile(self.attacks, self.player.id, self.map.player_attack))
+    for _, placement in ipairs(self.map.actor_placements or {}) do
+        if placement.attack then assert(attacks.add_profile(self.attacks, placement.id, placement.attack)) end
     end
     self.path_controller = movement_controller.create(self.world, events)
     self.interior_group = roofs.interior_group(self.world, self.player.position)
@@ -142,7 +150,8 @@ function init(self)
 end
 
 function update(self, dt)
-    local moving = movement.update(self.player, dt)
+    local moving = attacks.update(self.attacks, dt)
+    if movement.update(self.player, dt) then moving = true end
     if movement_controller.update(self.path_controller, dt) then moving = true end
     if not movement.is_moving(self.player) then
         local dx = (self.held.right and 1 or 0) - (self.held.left and 1 or 0)
@@ -178,6 +187,15 @@ function on_input(self, action_id, action)
             { source = "development_control" })
         self.notice = result.success and ("Rat damage: 5, HP " .. result.health)
             or ("Rat damage: " .. result.reason)
+        render(self); return true
+    elseif action.pressed and action_id == hash("attack") then
+        local dx, dy = movement.facing_offset(self.player.facing)
+        local target = self.world:get_actor_at(self.player.position.x + dx, self.player.position.y + dy,
+            self.player.position.z)
+        local result = target and attacks.try_attack(self.attacks, self.player.id, target.id)
+            or { success = false, reason = "no_target" }
+        self.notice = result.success and string.format("Attack: %d damage, target HP %d",
+            result.damage, result.target_health) or ("Attack: " .. result.reason)
         render(self); return true
     elseif action.pressed and action_id == hash("drop_item") then
         local first = inventory_api.get_items(self.player.inventory)[1]

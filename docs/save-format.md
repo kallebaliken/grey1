@@ -67,4 +67,6 @@ This order prevents authored items from respawning after their saved ownership h
 
 Versions 1–3 are intentionally rejected as `unsupported_save_version`; version 3 has no player combat state and format semantics were not changed in place. **F8** deletes the development save and immediately rebuilds authored full health, static Actor health, map state, starter inventory, and empty equipment. F5 writes version 4, and F9 validates and reconstructs a new session before replacing runtime references. Only player combat state persists in v4; static NPC/monster combat deltas are deferred until general Actor persistence exists.
 
+Attack profiles come from static map data and attack cooldowns are temporary simulation runtime. Cooldowns are deliberately absent from Save Format v4; loading or resetting starts every authored attack profile ready.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

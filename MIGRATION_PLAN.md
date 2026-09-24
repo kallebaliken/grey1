@@ -35,7 +35,7 @@ Completed slices: validated item definitions and instances, containers, inventor
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A* over authoritative walkability, explicit supplied-route execution, and composed integer health/damage/death state. Factions, conditions, attacks, autonomous AI, and broader combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, and explicit fixed-damage cardinal melee attacks with deterministic cooldowns. Factions, conditions, autonomous AI, weapons, armor, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -47,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add an explicit basic attack action and cooldown policy over the existing damage API. Weapons, armor, skills, spells, conditions, autonomous NPC/monster behavior, loot, narrative, and production content remain explicitly out of scope for that slice.
+Add a minimal data-driven armor/defense mitigation policy over the existing explicit damage path. Weapons, skills, spells, conditions, autonomous NPC/monster behavior, loot, narrative, and production content remain explicitly out of scope for that slice.

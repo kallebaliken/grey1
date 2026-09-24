@@ -37,10 +37,16 @@ function M.load(module_name)
             assert(type(placement.max_health) == "number" and placement.max_health > 0
                 and placement.max_health % 1 == 0, "actor max health must be a positive integer")
         end
+        if placement.attack ~= nil then
+            assert(type(placement.attack) == "table" and type(placement.attack.damage) == "number"
+                and type(placement.attack.range) == "number" and type(placement.attack.cooldown) == "number",
+                "actor attack profile requires damage, range, and cooldown")
+        end
         actor_ids[placement.id] = true
     end
     assert(type(map.player_max_health) == "number" and map.player_max_health > 0
         and map.player_max_health % 1 == 0, "player max health must be a positive integer")
+    assert(type(map.player_attack) == "table", "player attack profile is required")
     if map.player_inventory then
         assert(type(map.player_inventory.id) == "string" and type(map.player_inventory.owner_id) == "string",
             "player inventory requires stable identity")

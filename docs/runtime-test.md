@@ -21,13 +21,14 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **G** | Development control: drop the first inventory item on the current tile |
 | **H** | Development control: calculate and execute the test NPC's path to `(14,7,7)` |
 | **J** | Development control: deal exactly 5 damage to `monster_test_rat` |
+| **K** | Explicitly attack the Actor on the tile directly in front of the player |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, player and test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+F1 reports the player Actor ID/type, logical tile and Z, facing, player health/fixed attack/current cooldown, test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -61,6 +62,19 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 6. The test rat has no autonomous or debug path command. Automated tests verify that a dead Actor's supplied route blocks; no Actor chooses a new route.
 7. Save/load after player damage when a future player-damage control exists; Save Format v4 already persists player health. Rat damage intentionally resets because static Actor combat persistence is deferred.
 8. Press **F8** and confirm both authored health values are full with dead flags cleared. Confirm no Defold runtime errors occurred.
+
+## Explicit attack check
+
+1. Launch or reset, enable **F1**, and confirm the player shows fixed attack `5` with cooldown `0.00`.
+2. Walk next to `monster_test_rat` at `(14,10,7)` and face it. The rat remains inert and never attacks or selects a target by itself.
+3. Press **K**. Confirm the facing tile selects the rat and it loses exactly five health through the existing damage system.
+4. Immediately press **K** again. Confirm `cooldown` is reported and no additional health is lost.
+5. Keep moving if desired; cooldown does not lock movement. Wait until F1 reaches `0.00`, then attack again.
+6. Repeat until the rat reaches zero. Confirm one lethal resolution, and that the dead rat remains rendered and occupying its tile.
+7. Press **K** again after cooldown. Confirm `target_dead`, no health below zero, and no repeated death behavior.
+8. Face away from the rat or stand too far away and press **K**. Confirm no nearest-target selection or pathfinding occurs.
+9. Save/load and confirm player health persistence still works; attack cooldown intentionally restarts ready.
+10. Exercise movement, H path execution, interactions, items, roofs, stairs, and save/reset as before. Confirm no Defold runtime errors.
 
 ## Expected prototype content
 

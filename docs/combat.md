@@ -17,4 +17,20 @@ A dead Actor remains registered, rendered, identifiable, and occupying its tile.
 
 The player starts with 100 health and Save Format v4 persists the player's current/max health and dead flag. The authored `monster_test_rat` starts with 20 health after every session construction or F8 reset. Static NPC/monster combat persistence is deferred until Actor persistence has a general delta model.
 
-Attacks, weapons, armor, formulas, critical hits, range, projectiles, cooldowns, mana, spells, conditions, healing, regeneration, death animation, corpses, loot, XP, respawn, combat AI, and target selection are explicitly absent.
+Weapons, armor, formulas, critical hits, ranged attacks, projectiles, mana, spells, conditions, healing, regeneration, death animation, corpses, loot, XP, respawn, combat AI, and target selection are explicitly absent.
+
+## Explicit basic attacks
+
+Canary attack execution combines combat targets with scheduling, formulas, skills, equipment, conditions, and protocol messages. Greyhaven's `combat/attacks.lua` is instead an explicit pure-Lua service:
+
+```text
+Canary attack execution
+→ Greyhaven explicit deterministic Actor attack service
+→ existing CombatState damage
+```
+
+Attack profiles and cooldown runtime are private state keyed by Actor ID, never Actor fields. A profile contains a fixed positive-integer damage value, cardinal melee range 1, and a positive deterministic cooldown. `try_attack` validates both registered Actors and CombatStates, life/activity, interpolation state, cooldown, distinct target, same Z, and exactly one cardinal tile of range before calling the sole authoritative `combat.registry.apply_damage` path.
+
+Rejected attacks never start cooldown or emit `actor_attacked`. A successful attack emits `actor_attacked` first; existing damage resolution then emits `actor_damaged` and, once when lethal, `actor_died`. Cooldown begins only after successful damage, is reduced explicitly by `update(dt)`, does not prevent movement, and is not saved. Loading or resetting creates ready attack runtime. Attacks neither choose targets nor calculate, interrupt, or follow paths.
+
+Weapons, equipment influence, armor, defense, accuracy, misses, critical hits, attack-speed stats, ranged attacks, projectiles, spells, mana, healing, conditions, AI attacks, target-selection AI, chasing, XP, loot, corpses, animations, and combat GUI remain deferred.

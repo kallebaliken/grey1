@@ -60,6 +60,8 @@ Door, stair, and placeholder chest actions now use the registered interaction di
 
 Canary `Creature` health/change/death concepts now map to a composed Greyhaven CombatState and deterministic explicit-damage API. Formula calculation, schedulers, conditions, PvP policy, experience, loot, network messages, and server death processing are not part of this foundation.
 
+Canary creature attack execution now maps to an explicit deterministic Actor attack service that validates a caller-supplied target and delegates fixed damage to CombatState. It does not retain Canary weapon/skill formulas, attack scheduling, PvP, conditions, spells, critical hits, imbuements, networking, or combat messages; attack capability is not decision-making AI.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |
