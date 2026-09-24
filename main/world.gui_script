@@ -3,16 +3,19 @@ local view_model = require "main.view_model"
 local TILE_SIZE = 32
 local NODE_CAPACITY = 1024
 
-local function box(self, index, x, y, color, size, layer)
+local function box(self, index, x, y, color, size)
     local node = self.nodes[index]
     if not node then
         node = gui.new_box_node(vmath.vector3(), vmath.vector3())
+        gui.set_layer(node, "world")
         self.nodes[index] = node
     end
     gui.set_enabled(node, true)
-    gui.set_position(node, vmath.vector3(x, y, layer))
+    -- Semantic order is represented by the already-sorted node sequence, never GUI Z.
+    gui.set_position(node, vmath.vector3(x, y, 0))
     gui.set_size(node, vmath.vector3(size or 30, size or 30, 0))
     gui.set_color(node, vmath.vector4(color[1], color[2], color[3], color[4] or 1))
+    if index > 1 then gui.move_above(node, self.nodes[index - 1]) end
 end
 
 function init(self)
@@ -27,7 +30,7 @@ function on_message(self, message_id, message)
     camera_api.follow(self.camera, message.player_x, message.player_y)
     for index, command in ipairs(message.commands) do
         local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
-        box(self, index, x, y, command.color, command.size or 31, command.order)
+        box(self, index, x, y, command.color, command.size or 31)
     end
     for index = #message.commands + 1, #self.nodes do gui.set_enabled(self.nodes[index], false) end
     gui.set_text(gui.get_node("status"), string.format(

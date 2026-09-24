@@ -28,7 +28,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
 
-The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled, but production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
+The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
 ## Ordered playtest route
 

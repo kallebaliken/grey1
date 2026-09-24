@@ -48,8 +48,12 @@ gui = (ROOT / "main/world.gui").read_text()
 assert 'script: "/main/world.gui_script"' in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
 assert "max_nodes: 1024" in gui
+assert 'name: "world"' in gui and 'name: "hud"' in gui
 gui_script = (ROOT / "main/world.gui_script").read_text()
 assert "gui.set_enabled(self.nodes[index], false)" in gui_script
+assert "vmath.vector3(x, y, 0)" in gui_script
+assert "gui.move_above(node, self.nodes[index - 1])" in gui_script
+assert "command.order" not in gui_script
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader

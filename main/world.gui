@@ -4,6 +4,12 @@ fonts {
   name: "default"
   font: "/builtins/fonts/default.font"
 }
+layers {
+  name: "world"
+}
+layers {
+  name: "hud"
+}
 nodes {
   position { x: 16.0 y: 620.0 }
   size { x: 900.0 y: 24.0 }
@@ -12,6 +18,7 @@ nodes {
   text: "Greyhaven"
   font: "default"
   id: "status"
+  layer: "hud"
   pivot: PIVOT_W
 }
 nodes {
@@ -22,6 +29,7 @@ nodes {
   text: ""
   font: "default"
   id: "debug"
+  layer: "hud"
   pivot: PIVOT_NW
   line_break: true
 }

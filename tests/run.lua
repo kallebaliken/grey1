@@ -57,6 +57,13 @@ local function fixture()
     return world_api.new(map, registry_api.new(definitions), state_api.new()), map
 end
 
+test("semantic render layers retain ground-to-roof order", function()
+    local layers = { "ground", "ground_detail", "bottom", "top", "actor", "effect", "roof" }
+    for index = 2, #layers do
+        assert(render_order.value(layers[index - 1]) < render_order.value(layers[index]))
+    end
+end)
+
 test("map loader exposes only statically registered Defold map modules", function()
     local map = map_loader.load("data.maps.prototype")
     equal(map.id, "greyhaven.engine_test")
