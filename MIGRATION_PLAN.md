@@ -25,9 +25,11 @@ Load Lua map data into `(x,y,z)` tiles; resolve object definitions; determine wa
 
 Support independent visual/gameplay footprints, ordered stacks, grouped roofs, registered door/chest/stair interactions, playable Z transitions, chunk-addressed tiles, actor occupancy, debugging, and versioned local save/load. Fading and editor-authored schema tooling remain later work.
 
-### 4 — Items and inventory
+### 4 — Items and inventory (in progress)
 
 Add immutable item definitions and per-instance state; reusable containers; inventory/equipment policies; world pickup/drop actions; events; and serialization tests. No GUI dependency belongs in these modules.
+
+Completed first slice: validated item definitions and item instances with stable IDs, bounded stack quantities, and isolated mutable state. Containers, inventory/equipment, world placement, actions, events, and serialization remain out of scope.
 
 ### 5 — Actors, navigation, and combat
 
@@ -43,4 +45,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add A* pathfinding and stronger map-schema diagnostics before introducing NPCs. Inventory, combat, narrative, and production content remain explicitly out of scope until the world engine has been manually smoke-tested in Defold.
+Add generic containers with deterministic slots and stack merging. Inventory/equipment, world pickup/drop, pathfinding, combat, narrative, and production content remain explicitly out of scope for that slice.

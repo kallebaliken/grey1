@@ -14,6 +14,9 @@ local roofs = require "world.roofs"
 local save_data = require "state.save_data"
 local codec = require "state.save_codec"
 local definitions = require "objects.object_defs"
+local item_definitions = require "items.item_defs"
+local item_registry_api = require "items.item_registry"
+local item_instance = require "items.item_instance"
 
 local count = 0
 local function test(name, callback)
@@ -104,6 +107,33 @@ end)
 test("chunk addressing", function()
     local x, y = chunks.coordinates(33, 63); equal(x, 1); equal(y, 1)
     local world = fixture(); assert(world:get_chunk(0, 0, 7)); assert(world:get_chunk(1, 0, 7) == nil)
+end)
+
+test("item definitions are validated and isolated from callers", function()
+    local registry = item_registry_api.new(item_definitions)
+    local herb = registry:get("healing_herb")
+    assert(herb.stackable); equal(herb.max_stack, 20); equal(herb.weight, 0.1)
+    herb.name = "Changed"; herb.tags[1] = "changed"
+    equal(registry:get("healing_herb").name, "Healing Herb")
+    equal(registry:get("healing_herb").tags[1], "consumable")
+    assert(registry:has("old_iron_key")); assert(not registry:has("missing"))
+
+    local ok = pcall(item_registry_api.new, { bad = { id = "bad", name = "Bad", stackable = true, max_stack = 1 } })
+    assert(not ok, "invalid stack limits must be rejected")
+end)
+
+test("item instances own bounded quantity and mutable state", function()
+    local registry = item_registry_api.new(item_definitions)
+    local source_state = { quality = "fresh", provenance = { area = "marsh" } }
+    local herb = item_instance.new({ id = "loot.herb.1", type = "healing_herb", quantity = 3, state = source_state }, registry)
+    source_state.provenance.area = "changed"
+    equal(herb.state.provenance.area, "marsh")
+    equal(item_instance.remaining_capacity(herb, registry), 17)
+    item_instance.set_quantity(herb, 20, registry); equal(herb.quantity, 20)
+
+    assert(not pcall(item_instance.set_quantity, herb, 21, registry))
+    assert(not pcall(item_instance.new, { id = "key.1", type = "old_iron_key", quantity = 2 }, registry))
+    assert(not pcall(item_instance.new, { id = "unknown.1", type = "missing" }, registry))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

@@ -10,6 +10,7 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 4. **State** — `state/` owns runtime deltas, validated save snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
 5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered draw commands.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
+7. **Items** — `items/` validates immutable item-type definitions and creates independent runtime instances with stable IDs, bounded quantities, and copied mutable state. It has no Defold dependency and does not yet implement ownership or containers.
 
 Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; world and simulation modules are ordinary Lua.
 
@@ -23,6 +24,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Current-Z objects and relevant roofs at Z+1 render. Interaction and collision occur only at the actor's actual Z.
 - Roof hiding uses matching `interior_group`/`roof_group` world metadata plus object-authored reveal zones.
 - Saves contain player position/facing, object deltas, flags, map identity, and schema version—never static geometry.
+- Item definitions and item instances are distinct. Definitions are copied behind a registry boundary; instances own quantity and state, and non-stackable items always have quantity one.
 
 ## Scale boundary
 

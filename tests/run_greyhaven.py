@@ -4,7 +4,15 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).parents[1]
-required = ["game.project", "main/main.collection", "tests/run.lua", "state/save_manager.lua"]
+required = [
+    "game.project",
+    "main/main.collection",
+    "tests/run.lua",
+    "state/save_manager.lua",
+    "items/item_defs.lua",
+    "items/item_registry.lua",
+    "items/item_instance.lua",
+]
 for name in required:
     assert (ROOT / name).is_file(), name
 
