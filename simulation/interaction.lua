@@ -5,7 +5,7 @@ function M.register(kind, handler) M.handlers[kind] = handler end
 
 function M.find_target(world, actor)
     local dx, dy = movement.facing_offset(actor.facing)
-    local p = actor.tile_position
+    local p = actor.position
     local objects = world:get_objects(p.x + dx, p.y + dy, p.z)
     for index = #objects, 1, -1 do
         local entry = objects[index]
@@ -20,7 +20,7 @@ function M.use(world, actor, events)
     local handler = M.handlers[definition.interaction]
     if not handler then return false, "unsupported_interaction" end
     local changed, reason = handler(world, actor, instance, definition, events)
-    if events then events.emit("player_interacted", { actor_id = actor.id, object_id = instance.id,
+    if events then events.emit("actor_interacted", { actor_id = actor.id, actor_type = actor.type, object_id = instance.id,
         position = instance.position, succeeded = changed == true }) end
     return changed, reason
 end

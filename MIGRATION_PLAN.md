@@ -25,13 +25,17 @@ Load Lua map data into `(x,y,z)` tiles; resolve object definitions; determine wa
 
 Support independent visual/gameplay footprints, ordered stacks, grouped roofs, registered door/chest/stair interactions, playable Z transitions, chunk-addressed tiles, actor occupancy, debugging, and versioned local save/load. Fading and editor-authored schema tooling remain later work.
 
-### 4 — Items and inventory
+### 4 — Items and inventory (in progress)
 
 Add immutable item definitions and per-instance state; reusable containers; inventory/equipment policies; world pickup/drop actions; events; and serialization tests. No GUI dependency belongs in these modules.
 
-### 5 — Actors, navigation, and combat
+Completed slices: validated item definitions and instances, containers, inventory/world transfers, save-v2 item ownership, and data-driven equipment with save-v3 exclusive ownership. Nested containers, combat-derived equipment effects, and item use remain out of scope.
+
+### 5 — Actors, navigation, and combat (in progress)
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
+
+Completed first slice: shared Actor identity/type/position/facing, canonical directions, runtime registry and occupancy, generic movement/transition handling, actor rendering, and one inert NPC. Health, factions, conditions, pathfinding, AI, and combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -43,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add A* pathfinding and stronger map-schema diagnostics before introducing NPCs. Inventory, combat, narrative, and production content remain explicitly out of scope until the world engine has been manually smoke-tested in Defold.
+Add A* pathfinding over the authoritative world grid with actor-aware blocking. Autonomous NPC/monster behavior, equipment effects, combat, narrative, and production content remain explicitly out of scope for that slice.
