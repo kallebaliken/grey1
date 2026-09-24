@@ -1,0 +1,40 @@
+local camera_api = require "world.camera"
+local view_model = require "main.view_model"
+local TILE_SIZE = 32
+
+local function clear(self)
+    for _, node in ipairs(self.nodes) do gui.delete_node(node) end
+    self.nodes = {}
+end
+
+local function box(self, x, y, color, size, layer)
+    local node = gui.new_box_node(vmath.vector3(x, y, layer), vmath.vector3(size or 30, size or 30, 0))
+    gui.set_color(node, vmath.vector4(color[1], color[2], color[3], color[4] or 1))
+    self.nodes[#self.nodes + 1] = node
+end
+
+function init(self)
+    self.nodes = {}
+    self.camera = camera_api.new(960, 640)
+end
+
+function on_message(self, message_id, message)
+    if message_id ~= hash("render_world") then return end
+    message = view_model.frame
+    if not message then return end
+    clear(self)
+    camera_api.follow(self.camera, message.player_x, message.player_y)
+    for _, command in ipairs(message.commands) do
+        local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
+        box(self, x, y, command.color, 31, command.layer)
+    end
+    local px, py = camera_api.project(self.camera, message.player_x, message.player_y, TILE_SIZE)
+    box(self, px, py, { 0.20, 0.45, 0.92, 1 }, 22, 45)
+    gui.set_text(gui.get_node("status"), string.format(
+        "Greyhaven engine test | WASD/arrows move | E use | F1 debug | F5 save | F9 load | %s", message.notice))
+    local debug = gui.get_node("debug")
+    gui.set_enabled(debug, message.debug_visible)
+    gui.set_text(debug, string.format("tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\nchunk: %s  revealed roof: %s",
+        message.logical_x, message.logical_y, message.player_z, message.facing,
+        message.inspection_offset, message.tile_objects, message.target, message.chunk, message.roof_group))
+end

@@ -1,0 +1,108 @@
+local events = require "core.events"
+local map_loader = require "world.map_loader"
+local registry_api = require "world.object_registry"
+local world_api = require "world.world"
+local roofs = require "world.roofs"
+local chunks = require "world.chunks"
+local renderer = require "render.world_renderer"
+local player_api = require "actors.player"
+local movement = require "simulation.movement"
+local interaction = require "simulation.interaction"
+local actions = require "simulation.actions"
+local state_api = require "state.world_state"
+local save_data = require "state.save_data"
+local save_manager = require "state.save_manager"
+local definitions = require "objects.object_defs"
+local view_model = require "main.view_model"
+
+local function describe_tile(world, position)
+    local names = {}
+    for _, entry in ipairs(world:get_objects(position.x, position.y, position.z)) do names[#names + 1] = entry.instance.type end
+    return #names > 0 and table.concat(names, ",") or "empty"
+end
+
+local function render(self)
+    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset)
+    local target = interaction.find_target(self.world, self.player)
+    local p = self.player.tile_position
+    local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
+    view_model.frame = { commands = commands,
+        player_x = self.player.visual_position.x, player_y = self.player.visual_position.y,
+        logical_x = p.x, logical_y = p.y, player_z = p.z, facing = self.player.facing,
+        debug_visible = self.debug_visible, tile_objects = describe_tile(self.world, p),
+        target = target and (target.id .. " (" .. target.type .. ")") or "none",
+        chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
+        inspection_offset = self.inspect_offset, notice = self.notice or "" }
+    msg.post("#view", "render_world")
+end
+
+local function create_session(self, loaded)
+    self.map = map_loader.load("data.maps.prototype")
+    self.state = state_api.new(loaded)
+    self.world = world_api.new(self.map, registry_api.new(definitions), self.state)
+    local spawn = self.map.player_spawn
+    self.player = player_api.new(spawn.x, spawn.y, spawn.z)
+    self.player.facing = spawn.facing or self.player.facing
+    if loaded then save_data.restore_player(self.player, loaded) end
+    self.world:place_actor(self.player)
+    self.interior_group = roofs.interior_group(self.world, self.player.tile_position)
+end
+
+local function load_game(self)
+    local loaded, reason = save_manager.load(self.map and self.map.id or "greyhaven.engine_test")
+    if not loaded then self.notice = "Load: " .. reason; return false end
+    create_session(self, loaded); self.notice = "Save loaded"; events.emit("game_loaded", { map_id = self.map.id })
+    return true
+end
+
+local function update_interior(self)
+    local current = roofs.interior_group(self.world, self.player.tile_position)
+    if current ~= self.interior_group then
+        if self.interior_group then events.emit("player_left_interior", { actor_id = self.player.id, interior_group = self.interior_group }) end
+        if current then events.emit("player_entered_interior", { actor_id = self.player.id, interior_group = current }) end
+        self.interior_group = current
+    end
+end
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+    self.held, self.debug_visible, self.inspect_offset = {}, false, 0
+    actions.register_defaults()
+    create_session(self, save_manager.load("greyhaven.engine_test"))
+    events.emit("world_loaded", { map_id = self.map.id })
+    render(self)
+end
+
+function update(self, dt)
+    local moving = movement.update(self.player, dt)
+    if not self.player.movement_target then
+        local dx = (self.held.right and 1 or 0) - (self.held.left and 1 or 0)
+        local dy = (self.held.up and 1 or 0) - (self.held.down and 1 or 0)
+        if dx ~= 0 then dy = 0 end
+        if movement.begin(self.world, self.player, dx, dy, events) then moving = true; update_interior(self) end
+    end
+    if moving then render(self) end
+end
+
+function on_input(self, action_id, action)
+    local directions = { [hash("up")] = "up", [hash("down")] = "down", [hash("left")] = "left", [hash("right")] = "right" }
+    local direction = directions[action_id]
+    if direction then
+        if action.pressed or action.repeated then self.held[direction] = true end
+        if action.released then self.held[direction] = nil end
+        return true
+    elseif action.pressed and action_id == hash("interact") then
+        local changed, reason = interaction.use(self.world, self.player, events)
+        self.notice = changed and "Interaction used" or reason; update_interior(self); render(self); return true
+    elseif action.pressed and action_id == hash("debug") then
+        self.debug_visible = not self.debug_visible; render(self); return true
+    elseif action.pressed and action_id == hash("save") then
+        self.notice = save_manager.save(self.player, self.state, self.map.id) and "Game saved" or "Save failed"; render(self); return true
+    elseif action.pressed and action_id == hash("load") then load_game(self); render(self); return true
+    elseif action.pressed and action_id == hash("reset_save") then save_manager.reset(); self.notice = "Save reset"; render(self); return true
+    elseif action.pressed and (action_id == hash("inspect_up") or action_id == hash("inspect_down")) then
+        self.inspect_offset = action_id == hash("inspect_up") and 1 or -1; render(self); return true
+    elseif action.released and (action_id == hash("inspect_up") or action_id == hash("inspect_down")) then
+        self.inspect_offset = 0; render(self); return true
+    end
+end
