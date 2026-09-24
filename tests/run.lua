@@ -4,6 +4,7 @@ local position = require "world.position"
 local chunks = require "world.chunks"
 local registry_api = require "world.object_registry"
 local world_api = require "world.world"
+local map_loader = require "world.map_loader"
 local state_api = require "state.world_state"
 local actor_api = require "actors.actor"
 local movement = require "simulation.movement"
@@ -19,6 +20,10 @@ local item_registry_api = require "items.item_registry"
 local item_instance = require "items.item_instance"
 local container_api = require "items.container"
 local inventory_api = require "items.inventory"
+local world_items = require "world.world_items"
+local item_transfers = require "simulation.item_transfers"
+local renderer = require "render.world_renderer"
+local events = require "core.events"
 
 local count = 0
 local function test(name, callback)
@@ -250,6 +255,123 @@ test("inventory preserves partial insertion and validation contracts", function(
     assert(not pcall(inventory_api.get_quantity, inventory, "missing"))
     assert(not pcall(inventory_api.create, "bad inventory", "player", 1, registry))
     assert(not pcall(inventory_api.create, "inventory.bad", "", 1, registry))
+end)
+
+local function world_item_fixture(capacity)
+    local map = { id = "item_test", version = 1, tile_size = 32, width = 4, height = 4, placements = {
+        placement("ground.1", "grass", 1, 1, 7), placement("ground.2", "grass", 2, 1, 7),
+        placement("ground.3", "grass", 1, 2, 7),
+    } }
+    local item_defs = {
+        healing_herb = item_definitions.healing_herb,
+        old_iron_key = item_definitions.old_iron_key,
+        sealed_stone = { id = "sealed_stone", name = "Sealed Stone", pickupable = false,
+            stack_layer = "bottom", interaction = "pickup", patterns = { { { .3, .3, .35, 1 } } } },
+    }
+    local item_registry = item_registry_api.new(item_defs)
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new(), item_registry)
+    local inventory = inventory_api.create("inventory.item_test", "hero", capacity or 4, item_registry)
+    return world, inventory, item_registry
+end
+
+test("world items place, render, retrieve, and remove stable instances", function()
+    local world, _, registry = world_item_fixture()
+    local herb = item_instance.new({ id = "item.world.herb", type = "healing_herb", quantity = 5 }, registry)
+    local placed = world_items.place(world, herb, position.new(1, 1, 7), "world.herb")
+    equal(placed.item.id, "item.world.herb"); equal(world_items.get(world, "world.herb").item.quantity, 5)
+    local stack = world:get_objects(1, 1, 7)
+    equal(stack[1].definition.stack_layer, "ground"); equal(stack[2].instance.id, "world.herb")
+    local actor = actor_api.new("viewer", "player", 2, 1, 7)
+    local commands = renderer.build(world, actor, 0)
+    local rendered = false
+    for _, command in ipairs(commands) do if command.id == "world.herb:1" then rendered = true end end
+    assert(rendered, "world item must render from world state")
+    local removed = world_items.remove(world, "world.herb")
+    equal(removed.item.id, "item.world.herb"); assert(world_items.get(world, "world.herb") == nil)
+    equal(#world:get_objects(1, 1, 7), 1)
+end)
+
+test("engine test map loads its stable herb and key placements", function()
+    local map = map_loader.load("data.maps.prototype")
+    local registry = item_registry_api.new(item_definitions)
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
+    equal(world_items.get(world, "world.test.herbs.01").item.id, "test.herbs.01")
+    equal(world_items.get(world, "world.test.key.01").item.id, "test.key.01")
+end)
+
+test("pickup transfers a non-stackable item through interaction", function()
+    events.clear(); actions.register_defaults()
+    local world, inventory, registry = world_item_fixture(1)
+    local key = item_instance.new({ id = "item.world.key", type = "old_iron_key" }, registry)
+    world_items.place(world, key, position.new(1, 1, 7), "world.key")
+    local actor = actor_api.new("hero", "player", 2, 1, 7); actor.facing = "west"; actor.inventory = inventory
+    world:place_actor(actor)
+    local picked, removed
+    events.on("item_picked_up", function(payload) picked = payload end)
+    events.on("world_item_removed", function(payload) removed = payload end)
+    local changed = interaction.use(world, actor, events)
+    assert(changed); assert(world_items.get(world, "world.key") == nil)
+    equal(inventory_api.get_item(inventory, "item.world.key").id, "item.world.key")
+    equal(picked.actor_id, "hero"); equal(picked.item_id, "item.world.key"); equal(picked.x, 1)
+    equal(removed.world_item_id, "world.key"); equal(removed.quantity, 1)
+    local dropped = item_transfers.drop(world, inventory, "item.world.key", position.new(1, 2, 7), actor.id)
+    equal(dropped.item.id, "item.world.key"); assert(inventory_api.get_item(inventory, "item.world.key") == nil)
+    equal(world_items.get(world, dropped.id).item.id, "item.world.key")
+end)
+
+test("failed non-stackable pickup leaves world ownership unchanged", function()
+    local world, inventory, registry = world_item_fixture(1)
+    inventory_api.add_item(inventory, item_instance.new({ id = "item.held.key", type = "old_iron_key" }, registry))
+    world_items.place(world, item_instance.new({ id = "item.waiting.key", type = "old_iron_key" }, registry),
+        position.new(1, 1, 7), "world.waiting.key")
+    local result, reason = item_transfers.pickup(world, inventory, "world.waiting.key", "hero")
+    equal(result.inserted_quantity, 0); equal(reason, "inventory_full")
+    equal(world_items.get(world, "world.waiting.key").item.id, "item.waiting.key")
+    assert(inventory_api.get_item(inventory, "item.waiting.key") == nil)
+end)
+
+test("stack pickup preserves remainder in world without duplicate ownership", function()
+    local world, inventory, registry = world_item_fixture(1)
+    inventory_api.add_item(inventory, item_instance.new({ id = "item.herb.held", type = "healing_herb", quantity = 15 }, registry))
+    world_items.place(world, item_instance.new({ id = "item.herb.world", type = "healing_herb", quantity = 10 }, registry),
+        position.new(1, 1, 7), "world.herb.partial")
+    local result = item_transfers.pickup(world, inventory, "world.herb.partial", "hero")
+    equal(result.inserted_quantity, 5); equal(result.remainder.quantity, 5)
+    equal(inventory_api.get_quantity(inventory, "healing_herb"), 20)
+    equal(world_items.get(world, "world.herb.partial").item.quantity, 5)
+    assert(inventory_api.get_item(inventory, "item.herb.world") == nil)
+
+    local empty_inventory = inventory_api.create("inventory.empty", "hero", 1, registry)
+    local empty_world = world_item_fixture(1)
+    world_items.place(empty_world, item_instance.new({ id = "item.herb.whole", type = "healing_herb", quantity = 10 }, registry),
+        position.new(1, 1, 7), "world.herb.whole")
+    local whole = item_transfers.pickup(empty_world, empty_inventory, "world.herb.whole", "hero")
+    equal(whole.inserted_quantity, 10); assert(world_items.get(empty_world, "world.herb.whole") == nil)
+    equal(inventory_api.get_item(empty_inventory, "item.herb.whole").id, "item.herb.whole")
+end)
+
+test("whole-item drop preserves identity and emits transfer events", function()
+    events.clear()
+    local world, inventory, registry = world_item_fixture(2)
+    inventory_api.add_item(inventory, item_instance.new({ id = "item.roundtrip", type = "old_iron_key" }, registry))
+    local added, dropped
+    events.on("world_item_added", function(payload) added = payload end)
+    events.on("item_dropped", function(payload) dropped = payload end)
+    local placed = item_transfers.drop(world, inventory, "item.roundtrip", position.new(2, 1, 7), "hero", events)
+    equal(placed.item.id, "item.roundtrip"); assert(inventory_api.get_item(inventory, "item.roundtrip") == nil)
+    equal(world_items.get(world, placed.id).item.id, "item.roundtrip")
+    equal(added.item_id, "item.roundtrip"); equal(dropped.actor_id, "hero"); equal(dropped.z, 7)
+end)
+
+test("world item placement and pickup reject invalid content", function()
+    local world, inventory, registry = world_item_fixture()
+    local herb = item_instance.new({ id = "item.invalid.place", type = "healing_herb" }, registry)
+    assert(not pcall(world_items.place, world, herb, position.new(1, 1, 99), "world.invalid"))
+    local stone = item_instance.new({ id = "item.sealed", type = "sealed_stone" }, registry)
+    world_items.place(world, stone, position.new(1, 1, 7), "world.sealed")
+    local result, reason = item_transfers.pickup(world, inventory, "world.sealed", "hero")
+    equal(result.inserted_quantity, 0); equal(reason, "not_pickupable")
+    assert(world_items.get(world, "world.sealed")); assert(not inventory_api.has_item_type(inventory, "sealed_stone"))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

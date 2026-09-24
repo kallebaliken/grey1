@@ -1,16 +1,23 @@
 local chunks = require "world.chunks"
 local tile_api = require "world.tile"
 local instance_api = require "world.object_instance"
+local item_instance = require "items.item_instance"
+local world_items = require "world.world_items"
 local state_api = require "state.world_state"
 local M = {}
 
 local methods = {}
 methods.__index = methods
 
-function M.new(map, registry, runtime_state)
+function M.new(map, registry, runtime_state, item_registry)
     local self = setmetatable({ map = map, registry = registry, state = runtime_state,
-        chunks = {}, objects = {}, actors = {} }, methods)
+        item_registry = item_registry, chunks = {}, objects = {}, world_items = {}, actors = {} }, methods)
     for _, placement in ipairs(map.placements) do self:add_object(instance_api.new(placement)) end
+    for _, placement in ipairs(map.item_placements or {}) do
+        assert(item_registry, "map item placements require an item registry")
+        local item = item_instance.new(placement.item, item_registry)
+        world_items.place(self, item, placement.position, placement.id)
+    end
     return self
 end
 
@@ -73,9 +80,11 @@ function methods:is_walkable(x, y, z, moving_actor_id)
     if not target or not tile_api.has_ground(target) then return false end
     if target.actor_id and target.actor_id ~= moving_actor_id then return false end
     for _, entry in ipairs(target.objects) do
-        local state = instance_api.state(entry.instance, self.state)
         local blocking = entry.definition.blocking
-        if entry.definition.blocking_state then blocking = entry.definition.blocking_state(state) end
+        if entry.definition.blocking_state then
+            local state = entry.instance.item and state_api.copy(entry.instance.item.state) or instance_api.state(entry.instance, self.state)
+            blocking = entry.definition.blocking_state(state)
+        end
         if blocking then return false end
     end
     return true

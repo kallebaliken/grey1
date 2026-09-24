@@ -31,7 +31,7 @@ function on_message(self, message_id, message)
     local px, py = camera_api.project(self.camera, message.player_x, message.player_y, TILE_SIZE)
     box(self, px, py, { 0.20, 0.45, 0.92, 1 }, 22, 45)
     gui.set_text(gui.get_node("status"), string.format(
-        "Greyhaven engine test | WASD/arrows move | E use | F1 debug | F5 save | F9 load | %s", message.notice))
+        "Greyhaven engine test | WASD/arrows move | E use/pickup | G drop first item | F1 debug | F5 save | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
     gui.set_text(debug, string.format("tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\nchunk: %s  revealed roof: %s",

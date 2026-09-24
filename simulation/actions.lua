@@ -1,5 +1,6 @@
 local interaction = require "simulation.interaction"
 local transitions = require "simulation.transitions"
+local item_transfers = require "simulation.item_transfers"
 local M = {}
 
 function M.register_defaults()
@@ -17,6 +18,11 @@ function M.register_defaults()
         local open = not world:object_state(instance.id).open
         world:set_object_state(instance.id, { open = open }, events)
         return true
+    end)
+    interaction.register("pickup", function(world, actor, instance, definition, events)
+        if not actor.inventory then return false, "no_inventory" end
+        local result, reason = item_transfers.pickup(world, actor.inventory, instance.id, actor.id, events)
+        return result.inserted_quantity > 0, reason
     end)
 end
 return M

@@ -14,6 +14,8 @@ required = [
     "items/item_instance.lua",
     "items/container.lua",
     "items/inventory.lua",
+    "world/world_items.lua",
+    "simulation/item_transfers.lua",
 ]
 for name in required:
     assert (ROOT / name).is_file(), name
@@ -27,6 +29,6 @@ else:
 project = (ROOT / "game.project").read_text()
 assert "main_collection = /main/main.collectionc" in project
 manager = (ROOT / "main/game_manager.script").read_text()
-for contract in ("interaction.use", "save_manager.save", "movement.begin", "renderer.build"):
+for contract in ("interaction.use", "item_transfers.drop", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 print("Greyhaven project wiring passed")

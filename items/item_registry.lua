@@ -25,6 +25,7 @@ local function normalize(key, source)
     assert(source.id == key, "item definition key/id mismatch: " .. key)
     assert(type(source.name) == "string" and source.name ~= "", "item needs a name: " .. key)
     assert(source.stackable == nil or type(source.stackable) == "boolean", "item stackable must be boolean: " .. key)
+    assert(source.pickupable == nil or type(source.pickupable) == "boolean", "item pickupable must be boolean: " .. key)
     assert(source.weight == nil or (type(source.weight) == "number" and source.weight >= 0), "item weight must be non-negative: " .. key)
 
     local definition = copy(source)

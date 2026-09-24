@@ -2,7 +2,8 @@ local M = {}
 
 function M.interior_group(world, position)
     for _, entry in ipairs(world:get_objects(position.x, position.y, position.z)) do
-        if entry.instance.metadata.interior_group then return entry.instance.metadata.interior_group end
+        local metadata = entry.instance.metadata
+        if metadata and metadata.interior_group then return metadata.interior_group end
     end
 end
 

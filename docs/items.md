@@ -28,6 +28,14 @@ Inventory operations delegate insertion, removal, snapshots, stack identity, ove
 
 Removal currently removes the complete item instance identified by its stable ID. Partial stack removal is deferred because generic containers do not yet define that operation.
 
+## World ownership and transfers
+
+Canary moves an `Item` between `Tile` and `Cylinder` parents through its server movement machinery. Greyhaven keeps the transferable concept but makes the operation explicit: `world/world_items.lua` places the same item-instance model in a logical tile stack, while `simulation/item_transfers.lua` coordinates ownership changes between that world location and an inventory. A world placement has its own stable placement ID, position, and contained item instance; it is not another item type.
+
+Pickup first asks the inventory/container how much it can accept. Only that quantity leaves the world: a partial stack retains its item ID and remaining quantity on the tile, while a fully accepted instance exists only in inventory. Whole-instance drop validates the destination before removing the inventory item, then places it in the world under the deterministic placement ID `world.<item-id>`. The item ID therefore survives a world → inventory → world round trip. Transfer and world-placement events contain stable IDs, quantities, and logical `(x, y, z)` coordinates.
+
+World items share deterministic tile ordering with fixtures but resolve visuals from item definitions. Placement requires an in-bounds existing ground tile at the requested Z level; it deliberately does not require that tile to be walkable. `pickupable` is an item-definition policy rather than a property of walls, doors, or other logical fixtures.
+
 ## Deferred boundaries
 
-The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, world pickup/drop, GUI, item effects, weight limits, or persistence. Actor creation does not yet construct an inventory automatically; the gameplay composition root will do that when actor inventory policies are introduced. The item representation leaves instance state extensible, but nested containers need explicit ownership and cycle rules before they are safe.
+The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, GUI, item usage/effects, merchants, loot generation, weight limits, or partial-stack dropping. Save version 1 does not yet capture inventory contents, removed static items, or newly dropped items; world-item and inventory persistence is the immediate follow-up and must extend the existing versioned save model rather than create another one.

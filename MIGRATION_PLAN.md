@@ -29,7 +29,7 @@ Support independent visual/gameplay footprints, ordered stacks, grouped roofs, r
 
 Add immutable item definitions and per-instance state; reusable containers; inventory/equipment policies; world pickup/drop actions; events; and serialization tests. No GUI dependency belongs in these modules.
 
-Completed slices: validated item definitions and instances, fixed-slot generic containers with deterministic merging, and stable-ID inventory ownership composed over a container. Equipment, nested containers, world placement, actions, events, and serialization remain out of scope.
+Completed slices: validated item definitions and instances, fixed-slot generic containers, stable-ID inventory ownership, and explicit world placement/pickup/drop transfers with registered interaction, events, and placeholder rendering. Equipment, nested containers, item use, and item/inventory serialization remain out of scope.
 
 ### 5 — Actors, navigation, and combat
 
@@ -45,4 +45,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add data-driven equipment slots and equip/unequip policies over the inventory model. Nested containers, world pickup/drop, pathfinding, combat, narrative, and production content remain explicitly out of scope for that slice.
+Extend the existing versioned save model with inventory contents, removed static world items, and newly dropped world items. Equipment, nested containers, pathfinding, combat, narrative, and production content remain explicitly out of scope for that slice.
