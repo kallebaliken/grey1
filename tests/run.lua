@@ -17,6 +17,7 @@ local definitions = require "objects.object_defs"
 local item_definitions = require "items.item_defs"
 local item_registry_api = require "items.item_registry"
 local item_instance = require "items.item_instance"
+local container_api = require "items.container"
 
 local count = 0
 local function test(name, callback)
@@ -134,6 +135,77 @@ test("item instances own bounded quantity and mutable state", function()
     assert(not pcall(item_instance.set_quantity, herb, 21, registry))
     assert(not pcall(item_instance.new, { id = "key.1", type = "old_iron_key", quantity = 2 }, registry))
     assert(not pcall(item_instance.new, { id = "unknown.1", type = "missing" }, registry))
+end)
+
+local function item_fixture(id, item_type, quantity, state)
+    return item_instance.new({ id = id, type = item_type, quantity = quantity, state = state }, item_registry_api.new(item_definitions))
+end
+
+test("containers report slot capacity and isolate non-stackable items", function()
+    local registry = item_registry_api.new(item_definitions)
+    local container = container_api.create("chest.1", 1)
+    equal(container.id, "chest.1"); equal(container.capacity, 1)
+    assert(not pcall(function() container.capacity = 2 end))
+    equal(container_api.get_count(container), 0); equal(container_api.get_remaining_capacity(container), 1)
+    assert(not container_api.is_full(container)); equal(#container_api.get_items(container, registry), 0)
+
+    local key = item_fixture("key.1", "old_iron_key")
+    local added = container_api.add_item(container, key, registry)
+    equal(added.inserted_quantity, 1); assert(added.remainder == nil); assert(container_api.is_full(container))
+    key.state.owner = "caller"; key.quantity = 99
+    local stored = container_api.get_item(container, "key.1", registry)
+    equal(stored.quantity, 1); assert(stored.state.owner == nil)
+    stored.state.owner = "getter"
+    assert(container_api.get_item(container, "key.1", registry).state.owner == nil)
+    local snapshot = container_api.get_items(container, registry)
+    snapshot[1].state.owner = "snapshot"; snapshot[2] = item_fixture("key.fake", "old_iron_key")
+    equal(container_api.get_count(container), 1)
+    assert(container_api.get_item(container, "key.1", registry).state.owner == nil)
+
+    local rejected = container_api.add_item(container, item_fixture("key.2", "old_iron_key"), registry)
+    equal(rejected.inserted_quantity, 0); equal(rejected.remainder.id, "key.2")
+    equal(container_api.get_count(container), 1)
+    local removed = container_api.remove_item(container, "key.1", registry)
+    equal(removed.id, "key.1"); equal(container_api.get_count(container), 0)
+    assert(container_api.get_item(container, "key.1", registry) == nil)
+end)
+
+test("containers merge compatible stacks with deterministic identity", function()
+    local registry = item_registry_api.new(item_definitions)
+    local container = container_api.create("crate.1", 2)
+    container_api.add_item(container, item_fixture("herb.existing", "healing_herb", 5, { quality = "fresh" }), registry)
+    local merged = container_api.add_item(container, item_fixture("herb.incoming", "healing_herb", 4, { quality = "fresh" }), registry)
+    equal(merged.inserted_quantity, 4); assert(merged.remainder == nil)
+    equal(container_api.get_count(container), 1)
+    equal(container_api.get_item(container, "herb.existing", registry).quantity, 9)
+    assert(container_api.get_item(container, "herb.incoming", registry) == nil)
+
+    local exact = container_api.add_item(container, item_fixture("herb.exact", "healing_herb", 11, { quality = "fresh" }), registry)
+    equal(exact.inserted_quantity, 11); equal(container_api.get_item(container, "herb.existing", registry).quantity, 20)
+    assert(container_api.get_item(container, "herb.exact", registry) == nil)
+end)
+
+test("container stack overflow uses a new slot without losing identity", function()
+    local registry = item_registry_api.new(item_definitions)
+    local container = container_api.create("crate.overflow", 2)
+    container_api.add_item(container, item_fixture("herb.old", "healing_herb", 15), registry)
+    local result = container_api.add_item(container, item_fixture("herb.new", "healing_herb", 10), registry)
+    equal(result.inserted_quantity, 10); assert(result.remainder == nil)
+    equal(container_api.get_item(container, "herb.old", registry).quantity, 20)
+    equal(container_api.get_item(container, "herb.new", registry).quantity, 5)
+    equal(container_api.get_count(container), 2)
+end)
+
+test("container returns stack overflow when no slot remains", function()
+    local registry = item_registry_api.new(item_definitions)
+    local container = container_api.create("crate.full", 1)
+    container_api.add_item(container, item_fixture("herb.old.full", "healing_herb", 15), registry)
+    local incoming = item_fixture("herb.leftover", "healing_herb", 10)
+    local result = container_api.add_item(container, incoming, registry)
+    equal(result.inserted_quantity, 5); equal(result.remainder.quantity, 5); equal(result.remainder.id, "herb.leftover")
+    equal(incoming.quantity, 10); equal(container_api.get_item(container, "herb.old.full", registry).quantity, 20)
+    assert(not pcall(container_api.add_item, container, { id = "invalid", type = "missing", quantity = 1 }, registry))
+    assert(not pcall(container_api.add_item, container, item_fixture("herb.old.full", "healing_herb", 1), registry))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

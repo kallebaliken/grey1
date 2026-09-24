@@ -47,4 +47,8 @@ function M.remaining_capacity(instance, registry)
     return registry:get(instance.type).max_stack - instance.quantity
 end
 
+function M.copy(instance, registry)
+    return M.new(instance, registry)
+end
+
 return M

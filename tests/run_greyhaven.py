@@ -12,6 +12,7 @@ required = [
     "items/item_defs.lua",
     "items/item_registry.lua",
     "items/item_instance.lua",
+    "items/container.lua",
 ]
 for name in required:
     assert (ROOT / name).is_file(), name
