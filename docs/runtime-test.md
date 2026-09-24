@@ -26,12 +26,15 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+F1 reports the player Actor ID/type, logical tile and Z, facing, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+
+The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled, but production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
 ## Ordered playtest route
 
 1. Press **F8**, then **F1**. Confirm player `player (player)` starts at `(9,2,7)`, facing west, with 15 herbs.
 2. Walk with both WASD and arrows. Confirm the blue player interpolates between tiles while F1 reports the authoritative destination tile.
+   Confirm the F1 render-command and active-node counts stay well below the displayed 1024-node capacity while the camera moves.
 3. Try to cross a wall or table and confirm it blocks movement.
 4. Walk to the brown-orange `npc_test_villager` at `(12,5,7)` and confirm its occupied tile blocks the player.
 5. Return to `(9,2,7)`. Step west onto the herb tile and east back to face the gold key, then press **E**. Confirm the key disappears and appears in F1 inventory.

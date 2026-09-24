@@ -20,6 +20,7 @@ required = [
     "actors/registry.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
+    "render/viewport.lua",
     "simulation/pathfinding.lua",
     "world/world_items.lua",
     "simulation/item_transfers.lua",
@@ -46,6 +47,9 @@ assert 'component: \\"/main/world.gui\\"' in collection
 gui = (ROOT / "main/world.gui").read_text()
 assert 'script: "/main/world.gui_script"' in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
+assert "max_nodes: 1024" in gui
+gui_script = (ROOT / "main/world.gui_script").read_text()
+assert "gui.set_enabled(self.nodes[index], false)" in gui_script
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader

@@ -20,6 +20,11 @@ local equipment_api = require "items.equipment"
 local item_transfers = require "simulation.item_transfers"
 local pathfinding = require "simulation.pathfinding"
 local view_model = require "main.view_model"
+local viewport_api = require "render.viewport"
+
+local VIEW_WIDTH_TILES = 960 / 32
+local VIEW_HEIGHT_TILES = 640 / 32
+local VIEW_MARGIN_TILES = 2
 
 local function describe_tile(world, position)
     local names = {}
@@ -46,10 +51,11 @@ local function describe_equipment(equipment)
 end
 
 local function render(self)
-    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset)
+    local visual = movement.visual_position(self.player)
+    local viewport = viewport_api.new(visual.x, visual.y, VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES, VIEW_MARGIN_TILES)
+    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset, viewport)
     local target = interaction.find_target(self.world, self.player)
     local p = self.player.position
-    local visual = movement.visual_position(self.player)
     local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
     view_model.frame = { commands = commands,
         player_x = visual.x, player_y = visual.y,
@@ -60,7 +66,8 @@ local function render(self)
         inventory = describe_inventory(self.player.inventory),
         equipment = describe_equipment(self.player.equipment),
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
-        inspection_offset = self.inspect_offset, notice = self.notice or "" }
+        inspection_offset = self.inspect_offset, notice = self.notice or "",
+        render_commands = #commands }
     msg.post("#view", "render_world")
 end
 

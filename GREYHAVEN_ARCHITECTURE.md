@@ -8,7 +8,7 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 2. **World model** — `world/` owns positions/directions, chunk-addressed tiles, stable object and world-item placements, the shared Actor registry/occupancy, Z visibility, and roof queries.
 3. **Simulation** — `simulation/` owns actor interpolation runtime, deterministic bounded A*, generic movement validation, transitions, item transfers, and interaction dispatch.
 4. **State** — `state/` owns runtime object deltas, inventory/equipment snapshots, static-item overrides, dynamic world-item snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
-5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered draw commands.
+5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered, camera-culled draw commands. Culling uses graphical extents and a small viewport margin, never gameplay collision footprints.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
 7. **Items** — `items/` validates immutable item-type definitions, creates runtime instances, provides generic containers/inventories, and transfers instances through data-driven equipment slots. It has no Defold dependency and does not implement nested containers or combat effects.
 
@@ -37,3 +37,5 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 ## Scale boundary
 
 Tiles are already addressed through 32×32 chunks, although the engine-test map keeps all chunks resident. Streaming, visible-chunk culling, and spatial roof-group indexes can be added behind existing queries without changing map or simulation APIs.
+
+The current GUI box-node world adapter is temporary prototype presentation. It pools nodes and uses a 1024-node playtest capacity, but the long-term renderer should use tilemaps, sprites, meshes/batching, or chunked rendering and reserve GUI primarily for UI/HUD.

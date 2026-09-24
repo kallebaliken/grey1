@@ -29,6 +29,8 @@ local equipment_slots = require "items.equipment_slots"
 local world_items = require "world.world_items"
 local item_transfers = require "simulation.item_transfers"
 local renderer = require "render.world_renderer"
+local render_order = require "render.render_order"
+local viewport_api = require "render.viewport"
 local events = require "core.events"
 
 local count = 0
@@ -540,6 +542,34 @@ test("world items place, render, retrieve, and remove stable instances", functio
     local removed = world_items.remove(world, "world.herb")
     equal(removed.item.id, "item.world.herb"); assert(world_items.get(world, "world.herb") == nil)
     equal(#world:get_objects(1, 1, 7), 1)
+end)
+
+test("renderer culls by viewport and preserves graphical extents, roofs, and ordering", function()
+    local map = { id = "render_culling", version = 1, tile_size = 32, width = 12, height = 4, placements = {
+        placement("inside.ground", "grass", 2, 1, 7),
+        placement("far.ground", "grass", 9, 1, 7),
+        placement("overlap.wide", "wall_block", 0, 1, 7),
+        placement("inside.detail", "interior", 2, 1, 7, {}, { interior_group = "test_roof" }),
+        placement("inside.roof", "roof", 2, 1, 8, {}, { roof_group = "test_roof" }),
+    } }
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new())
+    local viewer = actor_api.new("render.viewer", "player", 2, 1, 7); world:place_actor(viewer)
+    local viewport = viewport_api.new(2, 1, 2, 2, 0)
+    local commands = renderer.build(world, viewer, 0, viewport)
+    local ids = {}
+    for index, command in ipairs(commands) do
+        ids[command.id] = true
+        if index > 1 then assert(not render_order.less(command, commands[index - 1])) end
+    end
+    assert(ids["inside.ground:1"], "inside object must render")
+    assert(not ids["far.ground:1"], "far object must be culled")
+    assert(ids["overlap.wide:2"], "graphical footprint overlapping the viewport must render")
+    assert(not ids["inside.roof:1"], "revealed roof must remain hidden after culling")
+
+    viewer.position = position.new(5, 1, 7)
+    commands = renderer.build(world, viewer, 0, viewport)
+    ids = {}; for _, command in ipairs(commands) do ids[command.id] = true end
+    assert(ids["inside.roof:1"], "unrevealed roof must render after culling")
 end)
 
 test("engine test map loads its stable herb and key placements", function()

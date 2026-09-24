@@ -1,4 +1,5 @@
 script: "/main/world.gui_script"
+max_nodes: 1024
 fonts {
   name: "default"
   font: "/builtins/fonts/default.font"
