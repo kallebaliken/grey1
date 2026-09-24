@@ -11,6 +11,34 @@ function M.load(module_name)
         assert(not ids[placement.id], "duplicate placement id: " .. placement.id)
         ids[placement.id] = true
     end
+    local item_ids = {}
+    for _, placement in ipairs(map.item_placements or {}) do
+        assert(type(placement.id) == "string", "world item placements require stable string ids")
+        assert(not ids[placement.id], "duplicate placement id: " .. placement.id)
+        assert(type(placement.item) == "table" and type(placement.item.id) == "string", "world item placements require item instances")
+        assert(not item_ids[placement.item.id], "duplicate world item instance id: " .. placement.item.id)
+        assert(type(placement.position) == "table", "world item placements require positions")
+        ids[placement.id], item_ids[placement.item.id] = true, true
+    end
+    local actor_ids = {}
+    for _, placement in ipairs(map.actor_placements or {}) do
+        assert(type(placement.id) == "string", "actor placements require stable string ids")
+        assert(not actor_ids[placement.id], "duplicate actor id: " .. placement.id)
+        assert(type(placement.type) == "string" and type(placement.x) == "number"
+            and type(placement.y) == "number" and type(placement.z) == "number",
+            "actor placements require type and position")
+        actor_ids[placement.id] = true
+    end
+    if map.player_inventory then
+        assert(type(map.player_inventory.id) == "string" and type(map.player_inventory.owner_id) == "string",
+            "player inventory requires stable identity")
+        assert(type(map.player_inventory.capacity) == "number" and type(map.player_inventory.items) == "table",
+            "player inventory requires capacity and items")
+    end
+    if map.player_equipment then
+        assert(type(map.player_equipment.id) == "string" and type(map.player_equipment.owner_id) == "string"
+            and type(map.player_equipment.slots) == "table", "player equipment requires identity and slots")
+    end
     return map
 end
 
