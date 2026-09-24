@@ -38,4 +38,4 @@ World items share deterministic tile ordering with fixtures but resolve visuals 
 
 ## Deferred boundaries
 
-The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, GUI, item usage/effects, merchants, loot generation, weight limits, or partial-stack dropping. Save version 1 does not yet capture inventory contents, removed static items, or newly dropped items; world-item and inventory persistence is the immediate follow-up and must extend the existing versioned save model rather than create another one.
+The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, GUI, item usage/effects, merchants, loot generation, weight limits, or partial-stack dropping. Save version 2 persists inventory ownership, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.

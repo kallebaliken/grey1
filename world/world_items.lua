@@ -78,6 +78,23 @@ function M.set_quantity(world, world_item_id, quantity)
     return copy_world_item(world_item, world.item_registry)
 end
 
+function M.restore_static(world, world_item_id, override)
+    assert(type(override) == "table", "invalid static world item override")
+    if override.removed then return M.remove(world, world_item_id) end
+    local world_item = assert(world.world_items[world_item_id], "unknown static world item: " .. tostring(world_item_id))
+    local restored = item_instance.new({ id = world_item.item.id, type = world_item.item.type,
+        quantity = override.quantity or world_item.item.quantity,
+        state = override.state or world_item.item.state }, world.item_registry)
+    world_item.item = restored
+    return copy_world_item(world_item, world.item_registry)
+end
+
+function M.restore_dynamic(world, snapshot)
+    assert(type(snapshot) == "table" and type(snapshot.item) == "table", "invalid dynamic world item snapshot")
+    local item = item_instance.new(snapshot.item, world.item_registry)
+    return M.place(world, item, position_api.new(snapshot.x, snapshot.y, snapshot.z), snapshot.id)
+end
+
 function M.remove(world, world_item_id, events)
     local world_item = world.world_items[world_item_id]
     if not world_item then return nil end

@@ -8,7 +8,7 @@
 
 Controls: **E** uses or picks up the target ahead, **G** drops the first inventory item on the player's tile, **F1** toggles diagnostics, **F5** saves, **F9** loads, **F8** resets the development save, and holding **Page Up/Page Down** inspects an adjacent Z level without changing gameplay position. **G** is a temporary development control, not inventory UI.
 
-Route: the green herb begins immediately west of the player and the gold key begins east. Face either item and press E to pick it up, then press G to drop the first held item. Follow the dirt road left to the cottage, stand below its brown door and face north, press E, enter, approach the cyan stair from below and press E, explore the basement, then face south toward its stair and press E to return. Door, chest, stairs, and pickup are registered interactions; the chest intentionally only toggles placeholder state.
+Persistence route: start fresh with 15 carried herbs. Step west and back east to face the gold key, then press E to pick it up. Step east onto the key's former tile and back west to face the green 10-herb stack, then press E. Five herbs merge into the carried stack and five remain on the tile because both inventory slots are occupied. Press G on a different tile to drop the carried 20-herb stack while retaining the key. Follow the dirt road left to the cottage, open its brown door, enter, use the cyan stair, and save downstairs with F5. Restart or use F9. Door, chest, stairs, and pickup are registered interactions; the chest intentionally only toggles placeholder state.
 
 ## Checklist
 
@@ -16,6 +16,8 @@ Route: the green herb begins immediately west of the player and the gold key beg
 - [ ] movement works and F1 reports authoritative coordinates/facing
 - [ ] the herb and key render on their logical tiles
 - [ ] E removes the targeted item from the world and G restores it on the player's tile
+- [ ] partial herb pickup leaves five herbs at the original static placement
+- [ ] F1 shows stable item IDs and quantities in the inventory diagnostic
 - [ ] item pickup/drop does not affect door, chest, stair, or movement behavior
 - [ ] walls and table block the player
 - [ ] closed door blocks the player
@@ -28,9 +30,10 @@ Route: the green herb begins immediately west of the player and the gold key beg
 - [ ] return stairs restore Z7
 - [ ] F5 saves in the basement after opening the door
 - [ ] restart or F9 restores basement position/facing and the open door
+- [ ] reload retains `test.key.01` in inventory and does not respawn its static placement
+- [ ] reload retains the five-herb static remainder and the dropped 20-herb stack at its chosen tile
 - [ ] F8 resets the save for a clean run
-
-Inventory and world-item mutations are session-only in save version 1. Loading or restarting restores the two static test items and an empty inventory until the follow-up persistence slice lands.
+- [ ] F8 immediately restores the authored key, 10-herb world stack, and 15-herb starter inventory
 
 ## Pure Lua tests
 

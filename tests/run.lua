@@ -105,7 +105,8 @@ end)
 
 test("save capture, serialization, deserialization and restore", function()
     local world, map = fixture(); local actor = actor_api.new("hero", "player", 5, 1, 6); actor.facing = "north"
-    world:set_object_state("door", { open = true }); local saved = save_data.capture(actor, world.state, map.id)
+    actor.inventory = inventory_api.create("inventory.hero", actor.id, 2, item_registry_api.new(item_definitions))
+    world:set_object_state("door", { open = true }); local saved = save_data.capture(actor, world, map.id)
     local decoded = codec.deserialize(codec.serialize(saved)); assert(save_data.validate(decoded, map.id)); assert(decoded.objects.door.open)
     local restored = actor_api.new("hero", "player", 1, 1, 7); save_data.restore_player(restored, decoded)
     equal(restored.tile_position.z, 6); equal(restored.facing, "north")
@@ -372,6 +373,98 @@ test("world item placement and pickup reject invalid content", function()
     local result, reason = item_transfers.pickup(world, inventory, "world.sealed", "hero")
     equal(result.inserted_quantity, 0); equal(reason, "not_pickupable")
     assert(world_items.get(world, "world.sealed")); assert(not inventory_api.has_item_type(inventory, "sealed_stone"))
+end)
+
+test("save v2 serializes empty and populated inventory snapshots safely", function()
+    local world, empty_inventory, registry = world_item_fixture(3)
+    local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
+    local empty = save_data.capture(actor, world, world.map.id)
+    equal(empty.version, 2); equal(#empty.inventory.items, 0)
+    local old = state_api.copy(empty); old.version = 1
+    local old_valid, old_reason = save_data.validate(old, world.map)
+    assert(not old_valid); equal(old_reason, "unsupported_save_version")
+
+    inventory_api.add_item(actor.inventory, item_instance.new({ id = "save.herb", type = "healing_herb",
+        quantity = 8, state = { quality = "dried" } }, registry))
+    inventory_api.add_item(actor.inventory, item_instance.new({ id = "save.key", type = "old_iron_key",
+        state = { lock = "cellar" } }, registry))
+    local decoded = codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id)))
+    local valid, reason = save_data.validate(decoded, world.map)
+    assert(valid, reason); equal(decoded.inventory.items[1].id, "save.herb")
+    equal(decoded.inventory.items[1].quantity, 8); equal(decoded.inventory.items[1].state.quality, "dried")
+    equal(decoded.inventory.items[2].id, "save.key"); equal(decoded.inventory.items[2].state.lock, "cellar")
+    decoded.inventory.items[1].state.quality = "changed"
+    equal(inventory_api.get_item(actor.inventory, "save.herb").state.quality, "dried")
+    local restored = save_data.restore_inventory(codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id))), registry)
+    equal(inventory_api.get_item(restored, "save.herb").id, "save.herb")
+    equal(inventory_api.get_item(restored, "save.key").id, "save.key")
+end)
+
+test("save v2 restores exclusive inventory and world item ownership", function()
+    events.clear()
+    local map = map_loader.load("data.maps.prototype")
+    local registry = item_registry_api.new(item_definitions)
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
+    local actor = actor_api.new("player", "player", 9, 2, 7)
+    actor.inventory = inventory_api.restore(map.player_inventory, registry)
+
+    local key_pickup = item_transfers.pickup(world, actor.inventory, "world.test.key.01", actor.id)
+    equal(key_pickup.inserted_quantity, 1)
+    local herb_pickup = item_transfers.pickup(world, actor.inventory, "world.test.herbs.01", actor.id)
+    equal(herb_pickup.inserted_quantity, 5); equal(herb_pickup.remainder.quantity, 5)
+    local dropped = item_transfers.drop(world, actor.inventory, "test.starter.000001", position.new(9, 3, 7), actor.id)
+    world:set_object_state("greyhaven.house01.front_door", { open = true })
+    actor.tile_position = position.new(5, 5, 6); actor.visual_position = position.copy(actor.tile_position); actor.facing = "north"
+
+    local saved = codec.deserialize(codec.serialize(save_data.capture(actor, world, map.id)))
+    local valid, reason = save_data.validate(saved, map); assert(valid, reason)
+    assert(saved.world_items.static_overrides["world.test.key.01"].removed)
+    equal(saved.world_items.static_overrides["world.test.herbs.01"].quantity, 5)
+    equal(saved.world_items.dynamic[1].id, dropped.id); equal(saved.world_items.dynamic[1].x, 9)
+
+    local restored_world = world_api.new(map, registry_api.new(definitions), state_api.new(saved), registry)
+    local gameplay_events = 0
+    events.on("item_picked_up", function() gameplay_events = gameplay_events + 1 end)
+    events.on("item_dropped", function() gameplay_events = gameplay_events + 1 end)
+    save_data.apply_static_item_overrides(restored_world, saved)
+    local restored_inventory = save_data.restore_inventory(saved, registry)
+    save_data.restore_dynamic_world_items(restored_world, saved)
+    local restored_actor = actor_api.new("player", "player", 9, 2, 7); restored_actor.inventory = restored_inventory
+    save_data.restore_player(restored_actor, saved)
+
+    equal(gameplay_events, 0); equal(restored_actor.tile_position.z, 6); equal(restored_actor.facing, "north")
+    assert(restored_world:object_state("greyhaven.house01.front_door").open)
+    equal(inventory_api.get_item(restored_inventory, "test.key.01").id, "test.key.01")
+    assert(world_items.get(restored_world, "world.test.key.01") == nil)
+    equal(world_items.get(restored_world, "world.test.herbs.01").item.quantity, 5)
+    local restored_drop = world_items.get(restored_world, dropped.id)
+    equal(restored_drop.item.id, "test.starter.000001"); equal(restored_drop.item.state.quality, "fresh")
+    equal(restored_drop.position.x, 9); equal(restored_drop.position.y, 3); equal(restored_drop.position.z, 7)
+    assert(inventory_api.get_item(restored_inventory, "test.starter.000001") == nil)
+
+    local allocator = save_data.create_item_id_allocator(saved, map)
+    equal(allocator:next("test.starter"), "test.starter.000002")
+end)
+
+test("save validation rejects duplicate item ownership", function()
+    local map = map_loader.load("data.maps.prototype")
+    local registry = item_registry_api.new(item_definitions)
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
+    local actor = actor_api.new("player", "player", 9, 2, 7); actor.inventory = inventory_api.restore(map.player_inventory, registry)
+    local saved = save_data.capture(actor, world, map.id)
+    saved.inventory.items[#saved.inventory.items + 1] = state_api.copy(map.item_placements[1].item)
+    local valid, reason = save_data.validate(saved, map)
+    assert(not valid); equal(reason, "duplicate_item_ownership")
+end)
+
+test("fresh session after reset uses authored item state", function()
+    local map = map_loader.load("data.maps.prototype")
+    local registry = item_registry_api.new(item_definitions)
+    local fresh_world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
+    local fresh_inventory = inventory_api.restore(map.player_inventory, registry)
+    equal(world_items.get(fresh_world, "world.test.herbs.01").item.quantity, 10)
+    equal(world_items.get(fresh_world, "world.test.key.01").item.id, "test.key.01")
+    equal(inventory_api.get_item(fresh_inventory, "test.starter.000001").quantity, 15)
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

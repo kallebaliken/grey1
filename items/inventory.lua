@@ -82,4 +82,21 @@ function M.has_item_type(inventory, type_id)
     return M.get_quantity(inventory, type_id) > 0
 end
 
+function M.snapshot(inventory)
+    local record = record_for(inventory)
+    return { id = record.id, owner_id = record.owner_id, capacity = record.container.capacity,
+        items = container_api.get_items(record.container, record.registry) }
+end
+
+function M.restore(snapshot, registry)
+    assert(type(snapshot) == "table" and type(snapshot.items) == "table", "invalid inventory snapshot")
+    local inventory = M.create(snapshot.id, snapshot.owner_id, snapshot.capacity, registry)
+    for _, item in ipairs(snapshot.items) do
+        local result = M.add_item(inventory, item)
+        assert(result.inserted_quantity == item.quantity and not result.remainder, "inventory snapshot exceeds capacity")
+        assert(M.get_item(inventory, item.id), "inventory snapshot contains a non-canonical merged stack")
+    end
+    return inventory
+end
+
 return M

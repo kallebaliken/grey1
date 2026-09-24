@@ -20,6 +20,12 @@ function M.load(module_name)
         assert(type(placement.position) == "table", "world item placements require positions")
         ids[placement.id], item_ids[placement.item.id] = true, true
     end
+    if map.player_inventory then
+        assert(type(map.player_inventory.id) == "string" and type(map.player_inventory.owner_id) == "string",
+            "player inventory requires stable identity")
+        assert(type(map.player_inventory.capacity) == "number" and type(map.player_inventory.items) == "table",
+            "player inventory requires capacity and items")
+    end
     return map
 end
 
