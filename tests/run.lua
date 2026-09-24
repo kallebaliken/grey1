@@ -18,6 +18,7 @@ local item_definitions = require "items.item_defs"
 local item_registry_api = require "items.item_registry"
 local item_instance = require "items.item_instance"
 local container_api = require "items.container"
+local inventory_api = require "items.inventory"
 
 local count = 0
 local function test(name, callback)
@@ -206,6 +207,49 @@ test("container returns stack overflow when no slot remains", function()
     equal(incoming.quantity, 10); equal(container_api.get_item(container, "herb.old.full", registry).quantity, 20)
     assert(not pcall(container_api.add_item, container, { id = "invalid", type = "missing", quantity = 1 }, registry))
     assert(not pcall(container_api.add_item, container, item_fixture("herb.old.full", "healing_herb", 1), registry))
+end)
+
+test("inventory owns and delegates to one generic container", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.hero", "player", 2, registry)
+    equal(inventory.id, "inventory.hero"); equal(inventory.owner_id, "player")
+    assert(not pcall(function() inventory.owner_id = "other" end))
+    local container = inventory_api.get_container(inventory)
+    equal(container.id, "inventory.hero.items"); equal(container.capacity, 2)
+    equal(inventory_api.get_count(inventory), 0); equal(inventory_api.get_remaining_capacity(inventory), 2)
+    assert(not inventory_api.is_full(inventory)); assert(not inventory_api.has_item_type(inventory, "healing_herb"))
+
+    local herb = item_fixture("inventory.herb", "healing_herb", 7, { quality = "fresh" })
+    local result = inventory_api.add_item(inventory, herb)
+    equal(result.inserted_quantity, 7); assert(result.remainder == nil)
+    equal(inventory_api.get_quantity(inventory, "healing_herb"), 7)
+    assert(inventory_api.has_item_type(inventory, "healing_herb"))
+    local key_result = inventory_api.add_item(inventory, item_fixture("inventory.key", "old_iron_key"))
+    equal(key_result.inserted_quantity, 1); assert(inventory_api.is_full(inventory))
+
+    local found = inventory_api.get_item(inventory, "inventory.herb")
+    equal(found.quantity, 7); found.state.quality = "spoiled"
+    equal(inventory_api.get_item(inventory, "inventory.herb").state.quality, "fresh")
+    local snapshot = inventory_api.get_items(inventory)
+    snapshot[1].quantity = 1; snapshot[3] = item_fixture("inventory.fake", "old_iron_key")
+    equal(inventory_api.get_count(inventory), 2); equal(inventory_api.get_quantity(inventory, "healing_herb"), 7)
+
+    local removed = inventory_api.remove_item(inventory, "inventory.key")
+    equal(removed.id, "inventory.key"); equal(inventory_api.get_count(inventory), 1)
+    assert(inventory_api.get_item(inventory, "inventory.key") == nil)
+end)
+
+test("inventory preserves partial insertion and validation contracts", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.full", "player", 1, registry)
+    inventory_api.add_item(inventory, item_fixture("inventory.stack", "healing_herb", 15))
+    local incoming = item_fixture("inventory.overflow", "healing_herb", 10)
+    local result = inventory_api.add_item(inventory, incoming)
+    equal(result.inserted_quantity, 5); equal(result.remainder.id, "inventory.overflow"); equal(result.remainder.quantity, 5)
+    equal(incoming.quantity, 10); equal(inventory_api.get_quantity(inventory, "healing_herb"), 20)
+    assert(not pcall(inventory_api.get_quantity, inventory, "missing"))
+    assert(not pcall(inventory_api.create, "bad inventory", "player", 1, registry))
+    assert(not pcall(inventory_api.create, "inventory.bad", "", 1, registry))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

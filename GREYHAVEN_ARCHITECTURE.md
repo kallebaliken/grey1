@@ -10,7 +10,7 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 4. **State** — `state/` owns runtime deltas, validated save snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
 5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered draw commands.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
-7. **Items** — `items/` validates immutable item-type definitions, creates independent runtime instances, and provides fixed-slot generic containers with deterministic stack merging. It has no Defold dependency and does not yet implement player ownership or nested containers.
+7. **Items** — `items/` validates immutable item-type definitions, creates independent runtime instances, provides fixed-slot generic containers, and associates an inventory/container with a stable owner ID. It has no Defold dependency and does not yet implement equipment or nested containers.
 
 Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; world and simulation modules are ordinary Lua.
 
@@ -26,6 +26,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Saves contain player position/facing, object deltas, flags, map identity, and schema version—never static geometry.
 - Item definitions and item instances are distinct. Definitions are copied behind a registry boundary; instances own quantity and state, and non-stackable items always have quantity one.
 - Containers hold copied item instances in deterministic slot order and expose copied snapshots. Existing stack IDs survive merges; overflow keeps the incoming ID and is returned rather than discarded when no slot is available.
+- An inventory is an ownership wrapper around one generic container, not a second storage implementation. Ownership is represented by a stable ID rather than an actor reference, and all storage behavior delegates to the container.
 
 ## Scale boundary
 

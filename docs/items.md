@@ -20,6 +20,14 @@ Container contents are private. Added instances, returned instances, and item-li
 
 `add_item` always returns `{ inserted_quantity, remainder }`. A `nil` remainder means the entire incoming quantity was accepted. On a partial insertion, `remainder` is an isolated item instance with the incoming ID and uninserted quantity; overflow is never discarded and the caller's input is never mutated.
 
+## Inventory ownership
+
+Canary's player inventory participates in the `Player`/`Cylinder` hierarchy and mixes ownership with equipment slots, protocol updates, capacity weight, and item movement. Greyhaven's `items/inventory.lua` preserves only the ownership boundary: an inventory has stable `id` and `owner_id` values and composes exactly one generic container. It stores no actor table, so the same abstraction can later be owned by an NPC, merchant, companion, or monster ID.
+
+Inventory operations delegate insertion, removal, snapshots, stack identity, overflow, and slot capacity directly to the container subsystem. The underlying container is available through `get_container` and has the deterministic ID `<inventory-id>.items`. Type queries aggregate quantities across stacks and instance states. Inventory metadata and returned item snapshots cannot be used to mutate internal state.
+
+Removal currently removes the complete item instance identified by its stable ID. Partial stack removal is deferred because generic containers do not yet define that operation.
+
 ## Deferred boundaries
 
-Containers deliberately do not yet implement player inventory ownership, equipment, nested backpacks or container references, world pickup/drop, GUI, item effects, weight limits, or persistence. Future ownership systems should compose containers rather than adding those responsibilities here. The item representation leaves instance state extensible, but nested containers need explicit ownership and cycle rules before they are safe.
+The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, world pickup/drop, GUI, item effects, weight limits, or persistence. Actor creation does not yet construct an inventory automatically; the gameplay composition root will do that when actor inventory policies are introduced. The item representation leaves instance state extensible, but nested containers need explicit ownership and cycle rules before they are safe.
