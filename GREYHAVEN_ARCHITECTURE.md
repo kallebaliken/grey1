@@ -38,6 +38,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - The pure-Lua movement controller owns supplied route progress by Actor ID outside Actor state. It advances only through shared movement after each interpolation completes; stale steps block without replanning, while cancellation/replacement preserve an already committed visual step.
 - Combat registries privately own integer health state. Death is one-way in this foundation: health clamps to zero, the Actor remains registered and occupying its tile, and shared capabilities reject new movement and interaction.
 - Attack profiles/cooldowns remain outside Actor and save state. Explicit attacks require living same-Z Actors one cardinal tile apart, emit deterministic lifecycle events, and never choose targets, move, or replan paths.
+- Attack damage resolves from the exact `main_hand` equipment instance through public item APIs: validated weapon metadata replaces profile fallback damage, while empty/non-weapon hands remain unarmed. Derived damage is never persisted.
 
 ## Scale boundary
 

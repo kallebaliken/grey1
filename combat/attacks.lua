@@ -1,6 +1,7 @@
 local ids = require "core.ids"
 local movement = require "simulation.movement"
 local combat_registry = require "combat.registry"
+local attack_damage = require "combat.attack_damage"
 
 local M = {}
 local runtimes = setmetatable({}, { __mode = "k" })
@@ -20,12 +21,24 @@ local function snapshot(profile, cooldown_remaining)
         cooldown = profile.cooldown, cooldown_remaining = cooldown_remaining }
 end
 
-function M.create(world, combat, events)
+function M.create(world, combat, events, item_registry)
     assert(type(world) == "table" and type(world.get_actor) == "function", "attack service requires a world")
     assert(type(combat) == "table", "attack service requires a combat registry")
-    local service = { world = world, combat = combat, events = events }
-    runtimes[service] = { profiles = {}, cooldowns = {} }
+    local service = { world = world, combat = combat, events = events, item_registry = item_registry }
+    runtimes[service] = { profiles = {}, cooldowns = {}, equipment = {} }
     return service
+end
+
+function M.set_equipment(service, actor_id, equipment)
+    if not service.world:get_actor(actor_id) then return false, "unknown_actor" end
+    if not service.item_registry then return false, "no_item_registry" end
+    if type(equipment) ~= "table" or equipment.owner_id ~= actor_id then return false, "invalid_equipment" end
+    runtime(service).equipment[actor_id] = equipment
+    return true
+end
+
+function M.clear_equipment(service, actor_id)
+    runtime(service).equipment[actor_id] = nil
 end
 
 function M.add_profile(service, actor_id, definition)
@@ -57,6 +70,13 @@ function M.get_profile(service, actor_id)
     local data = runtime(service)
     local profile = data.profiles[actor_id]
     return profile and snapshot(profile, data.cooldowns[actor_id]) or nil
+end
+
+function M.get_damage(service, actor_id)
+    local data = runtime(service)
+    local profile = data.profiles[actor_id]
+    if not profile then return nil, "cannot_attack" end
+    return attack_damage.resolve(profile, data.equipment[actor_id], service.item_registry)
 end
 
 function M.update(service, dt)
@@ -96,13 +116,17 @@ function M.try_attack(service, attacker_id, target_id)
     local dy = math.abs(attacker.position.y - target.position.y)
     if dx + dy ~= profile.range then return failure("out_of_range", attacker_id, target_id) end
 
-    if service.events then service.events.emit("actor_attacked", {
-        attacker_id = attacker_id, target_id = target_id, damage = profile.damage }) end
-    local damage = combat_registry.apply_damage(service.combat, target_id, profile.damage,
-        { kind = "attack", attacker_id = attacker_id })
+    local resolved = attack_damage.resolve(profile, data.equipment[attacker_id], service.item_registry)
+    local attack_event = { attacker_id = attacker_id, target_id = target_id, damage = resolved.damage,
+        damage_source = resolved.source, weapon_item_id = resolved.item_id, weapon_type = resolved.item_type }
+    if service.events then service.events.emit("actor_attacked", attack_event) end
+    local damage = combat_registry.apply_damage(service.combat, target_id, resolved.damage,
+        { kind = "attack", attacker_id = attacker_id, damage_source = resolved.source,
+            weapon_item_id = resolved.item_id, weapon_type = resolved.item_type })
     assert(damage.success, damage.reason)
     data.cooldowns[attacker_id] = profile.cooldown
-    return { success = true, attacker_id = attacker_id, target_id = target_id, damage = profile.damage,
+    return { success = true, attacker_id = attacker_id, target_id = target_id, damage = resolved.damage,
+        damage_source = resolved.source, weapon_item_id = resolved.item_id, weapon_type = resolved.item_type,
         target_health = damage.health, target_died = damage.died, cooldown = profile.cooldown }
 end
 

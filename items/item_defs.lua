@@ -28,6 +28,7 @@ return {
         tags = { "equipment", "weapon" }, stack_layer = "bottom", interaction = "pickup",
         patterns = { { { 0.66, 0.68, 0.72, 1 } } },
         equipment = { slots = { "main_hand", "off_hand" } },
+        weapon = { damage = 8 },
     },
     leather_cap = {
         id = "leather_cap", name = "Leather Cap", pickupable = true,

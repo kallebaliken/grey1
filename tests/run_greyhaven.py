@@ -22,6 +22,7 @@ required = [
     "combat/health.lua",
     "combat/registry.lua",
     "combat/attacks.lua",
+    "combat/attack_damage.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -61,6 +62,7 @@ assert "gui.move_above(node, self.nodes[index - 1])" in gui_script
 assert "command.order" not in gui_script
 binding = (ROOT / "input/game.input_binding").read_text()
 assert 'input: KEY_K action: "attack"' in binding
+assert 'input: KEY_L action: "debug_toggle_weapon"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader

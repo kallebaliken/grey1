@@ -34,6 +34,8 @@ Canary combines inventory slots and equipment behavior inside `Player`/`Cylinder
 
 Equip validates the item, requested slot, policy, and vacancy before removing the instance from inventory. The simpler occupied-slot policy rejects replacement; callers explicitly unequip first. Unequip asks the existing inventory/container to accept the item before clearing the slot, so a full inventory leaves equipment unchanged. Both directions preserve the item ID and emit `item_equipped` or `item_unequipped` only for successful gameplay transfers. Read APIs and snapshots return copies rather than live slot tables.
 
+Optional `weapon = { damage = 8 }` metadata is validated with item definitions. A weapon must be non-stackable, equippable in `main_hand`, and have positive integer damage. Attack resolution reads the equipped instance through the public equipment API and resolves its type through the item registry; it never creates a combat copy, so the same stable item ID survives world, inventory, equipment, attack use, and save/load.
+
 ## World ownership and transfers
 
 Canary moves an `Item` between `Tile` and `Cylinder` parents through its server movement machinery. Greyhaven keeps the transferable concept but makes the operation explicit: `world/world_items.lua` places the same item-instance model in a logical tile stack, while `simulation/item_transfers.lua` coordinates ownership changes between that world location and an inventory. A world placement has its own stable placement ID, position, and contained item instance; it is not another item type.
@@ -44,4 +46,4 @@ World items share deterministic tile ordering with fixtures but resolve visuals 
 
 ## Deferred boundaries
 
-The item ownership layers deliberately do not yet implement equipment GUI, combat/stat effects, durability, nested backpacks or container references, item usage, merchants, loot generation, weight limits, or partial-stack dropping. Save version 4 persists inventory, equipment, player combat state, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.
+The item ownership layers deliberately do not yet implement equipment GUI, armor/defense, durability, nested backpacks or container references, item usage, merchants, loot generation, weight limits, or partial-stack dropping. Save version 4 persists inventory, equipment, player combat state, static placement overrides, and dynamic world items through the existing versioned snapshot model; weapon damage remains definition data rather than derived save state. See `docs/save-format.md`.

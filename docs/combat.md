@@ -33,4 +33,6 @@ Attack profiles and cooldown runtime are private state keyed by Actor ID, never 
 
 Rejected attacks never start cooldown or emit `actor_attacked`. A successful attack emits `actor_attacked` first; existing damage resolution then emits `actor_damaged` and, once when lethal, `actor_died`. Cooldown begins only after successful damage, is reduced explicitly by `update(dt)`, does not prevent movement, and is not saved. Loading or resetting creates ready attack runtime. Attacks neither choose targets nor calculate, interrupt, or follow paths.
 
-Weapons, equipment influence, armor, defense, accuracy, misses, critical hits, attack-speed stats, ranged attacks, projectiles, spells, mana, healing, conditions, AI attacks, target-selection AI, chasing, XP, loot, corpses, animations, and combat GUI remain deferred.
+`combat/attack_damage.lua` resolves fixed damage through public equipment and item-registry APIs. An equipped `main_hand` item with validated `weapon.damage` replaces—never adds to—the profile's unarmed damage and contributes its stable item ID/type to the attack result and event. Empty hands or ordinary non-weapon main-hand equipment use the unarmed fallback. Weapons do not alter cooldown, and off-hand/two-handed/dual-wield policies do not exist yet.
+
+Armor, defense, skills, accuracy, misses, critical hits, durability, weapon-speed stats, ranged attacks, ammo, projectiles, spells, mana, healing, conditions, AI attacks, target-selection AI, chasing, XP, loot, corpses, animations, and combat GUI remain deferred.

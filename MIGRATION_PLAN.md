@@ -35,7 +35,7 @@ Completed slices: validated item definitions and instances, containers, inventor
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, and explicit fixed-damage cardinal melee attacks with deterministic cooldowns. Factions, conditions, autonomous AI, weapons, armor, and broader combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks with deterministic cooldowns, and main-hand weapon metadata that replaces unarmed damage. Factions, conditions, autonomous AI, armor, skills, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 

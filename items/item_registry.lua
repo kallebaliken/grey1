@@ -56,6 +56,17 @@ local function normalize(key, source)
             seen[slot_id] = true
         end
     end
+    if definition.weapon ~= nil then
+        assert(type(definition.weapon) == "table" and is_integer(definition.weapon.damage)
+            and definition.weapon.damage > 0, "weapon damage must be a positive integer: " .. key)
+        assert(not definition.stackable, "stackable item cannot be a weapon: " .. key)
+        assert(definition.equipment ~= nil, "weapon must be equippable: " .. key)
+        local hand_allowed = false
+        for _, slot_id in ipairs(definition.equipment.slots) do
+            if slot_id == "main_hand" then hand_allowed = true end
+        end
+        assert(hand_allowed, "weapon must be equippable in main_hand: " .. key)
+    end
     return definition
 end
 

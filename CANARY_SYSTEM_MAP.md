@@ -62,6 +62,8 @@ Canary `Creature` health/change/death concepts now map to a composed Greyhaven C
 
 Canary creature attack execution now maps to an explicit deterministic Actor attack service that validates a caller-supplied target and delegates fixed damage to CombatState. It does not retain Canary weapon/skill formulas, attack scheduling, PvP, conditions, spells, critical hits, imbuements, networking, or combat messages; attack capability is not decision-making AI.
 
+Canary `ItemType` weapon/combat concepts map only to validated Greyhaven item `weapon.damage` metadata, explicit main-hand damage resolution, and the existing CombatState mutation path. The equipped logical item keeps its normal stable identity; skills, hit/defense formulas, weapon speed, imbuements, ammo, charges, critical hits, PvP modifiers, and server scheduling are not carried over.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

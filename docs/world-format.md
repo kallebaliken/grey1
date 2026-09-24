@@ -40,6 +40,8 @@ Every placement ID is a stable, unique string. `type` resolves a definition. `st
 
 `item_placements` is optional immutable map input. Its outer ID identifies the world placement, while `item.id` is the stable logical item identity that survives pickup and drop. The embedded item record uses the same item-instance schema as inventories and containers; runtime transfers never rewrite this source table.
 
+Weapon behavior is item-definition data, not placement data. The prototype authors `test.sword.01` as an ordinary `worn_iron_sword` world item; pickup and equipment retain that item identity while attacks resolve damage from its definition.
+
 `player_max_health` is the authored positive-integer new-game maximum. `actor_placements.max_health` optionally gives a static Actor combat state; omitted Actors retain normal movement/interaction capability without combat state during incremental migration.
 
 `player_attack` and optional `actor_placements.attack` records grant explicit attack capability without adding fields to Actor. This foundation accepts fixed positive-integer damage, `range = 1`, and a positive cooldown in seconds. Cooldown runtime is session-only and is not map or save mutation.

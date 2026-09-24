@@ -22,13 +22,14 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **H** | Development control: calculate and execute the test NPC's path to `(14,7,7)` |
 | **J** | Development control: deal exactly 5 damage to `monster_test_rat` |
 | **K** | Explicitly attack the Actor on the tile directly in front of the player |
+| **L** | Development control: equip/unequip the first inventory weapon in `main_hand` |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, player health/fixed attack/current cooldown, test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, player and test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, and equipment. There is no equipment or combat GUI; **L** is development-only.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -76,9 +77,19 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 9. Save/load and confirm player health persistence still works; attack cooldown intentionally restarts ready.
 10. Exercise movement, H path execution, interactions, items, roofs, stairs, and save/reset as before. Confirm no Defold runtime errors.
 
+## Equipped weapon check
+
+1. Press **F8** for a fresh session. From spawn, move east onto the key tile so the sword at `(11,2,7)` is directly ahead, then press **E** to pick up `test.sword.01`. Avoid filling the second inventory slot first.
+2. Walk next to the rat, face it, and press **K** while unarmed. Confirm exactly five damage and `Attack: 5 unarmed` in F1.
+3. Wait for cooldown, then press **L**. Confirm `main_hand:test.sword.01` in equipment and F1 reports `Attack: 8 weapon` with `worn_iron_sword [test.sword.01]`.
+4. Press **K** and confirm exactly eight—not thirteen—damage. Cooldown remains the authored 0.75 seconds.
+5. After cooldown, press **L** to unequip. Confirm the exact same sword ID returns to inventory and F1 returns to five unarmed damage.
+6. Press **L** again, then **F5** and **F9** (or restart). Confirm the sword remains equipped with the same ID and eight weapon damage still resolves from its definition.
+7. Continue attacking only as health allows, or press **F8** between comparisons. Confirm the dead rat still occupies its tile and no Defold runtime errors occur.
+
 ## Expected prototype content
 
-The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, a healing-herb stack, and an iron key. Equipment test definitions exist but are not authored as extra map content in this playtest.
+The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, the inert test rat, a healing-herb stack, an iron key, and the original `worn_iron_sword` test placement.
 
 ## Automated checks
 
