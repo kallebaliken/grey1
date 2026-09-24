@@ -23,7 +23,7 @@ This audit records concepts, not code to port. It sampled the major ownership bo
 
 ### Implemented Greyhaven replacements
 
-The current runtime now replaces the relevant `Position`, tile stack, object/type identity, creature occupancy, movement-destination validation, teleport/floor transition, and world-query concepts with pure Lua modules. Bounded deterministic A* uses Manhattan distance and authoritative walkability directly across chunk boundaries; it has no creature think loop, scheduler, or network coupling. Door and stair notifications are semantic local events rather than Canary spectator/protocol updates.
+The current runtime now replaces the relevant `Position`, tile stack, object/type identity, creature occupancy, movement-destination validation, teleport/floor transition, and world-query concepts with pure Lua modules. Bounded deterministic A* uses Manhattan distance and authoritative walkability directly across chunk boundaries. Canary creature route execution maps to a separate Greyhaven path controller that feeds supplied steps through shared movement and interpolation; it has no creature think loop, scheduler, autonomous goal selection, or network coupling. Door and stair notifications are semantic local events rather than Canary spectator/protocol updates.
 
 ## Objects and items
 

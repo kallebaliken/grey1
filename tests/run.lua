@@ -11,6 +11,7 @@ local actor_types = require "actors.actor_types"
 local actor_registry_api = require "actors.registry"
 local direction = require "world.direction"
 local movement = require "simulation.movement"
+local movement_controller = require "simulation.movement_controller"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -246,6 +247,106 @@ test("A star crosses chunks and stale paths remain movement-validated", function
     local dx, dy = stale.path[1].x - stale_actor.position.x, stale.path[1].y - stale_actor.position.y
     assert(not movement.begin(stale_world, stale_actor, dx, dy))
     equal(stale_actor.position.x, 0)
+end)
+
+local function finish_controller(controller, limit)
+    for _ = 1, limit or 20 do movement_controller.update(controller, 1) end
+end
+
+test("movement controller validates paths and keeps route state outside Actors", function()
+    local world = path_world(4, 3)
+    local npc = actor_api.new("controller.npc", "npc", 0, 0, 7); world:place_actor(npc)
+    local controller = movement_controller.create(world)
+    assert(controller.states == nil, "controller must not expose mutable path state")
+    equal(movement_controller.get_status(controller, npc.id), "idle")
+    equal(movement_controller.get_remaining_steps(controller, npc.id), 0)
+    assert(npc.path == nil and npc.path_status == nil)
+    local ok, reason = movement_controller.set_path(controller, "missing", {}); assert(not ok); equal(reason, "unknown_actor")
+    ok, reason = movement_controller.set_path(controller, npc.id, "bad"); assert(not ok); equal(reason, "invalid_path")
+    ok, reason = movement_controller.set_path(controller, npc.id, { { x = 2, y = 0, z = 7 } })
+    assert(not ok); equal(reason, "non_adjacent_step")
+    ok, reason = movement_controller.set_path(controller, npc.id, { { x = 0, y = 0, z = 6 } })
+    assert(not ok); equal(reason, "z_change")
+    ok, reason = movement_controller.set_path(controller, npc.id, { { x = 1.5, y = 0, z = 7 } })
+    assert(not ok); equal(reason, "invalid_path")
+end)
+
+test("movement controller executes supplied paths one shared movement step at a time", function()
+    events.clear()
+    local world = path_world(4, 3)
+    local npc = actor_api.new("controller.walker", "npc", 0, 0, 7); world:place_actor(npc)
+    local started, completed, moved = 0, 0, 0
+    events.on("actor_path_started", function(payload) started = started + 1; equal(payload.actor_id, npc.id) end)
+    events.on("actor_path_completed", function(payload) completed = completed + 1; equal(payload.actor_id, npc.id) end)
+    events.on("actor_moved", function(payload) moved = moved + 1; equal(payload.actor_id, npc.id) end)
+    local controller = movement_controller.create(world, events)
+    local path = { position.new(1, 0, 7), position.new(1, 1, 7), position.new(2, 1, 7) }
+    assert(movement_controller.set_path(controller, npc.id, path)); equal(started, 1)
+    path[1].x = 99
+    equal(movement_controller.get_next_target(controller, npc.id).x, 1)
+    movement_controller.update(controller, 100)
+    equal(npc.position.x, 1); equal(npc.position.y, 0); equal(moved, 1)
+    assert(movement.is_moving(npc)); equal(movement.visual_position(npc).x, 0)
+    movement_controller.update(controller, 100)
+    equal(npc.position.x, 1); equal(npc.position.y, 0); equal(moved, 1)
+    finish_controller(controller)
+    equal(npc.position.x, 2); equal(npc.position.y, 1); equal(npc.facing, "east")
+    equal(movement_controller.get_status(controller, npc.id), "completed")
+    assert(not movement_controller.has_path(controller, npc.id)); equal(completed, 1); equal(moved, 3)
+    movement_controller.update(controller, 1); equal(completed, 1)
+end)
+
+test("movement controller cancellation and replacement finish committed interpolation", function()
+    events.clear()
+    local world = path_world(4, 3)
+    local actor = actor_api.new("controller.replace", "player", 0, 0, 7); world:place_actor(actor)
+    local cancelled = 0
+    events.on("actor_path_cancelled", function(payload) cancelled = cancelled + 1; equal(payload.actor_id, actor.id) end)
+    local controller = movement_controller.create(world, events)
+    assert(movement_controller.set_path(controller, actor.id,
+        { position.new(1, 0, 7), position.new(2, 0, 7) }))
+    movement_controller.update(controller, 0)
+    equal(actor.position.x, 1); assert(movement.is_moving(actor))
+    assert(movement_controller.cancel(controller, actor.id)); equal(movement_controller.get_status(controller, actor.id), "cancelled")
+    equal(cancelled, 1)
+    movement_controller.update(controller, 1)
+    equal(movement.visual_position(actor).x, 1); equal(actor.position.x, 1)
+
+    assert(movement_controller.set_path(controller, actor.id,
+        { position.new(1, 1, 7), position.new(2, 1, 7) }))
+    movement_controller.update(controller, 0)
+    assert(movement_controller.set_path(controller, actor.id, { position.new(2, 1, 7) }))
+    movement_controller.update(controller, 1)
+    equal(actor.position.x, 1); equal(actor.position.y, 1)
+    finish_controller(controller)
+    equal(actor.position.x, 2); equal(actor.position.y, 1)
+    equal(movement_controller.get_status(controller, actor.id), "completed")
+end)
+
+test("movement controller blocks stale Actor and door paths without replanning", function()
+    events.clear()
+    local world = path_world(4, 1)
+    local npc = actor_api.new("controller.blocked.actor", "npc", 0, 0, 7); world:place_actor(npc)
+    local controller = movement_controller.create(world, events)
+    local blocked = 0
+    events.on("actor_path_blocked", function(payload) blocked = blocked + 1; equal(payload.reason, "step_blocked") end)
+    assert(movement_controller.set_path(controller, npc.id,
+        { position.new(1, 0, 7), position.new(2, 0, 7) }))
+    world:place_actor(actor_api.new("controller.blocker", "monster", 1, 0, 7))
+    movement_controller.update(controller, 1)
+    equal(movement_controller.get_status(controller, npc.id), "blocked"); equal(npc.position.x, 0); equal(blocked, 1)
+    movement_controller.update(controller, 1); equal(blocked, 1); equal(npc.position.x, 0)
+
+    local door = placement("controller.door", "wood_door", 1, 0, 7, { open = true })
+    local door_world = path_world(3, 1, nil, nil, { door })
+    local player = actor_api.new("controller.door.player", "player", 0, 0, 7); door_world:place_actor(player)
+    local player_controller = movement_controller.create(door_world)
+    assert(movement_controller.set_path(player_controller, player.id,
+        { position.new(1, 0, 7), position.new(2, 0, 7) }))
+    door_world:set_object_state("controller.door", { open = false })
+    movement_controller.update(player_controller, 1)
+    equal(movement_controller.get_status(player_controller, player.id), "blocked")
+    equal(player.position.x, 0)
 end)
 
 test("tile retrieval, deterministic stack, removal", function()

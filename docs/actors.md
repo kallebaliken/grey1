@@ -19,6 +19,8 @@ Actor state is authoritative and contains `id`, `type`, integer `position`, `fac
 
 Movement accepts any registered Actor. An attempted cardinal move updates facing before collision validation, matching the existing player behavior; it emits `actor_facing_changed` even when blocked. A successful move reserves the destination immediately, updates authoritative position, and emits `actor_moved`. Stairs use the same generic actor teleport path and emit `actor_z_changed`.
 
+Supplied routes are executed by the separate pure-Lua movement controller. Its state is keyed by Actor ID rather than stored on the Actor. It waits for each visual interpolation to finish before asking shared movement to validate and commit the next cardinal same-Z step. Replacement and cancellation discard only remaining steps; an already committed step finishes visually. Stale routes become blocked without automatic replanning.
+
 ## Occupancy and lifecycle
 
 The world owns an Actor registry and tile reservations. `place_actor`, `get_actor`, `get_actor_at`, `get_actors`, `move_actor`, and `remove_actor` apply equally to players, NPCs, and monsters. At most one actor occupies a tile, and every actor type blocks movement identically. Registry collections remain private; deterministic queries expose actors without exposing the backing ID table.

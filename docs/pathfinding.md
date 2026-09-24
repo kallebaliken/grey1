@@ -24,8 +24,14 @@ Occupied goals are rejected by default. `allow_occupied_goal = true` permits a r
 
 - Search stays on the Actor's current Z; a different-Z goal returns `different_z`. Stairs may become explicit graph edges later.
 - `max_nodes` defaults to 2048 and returns `search_limit` when exhausted.
-- Paths are snapshots. Door, object, or Actor changes can invalidate the next step; consumers stop when shared movement rejects it and do not replan automatically.
+- Paths are snapshots. Door, object, or Actor changes can invalidate the next step; the movement controller stops when shared movement rejects it and does not replan automatically.
 - No path or goal state is stored on Actor.
 - This subsystem does not implement NPC/monster AI, chasing, patrols, schedules, combat targeting, multi-floor planning, asynchronous searches, or automatic recalculation.
 
-The **H** development key explicitly calculates (but does not execute) a route for `npc_test_villager` to `(14,5,7)` and reports the result. This is diagnostics, not autonomous behavior.
+## Route execution
+
+Canary creature route execution combines route state with server scheduling, think loops, and network output. Greyhaven replaces only the reusable concept with `simulation/movement_controller.lua`: a pure-Lua controller keyed by stable Actor ID that consumes a supplied path through shared movement. It never chooses a goal or calculates a route.
+
+`set_path` validates copied integer, cardinal, same-Z steps against the Actor's authoritative current position. Assignment replaces the previous remaining route. If a previous step is already visually interpolating, that committed step finishes before the replacement starts. Cancellation likewise discards the remaining route while allowing a committed tile step to finish visually. Each next step is revalidated by `movement.begin`; rejection marks the route `blocked`, emits one lifecycle event, and never triggers A* automatically. Controller state and statuses (`idle`, `moving`, `completed`, `blocked`, `cancelled`) remain outside Actor state.
+
+The **H** development key explicitly calculates a route for `npc_test_villager` to `(14,7,7)`, assigns it, and visibly executes it tile by tile. This remains a developer action, not autonomous behavior.

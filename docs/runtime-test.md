@@ -19,14 +19,14 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **WASD** or **arrow keys** | Move one cardinal tile; a blocked attempt still turns the Actor |
 | **E** | Interact with the tile in front (door, chest, stair, or pickupable item) |
 | **G** | Development control: drop the first inventory item on the current tile |
-| **H** | Development control: calculate the inert test NPC's path to `(14,5,7)`; does not move it |
+| **H** | Development control: calculate and execute the test NPC's path to `(14,7,7)` |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+F1 reports the player Actor ID/type, logical tile and Z, facing, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -46,8 +46,9 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 11. Open the chest with **E** and confirm no exception occurs. It is intentionally only a state-toggle placeholder.
 12. With the door open, an item transferred, and the player at Z6, press **F5**. Confirm the status says `Game saved`.
 13. Restart Build & Run or change state and press **F9**. Confirm position, facing, Z, door/chest state, inventory/equipment ownership, the five-herb static remainder, and the dropped item position are restored. Confirm the original static key does not respawn.
-14. Press **H**. Confirm the notice reports either a deterministic path length or a structured path failure and the NPC does not move.
-15. Press **F8**. Confirm the authored key, 10-herb stack, 15-herb starter inventory, empty equipment, closed door/chest, and original player spawn return.
+14. Confirm the player still moves manually, then press **H**. The NPC should calculate a route and visibly walk tile by tile to `(14,7,7)`, including a turn. F1 should show `moving`, decreasing remaining steps, and the next target, followed by `completed`.
+15. Reset and press **H** again, then place the player on the NPC's next reported tile. Confirm the NPC becomes `blocked`, never walks through the player, and does not replan or restart by itself. Confirm no Defold runtime errors occur.
+16. Press **F8**. Confirm the authored key, 10-herb stack, 15-herb starter inventory, empty equipment, closed door/chest, original NPC position, and original player spawn return.
 
 ## Expected prototype content
 
