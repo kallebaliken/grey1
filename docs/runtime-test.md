@@ -1,47 +1,62 @@
-# Defold runtime smoke test
+# Defold 1.13.1 local playtest
 
-## Launch
+This is a manual smoke test for the existing Greyhaven engine slice. It does not require or introduce NPC AI, combat, inventory UI, or equipment UI.
 
-1. Open the repository's `game.project` in the current stable Defold editor.
-2. Select **Project → Build** (or Build & Run).
-3. Move with WASD/arrows and face an adjacent object or item before pressing E.
+## Starting
 
-Controls: **E** uses or picks up the target ahead, **G** drops the first inventory item on the player's tile, **H** explicitly calculates a test-villager path to `(14,5,7)`, **F1** toggles diagnostics, **F5** saves, **F9** loads, **F8** resets the development save, and holding **Page Up/Page Down** inspects an adjacent Z level without changing gameplay position. **G** and **H** are temporary development controls.
+1. Clone or update `kallebaliken/grey1` and check out the playtest branch.
+2. Open `game.project` in Defold 1.13.1.
+3. Select **Project → Build** (Build & Run).
+4. Confirm the prototype world appears and the Defold console has no missing-module, missing-resource, or recurring script errors.
+5. Press **F8** first if an older development save affects the expected starting state.
 
-Persistence route: start fresh with 15 carried herbs. Step west and back east to face the gold key, then press E to pick it up. Step east onto the key's former tile and back west to face the green 10-herb stack, then press E. Five herbs merge into the carried stack and five remain on the tile because both inventory slots are occupied. Press G on a different tile to drop the carried 20-herb stack while retaining the key. Follow the dirt road left to the cottage, open its brown door, enter, use the cyan stair, and save downstairs with F5. Restart or use F9. Door, chest, stairs, and pickup are registered interactions; the chest intentionally only toggles placeholder state.
+The startup chain is `game.project` → `/main/main.collection` → `/main/game_manager.script` → the statically registered `data.maps.prototype` module. Map modules must remain literal `require` dependencies in `world/map_loader.lua` so Defold includes them in the bundle.
 
-The brown-orange test villager stands at `(12, 5, 7)`. It is an inert shared Actor used only to verify rendering and one-actor-per-tile collision.
+## Controls
 
-## Checklist
+| Input | Current action |
+| --- | --- |
+| **WASD** or **arrow keys** | Move one cardinal tile; a blocked attempt still turns the Actor |
+| **E** | Interact with the tile in front (door, chest, stair, or pickupable item) |
+| **G** | Development control: drop the first inventory item on the current tile |
+| **H** | Development control: calculate the inert test NPC's path to `(14,5,7)`; does not move it |
+| **F1** | Toggle diagnostics |
+| **F5** | Save |
+| **F8** | Delete the development save and immediately rebuild the authored world |
+| **F9** | Load the development save |
+| **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-- [ ] project builds and launches without errors
-- [ ] movement works and F1 reports authoritative coordinates/facing
-- [ ] the herb and key render on their logical tiles
-- [ ] E removes the targeted item from the world and G restores it on the player's tile
-- [ ] partial herb pickup leaves five herbs at the original static placement
-- [ ] F1 shows stable item IDs and quantities in the inventory diagnostic
-- [ ] F1 includes the equipment diagnostic (empty in the authored engine-test start)
-- [ ] item pickup/drop does not affect door, chest, stair, or movement behavior
-- [ ] the test villager renders at `(12,5,7)` and blocks the player from entering its tile
-- [ ] H reports a deterministic two-step NPC path without moving the villager
-- [ ] walls and table block the player
-- [ ] closed door blocks the player
-- [ ] E opens/closes the targeted door and its appearance changes
-- [ ] open door becomes walkable
-- [ ] entering the building hides only `house_01` roof
-- [ ] doorway reveal works and leaving restores the roof
-- [ ] stairs change the actor from Z7 to Z6
-- [ ] basement renders and is walkable
-- [ ] return stairs restore Z7
-- [ ] F5 saves in the basement after opening the door
-- [ ] restart or F9 restores basement position/facing and the open door
-- [ ] reload retains `test.key.01` in inventory and does not respawn its static placement
-- [ ] reload retains the five-herb static remainder and the dropped 20-herb stack at its chosen tile
-- [ ] F8 resets the save for a clean run
-- [ ] F8 immediately restores the authored key, 10-herb world stack, and 15-herb starter inventory
+F1 reports the player Actor ID/type, logical tile and Z, facing, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
 
-Equipment has no temporary gameplay key or GUI in this slice. Equip/unequip policy and save restoration are exercised by the pure-Lua suite; the F1 equipment line exists only to make restored state inspectable when later gameplay actions use it.
+## Ordered playtest route
 
-## Pure Lua tests
+1. Press **F8**, then **F1**. Confirm player `player (player)` starts at `(9,2,7)`, facing west, with 15 herbs.
+2. Walk with both WASD and arrows. Confirm the blue player interpolates between tiles while F1 reports the authoritative destination tile.
+3. Try to cross a wall or table and confirm it blocks movement.
+4. Walk to the brown-orange `npc_test_villager` at `(12,5,7)` and confirm its occupied tile blocks the player.
+5. Return to `(9,2,7)`. Step west onto the herb tile and east back to face the gold key, then press **E**. Confirm the key disappears and appears in F1 inventory.
+6. Step east onto the former key tile and west back to face the herb, then press **E**. Five herbs merge into the carried stack and five remain in the world because both inventory slots are occupied.
+7. Move to a different tile and press **G**. Confirm the first inventory item disappears from inventory and appears at the player's logical tile with the same item ID.
+8. Follow the vertical dirt road left to the cottage. Face the brown door and press **E**; confirm its appearance changes and it becomes walkable.
+9. Enter the cottage. Confirm only the `house_01` roof hides; leave and confirm it returns. Also confirm the doorway reveal zone behaves the same way.
+10. Face the cyan stair inside and press **E**. Confirm F1 changes from Z7 to Z6 and the basement renders. Use the basement return stair to verify Z7, then descend again.
+11. Open the chest with **E** and confirm no exception occurs. It is intentionally only a state-toggle placeholder.
+12. With the door open, an item transferred, and the player at Z6, press **F5**. Confirm the status says `Game saved`.
+13. Restart Build & Run or change state and press **F9**. Confirm position, facing, Z, door/chest state, inventory/equipment ownership, the five-herb static remainder, and the dropped item position are restored. Confirm the original static key does not respawn.
+14. Press **H**. Confirm the notice reports either a deterministic path length or a structured path failure and the NPC does not move.
+15. Press **F8**. Confirm the authored key, 10-herb stack, 15-herb starter inventory, empty equipment, closed door/chest, and original player spawn return.
 
-Run `lua tests/run.lua` from the repository root with Lua 5.1+ (LuaJIT is supported). `python3 tests/run_greyhaven.py` runs the suite when a Lua executable is installed and always checks Defold project wiring.
+## Expected prototype content
+
+The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, a healing-herb stack, and an iron key. Equipment test definitions exist but are not authored as extra map content in this playtest.
+
+## Automated checks
+
+From the repository root, run:
+
+```sh
+lua tests/run.lua
+python3 tests/run_greyhaven.py
+```
+
+The Python check runs the full Lua suite when `lua`, `lua5.1`, or `luajit` is installed. It also validates the Defold entry resources and the literal prototype-map dependency. These checks do not replace the graphical smoke test above.

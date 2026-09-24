@@ -29,11 +29,11 @@ function on_message(self, message_id, message)
         box(self, x, y, command.color, command.size or 31, command.order)
     end
     gui.set_text(gui.get_node("status"), string.format(
-        "Greyhaven engine test | WASD/arrows move | E use/pickup | G drop first item | F1 debug | F5 save | F9 load | %s", message.notice))
+        "Greyhaven | Move: WASD/arrows | E use | G drop | H path | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
-        message.logical_x, message.logical_y, message.player_z, message.facing,
+    gui.set_text(debug, string.format("actor: %s (%s)  tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+        message.actor_id, message.actor_type, message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.tile_objects, message.target, message.inventory, message.equipment,
         message.chunk, message.roof_group))
 end

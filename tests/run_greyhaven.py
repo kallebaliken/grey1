@@ -23,6 +23,10 @@ required = [
     "simulation/pathfinding.lua",
     "world/world_items.lua",
     "simulation/item_transfers.lua",
+    "data/maps/prototype.lua",
+    "main/world.gui",
+    "main/world.gui_script",
+    "input/game.input_binding",
 ]
 for name in required:
     assert (ROOT / name).is_file(), name
@@ -35,6 +39,16 @@ else:
 
 project = (ROOT / "game.project").read_text()
 assert "main_collection = /main/main.collectionc" in project
+assert "game_binding = /input/game.input_bindingc" in project
+collection = (ROOT / "main/main.collection").read_text()
+assert 'component: \\"/main/game_manager.script\\"' in collection
+assert 'component: \\"/main/world.gui\\"' in collection
+gui = (ROOT / "main/world.gui").read_text()
+assert 'script: "/main/world.gui_script"' in gui
+assert 'font: "/builtins/fonts/default.font"' in gui
+map_loader = (ROOT / "world/map_loader.lua").read_text()
+assert 'require("data.maps.prototype")' in map_loader
+assert "require(module_name)" not in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract

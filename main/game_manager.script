@@ -53,6 +53,7 @@ local function render(self)
     local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
     view_model.frame = { commands = commands,
         player_x = visual.x, player_y = visual.y,
+        actor_id = self.player.id, actor_type = self.player.type,
         logical_x = p.x, logical_y = p.y, player_z = p.z, facing = self.player.facing,
         debug_visible = self.debug_visible, tile_objects = describe_tile(self.world, p),
         target = target and (target.id .. " (" .. target.type .. ")") or "none",

@@ -55,6 +55,13 @@ local function fixture()
     return world_api.new(map, registry_api.new(definitions), state_api.new()), map
 end
 
+test("map loader exposes only statically registered Defold map modules", function()
+    local map = map_loader.load("data.maps.prototype")
+    equal(map.id, "greyhaven.engine_test")
+    local ok, message = pcall(map_loader.load, "data.maps.missing")
+    assert(not ok); assert(tostring(message):find("unknown map module", 1, true))
+end)
+
 test("position equality and coordinate conversion", function()
     assert(position.equals(position.new(2, 3, 7), position.new(2, 3, 7)))
     local sx, sy = position.world_to_screen(position.new(4, 5, 7), position.new(2, 2, 7), 32)

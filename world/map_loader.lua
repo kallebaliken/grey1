@@ -1,7 +1,13 @@
+-- Defold discovers Lua build dependencies from literal require calls. Keep every
+-- selectable map in this registry instead of requiring a caller-provided name.
+local maps = {
+    ["data.maps.prototype"] = require("data.maps.prototype"),
+}
+
 local M = {}
 
 function M.load(module_name)
-    local map = require(module_name)
+    local map = assert(maps[module_name], "unknown map module: " .. tostring(module_name))
     assert(map.version == 1, "unsupported map version")
     assert(map.tile_size == 32, "Greyhaven maps currently require 32px tiles")
     assert(map.width > 0 and map.height > 0 and type(map.placements) == "table")
