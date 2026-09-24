@@ -28,6 +28,12 @@ Inventory operations delegate insertion, removal, snapshots, stack identity, ove
 
 Removal currently removes the complete item instance identified by its stable ID. Partial stack removal is deferred because generic containers do not yet define that operation.
 
+## Equipment ownership
+
+Canary combines inventory slots and equipment behavior inside `Player`/`Cylinder` movement. Greyhaven instead composes `items/equipment.lua` beside the inventory. `items/equipment_slots.lua` is the canonical data-driven slot list, while each item definition declares its allowed slots under `equipment.slots`. Items without that policy cannot be equipped, and equippable items are non-stackable.
+
+Equip validates the item, requested slot, policy, and vacancy before removing the instance from inventory. The simpler occupied-slot policy rejects replacement; callers explicitly unequip first. Unequip asks the existing inventory/container to accept the item before clearing the slot, so a full inventory leaves equipment unchanged. Both directions preserve the item ID and emit `item_equipped` or `item_unequipped` only for successful gameplay transfers. Read APIs and snapshots return copies rather than live slot tables.
+
 ## World ownership and transfers
 
 Canary moves an `Item` between `Tile` and `Cylinder` parents through its server movement machinery. Greyhaven keeps the transferable concept but makes the operation explicit: `world/world_items.lua` places the same item-instance model in a logical tile stack, while `simulation/item_transfers.lua` coordinates ownership changes between that world location and an inventory. A world placement has its own stable placement ID, position, and contained item instance; it is not another item type.
@@ -38,4 +44,4 @@ World items share deterministic tile ordering with fixtures but resolve visuals 
 
 ## Deferred boundaries
 
-The item and inventory layers deliberately do not yet implement equipment, nested backpacks or container references, GUI, item usage/effects, merchants, loot generation, weight limits, or partial-stack dropping. Save version 2 persists inventory ownership, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.
+The item ownership layers deliberately do not yet implement equipment GUI, combat/stat effects, durability, nested backpacks or container references, item usage, merchants, loot generation, weight limits, or partial-stack dropping. Save version 3 persists inventory, equipment, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.

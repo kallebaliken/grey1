@@ -7,10 +7,10 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 1. **Data** — `data/maps/prototype.lua` and `objects/object_defs.lua` declare immutable initial content.
 2. **World model** — `world/` owns positions, chunk-addressed tiles, stable object and world-item placements, merged object state, Z visibility, and roof queries.
 3. **Simulation** — `simulation/` validates movement, resolves explicit transitions, transfers item ownership, and dispatches interaction handlers.
-4. **State** — `state/` owns runtime object deltas, inventory snapshots, static-item overrides, dynamic world-item snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
+4. **State** — `state/` owns runtime object deltas, inventory/equipment snapshots, static-item overrides, dynamic world-item snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
 5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered draw commands.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
-7. **Items** — `items/` validates immutable item-type definitions, creates independent runtime instances, provides fixed-slot generic containers, and associates an inventory/container with a stable owner ID. It has no Defold dependency and does not yet implement equipment or nested containers.
+7. **Items** — `items/` validates immutable item-type definitions, creates runtime instances, provides generic containers/inventories, and transfers instances through data-driven equipment slots. It has no Defold dependency and does not implement nested containers or combat effects.
 
 Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; world and simulation modules are ordinary Lua.
 
@@ -27,6 +27,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Item definitions and item instances are distinct. Definitions are copied behind a registry boundary; instances own quantity and state, and non-stackable items always have quantity one.
 - Containers hold copied item instances in deterministic slot order and expose copied snapshots. Existing stack IDs survive merges; overflow keeps the incoming ID and is returned rather than discarded when no slot is available.
 - An inventory is an ownership wrapper around one generic container, not a second storage implementation. Ownership is represented by a stable ID rather than an actor reference, and all storage behavior delegates to the container.
+- Equipment is another exclusive owner of the same item-instance model. Canonical slot data and per-definition compatibility policy govern transfers; occupied slots reject replacement and full inventories reject unequip.
 - World placements contain the same item instances used by inventories. Pickup/drop are explicit transfers: only accepted quantities change owner, item IDs survive, and tile placement does not require walkability.
 - Save restoration constructs the authored world first, applies static item deltas, restores inventory and dynamic placements through public APIs, then restores player state. Validation rejects item IDs owned by more than one location.
 

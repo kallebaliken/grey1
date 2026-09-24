@@ -1,4 +1,5 @@
 local ids = require "core.ids"
+local equipment_slots = require "items.equipment_slots"
 local M = {}
 
 local methods = {}
@@ -42,6 +43,18 @@ local function normalize(key, source)
     assert(type(definition.tags) == "table", "item tags must be a table: " .. key)
     for index, tag in ipairs(definition.tags) do
         assert(type(tag) == "string" and tag ~= "", "item tag must be a non-empty string: " .. key .. "[" .. index .. "]")
+    end
+    if definition.equipment ~= nil then
+        assert(type(definition.equipment) == "table" and type(definition.equipment.slots) == "table"
+            and #definition.equipment.slots > 0, "item equipment needs slots: " .. key)
+        assert(not definition.stackable, "stackable item cannot be equipped: " .. key)
+        local seen = {}
+        for _, slot_id in ipairs(definition.equipment.slots) do
+            assert(type(slot_id) == "string" and equipment_slots.has(slot_id),
+                "item has unknown equipment slot: " .. key .. ":" .. tostring(slot_id))
+            assert(not seen[slot_id], "item has duplicate equipment slot: " .. key .. ":" .. slot_id)
+            seen[slot_id] = true
+        end
     end
     return definition
 end

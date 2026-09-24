@@ -14,6 +14,8 @@ required = [
     "items/item_instance.lua",
     "items/container.lua",
     "items/inventory.lua",
+    "items/equipment_slots.lua",
+    "items/equipment.lua",
     "world/world_items.lua",
     "simulation/item_transfers.lua",
 ]

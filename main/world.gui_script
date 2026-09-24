@@ -34,7 +34,8 @@ function on_message(self, message_id, message)
         "Greyhaven engine test | WASD/arrows move | E use/pickup | G drop first item | F1 debug | F5 save | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\ninventory: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("tile: %d,%d,%d  facing: %s  inspect: %+d\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
         message.logical_x, message.logical_y, message.player_z, message.facing,
-        message.inspection_offset, message.tile_objects, message.target, message.inventory, message.chunk, message.roof_group))
+        message.inspection_offset, message.tile_objects, message.target, message.inventory, message.equipment,
+        message.chunk, message.roof_group))
 end

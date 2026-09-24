@@ -26,6 +26,10 @@ function M.load(module_name)
         assert(type(map.player_inventory.capacity) == "number" and type(map.player_inventory.items) == "table",
             "player inventory requires capacity and items")
     end
+    if map.player_equipment then
+        assert(type(map.player_equipment.id) == "string" and type(map.player_equipment.owner_id) == "string"
+            and type(map.player_equipment.slots) == "table", "player equipment requires identity and slots")
+    end
     return map
 end
 

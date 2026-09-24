@@ -18,6 +18,7 @@ Persistence route: start fresh with 15 carried herbs. Step west and back east to
 - [ ] E removes the targeted item from the world and G restores it on the player's tile
 - [ ] partial herb pickup leaves five herbs at the original static placement
 - [ ] F1 shows stable item IDs and quantities in the inventory diagnostic
+- [ ] F1 includes the equipment diagnostic (empty in the authored engine-test start)
 - [ ] item pickup/drop does not affect door, chest, stair, or movement behavior
 - [ ] walls and table block the player
 - [ ] closed door blocks the player
@@ -34,6 +35,8 @@ Persistence route: start fresh with 15 carried herbs. Step west and back east to
 - [ ] reload retains the five-herb static remainder and the dropped 20-herb stack at its chosen tile
 - [ ] F8 resets the save for a clean run
 - [ ] F8 immediately restores the authored key, 10-herb world stack, and 15-herb starter inventory
+
+Equipment has no temporary gameplay key or GUI in this slice. Equip/unequip policy and save restoration are exercised by the pure-Lua suite; the F1 equipment line exists only to make restored state inspectable when later gameplay actions use it.
 
 ## Pure Lua tests
 

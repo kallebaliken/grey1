@@ -16,6 +16,7 @@ local definitions = require "objects.object_defs"
 local item_definitions = require "items.item_defs"
 local item_registry_api = require "items.item_registry"
 local inventory_api = require "items.inventory"
+local equipment_api = require "items.equipment"
 local item_transfers = require "simulation.item_transfers"
 local view_model = require "main.view_model"
 
@@ -34,6 +35,15 @@ local function describe_inventory(inventory)
     return #names > 0 and table.concat(names, ",") or "empty"
 end
 
+local function describe_equipment(equipment)
+    local names = {}
+    for slot_id, item in pairs(equipment_api.get_items(equipment)) do
+        names[#names + 1] = slot_id .. ":" .. item.id
+    end
+    table.sort(names)
+    return #names > 0 and table.concat(names, ",") or "empty"
+end
+
 local function render(self)
     local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset)
     local target = interaction.find_target(self.world, self.player)
@@ -45,6 +55,7 @@ local function render(self)
         debug_visible = self.debug_visible, tile_objects = describe_tile(self.world, p),
         target = target and (target.id .. " (" .. target.type .. ")") or "none",
         inventory = describe_inventory(self.player.inventory),
+        equipment = describe_equipment(self.player.equipment),
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "" }
     msg.post("#view", "render_world")
@@ -60,6 +71,8 @@ local function create_session(self, map, loaded)
     self.player = player_api.new(spawn.x, spawn.y, spawn.z)
     self.player.inventory = loaded and save_data.restore_inventory(loaded, self.item_registry)
         or inventory_api.restore(self.map.player_inventory, self.item_registry)
+    self.player.equipment = loaded and save_data.restore_equipment(loaded, self.item_registry)
+        or equipment_api.restore(self.map.player_equipment, self.item_registry)
     if loaded then
         save_data.restore_dynamic_world_items(self.world, loaded)
         self.item_ids = save_data.create_item_id_allocator(loaded, self.map)

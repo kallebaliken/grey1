@@ -1,9 +1,11 @@
 local ids = require "core.ids"
+local equipment_api = require "items.equipment"
+local equipment_slots = require "items.equipment_slots"
 local inventory_api = require "items.inventory"
 local position = require "world.position"
 local state_api = require "state.world_state"
 local world_items = require "world.world_items"
-local M = { VERSION = 2 }
+local M = { VERSION = 3 }
 
 local function equal(left, right, seen)
     if type(left) ~= type(right) then return false end
@@ -40,6 +42,7 @@ end
 
 function M.capture(player, world, map_id)
     assert(player.inventory, "player inventory is required for save capture")
+    assert(player.equipment, "player equipment is required for save capture")
     local placements = static_placements(world.map)
     local item_state = { static_overrides = {}, dynamic = {} }
     for placement_id, placement in pairs(placements) do
@@ -68,7 +71,8 @@ function M.capture(player, world, map_id)
     return { version = M.VERSION, map_id = map_id, player = { x = player.tile_position.x,
         y = player.tile_position.y, z = player.tile_position.z, facing = player.facing },
         objects = state_api.copy(world.state.objects), flags = state_api.copy(world.state.flags),
-        inventory = inventory_api.snapshot(player.inventory), world_items = item_state }
+        inventory = inventory_api.snapshot(player.inventory), equipment = equipment_api.snapshot(player.equipment),
+        world_items = item_state }
 end
 
 function M.validate(data, expected_map)
@@ -85,6 +89,11 @@ function M.validate(data, expected_map)
         or type(inventory.capacity) ~= "number" or inventory.capacity < 0 or inventory.capacity % 1 ~= 0
         or type(inventory.items) ~= "table" then return false, "invalid_inventory" end
     if #inventory.items > inventory.capacity then return false, "invalid_inventory" end
+    local equipment = data.equipment
+    if type(equipment) ~= "table" or not valid_id(equipment.id) or not valid_id(equipment.owner_id)
+        or equipment.owner_id ~= inventory.owner_id or type(equipment.slots) ~= "table" then
+        return false, "invalid_equipment"
+    end
     local saved_world = data.world_items
     if type(saved_world) ~= "table" or type(saved_world.static_overrides) ~= "table"
         or type(saved_world.dynamic) ~= "table" then return false, "invalid_world_items" end
@@ -92,6 +101,10 @@ function M.validate(data, expected_map)
     local used_items, used_world = {}, {}
     for _, item in ipairs(inventory.items) do
         if not valid_item(item) or not reserve(used_items, item.id) then return false, "duplicate_item_ownership" end
+    end
+    for slot_id, item in pairs(equipment.slots) do
+        if not equipment_slots.has(slot_id) or not valid_item(item) then return false, "invalid_equipment" end
+        if not reserve(used_items, item.id) then return false, "duplicate_item_ownership" end
     end
     for _, world_item in ipairs(saved_world.dynamic) do
         if type(world_item) ~= "table" or not valid_id(world_item.id) or not valid_item(world_item.item)
@@ -127,6 +140,10 @@ function M.restore_inventory(data, registry)
     return inventory_api.restore(data.inventory, registry)
 end
 
+function M.restore_equipment(data, registry)
+    return equipment_api.restore(data.equipment, registry)
+end
+
 function M.apply_static_item_overrides(world, data)
     for placement_id, override in pairs(data.world_items.static_overrides) do
         world_items.restore_static(world, placement_id, override)
@@ -142,6 +159,7 @@ function M.create_item_id_allocator(data, map)
     assert(valid, reason)
     local existing = {}
     for _, item in ipairs(data.inventory.items) do existing[#existing + 1] = item.id end
+    for _, item in pairs(data.equipment.slots) do existing[#existing + 1] = item.id end
     for _, world_item in ipairs(data.world_items.dynamic) do existing[#existing + 1] = world_item.item.id end
     local placements = static_placements(map)
     for placement_id, placement in pairs(placements) do
@@ -155,6 +173,7 @@ function M.create_fresh_item_id_allocator(map)
     local existing = {}
     for _, placement in ipairs(map.item_placements or {}) do existing[#existing + 1] = placement.item.id end
     for _, item in ipairs(map.player_inventory and map.player_inventory.items or {}) do existing[#existing + 1] = item.id end
+    for _, item in pairs(map.player_equipment and map.player_equipment.slots or {}) do existing[#existing + 1] = item.id end
     return ids.new_allocator(existing)
 end
 

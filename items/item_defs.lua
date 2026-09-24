@@ -23,4 +23,22 @@ return {
         interaction = "pickup",
         patterns = { { { 0.88, 0.72, 0.20, 1 } } },
     },
+    worn_iron_sword = {
+        id = "worn_iron_sword", name = "Worn Iron Sword", pickupable = true,
+        tags = { "equipment", "weapon" }, stack_layer = "bottom", interaction = "pickup",
+        patterns = { { { 0.66, 0.68, 0.72, 1 } } },
+        equipment = { slots = { "main_hand", "off_hand" } },
+    },
+    leather_cap = {
+        id = "leather_cap", name = "Leather Cap", pickupable = true,
+        tags = { "equipment", "armor" }, stack_layer = "bottom", interaction = "pickup",
+        patterns = { { { 0.47, 0.28, 0.14, 1 } } },
+        equipment = { slots = { "head" } },
+    },
+    patched_leather_armor = {
+        id = "patched_leather_armor", name = "Patched Leather Armor", pickupable = true,
+        tags = { "equipment", "armor" }, stack_layer = "bottom", interaction = "pickup",
+        patterns = { { { 0.40, 0.23, 0.12, 1 } } },
+        equipment = { slots = { "torso" } },
+    },
 }

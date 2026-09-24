@@ -43,4 +43,5 @@ return { version = 1, id = "greyhaven.engine_test", tile_size = 32, width = 18, 
     },
     player_inventory = { id = "inventory.player", owner_id = "player", capacity = 2, items = {
         { id = "test.starter.000001", type = "healing_herb", quantity = 15, state = { quality = "fresh" } },
-    } } }
+    } },
+    player_equipment = { id = "equipment.player", owner_id = "player", slots = {} } }

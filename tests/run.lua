@@ -20,6 +20,8 @@ local item_registry_api = require "items.item_registry"
 local item_instance = require "items.item_instance"
 local container_api = require "items.container"
 local inventory_api = require "items.inventory"
+local equipment_api = require "items.equipment"
+local equipment_slots = require "items.equipment_slots"
 local world_items = require "world.world_items"
 local item_transfers = require "simulation.item_transfers"
 local renderer = require "render.world_renderer"
@@ -106,6 +108,7 @@ end)
 test("save capture, serialization, deserialization and restore", function()
     local world, map = fixture(); local actor = actor_api.new("hero", "player", 5, 1, 6); actor.facing = "north"
     actor.inventory = inventory_api.create("inventory.hero", actor.id, 2, item_registry_api.new(item_definitions))
+    actor.equipment = equipment_api.create("equipment.hero", actor.id, item_registry_api.new(item_definitions))
     world:set_object_state("door", { open = true }); local saved = save_data.capture(actor, world, map.id)
     local decoded = codec.deserialize(codec.serialize(saved)); assert(save_data.validate(decoded, map.id)); assert(decoded.objects.door.open)
     local restored = actor_api.new("hero", "player", 1, 1, 7); save_data.restore_player(restored, decoded)
@@ -258,6 +261,73 @@ test("inventory preserves partial insertion and validation contracts", function(
     assert(not pcall(inventory_api.create, "inventory.bad", "", 1, registry))
 end)
 
+test("equipment slots and item policies are data-driven", function()
+    equal(#equipment_slots.get_definitions(), 8)
+    local registry = item_registry_api.new(item_definitions)
+    local equipment = equipment_api.create("equipment.hero", "hero", registry)
+    local sword = item_instance.new({ id = "gear.sword", type = "worn_iron_sword", state = { maker = "Mara" } }, registry)
+    assert(equipment_api.is_slot_empty(equipment, "main_hand"))
+    local allowed = equipment_api.can_equip(equipment, sword, "main_hand"); assert(allowed)
+    local denied, reason = equipment_api.can_equip(equipment, sword, "head")
+    assert(not denied); equal(reason, "slot_not_allowed")
+    local key = item_instance.new({ id = "gear.not_equipment", type = "old_iron_key" }, registry)
+    local not_equipment, item_reason = equipment_api.can_equip(equipment, key, "ring")
+    assert(not not_equipment); equal(item_reason, "slot_not_allowed")
+    local unknown, unknown_reason = equipment_api.can_equip(equipment, sword, "unknown")
+    assert(not unknown); equal(unknown_reason, "unknown_slot")
+    assert(not pcall(equipment_api.get, equipment, "unknown"))
+    assert(not pcall(item_registry_api.new, { bad = { id = "bad", name = "Bad",
+        equipment = { slots = { "unknown" } } } }))
+    assert(not pcall(item_registry_api.new, { bad = { id = "bad", name = "Bad", stackable = true,
+        equipment = { slots = { "ring" } } } }))
+    local other_inventory = inventory_api.create("inventory.other", "other", 1, registry)
+    inventory_api.add_item(other_inventory, sword)
+    local owner_ok, owner_reason = equipment_api.equip(equipment, other_inventory, sword.id, "main_hand")
+    assert(not owner_ok); equal(owner_reason, "owner_mismatch")
+end)
+
+test("equip and unequip preserve exclusive identity and events", function()
+    events.clear()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.gear", "hero", 2, registry)
+    local equipment = equipment_api.create("equipment.hero", "hero", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "gear.sword.1", type = "worn_iron_sword",
+        state = { maker = "Mara" } }, registry))
+    local equipped_event, unequipped_event
+    events.on("item_equipped", function(payload) equipped_event = payload end)
+    events.on("item_unequipped", function(payload) unequipped_event = payload end)
+    local equipped, item = equipment_api.equip(equipment, inventory, "gear.sword.1", "main_hand", events)
+    assert(equipped); equal(item.id, "gear.sword.1"); assert(inventory_api.get_item(inventory, item.id) == nil)
+    equal(equipment_api.get(equipment, "main_hand").id, "gear.sword.1")
+    equal(equipped_event.owner_id, "hero"); equal(equipped_event.slot, "main_hand")
+    local snapshot = equipment_api.get_items(equipment); snapshot.main_hand.state.maker = "changed"
+    equal(equipment_api.get(equipment, "main_hand").state.maker, "Mara")
+
+    inventory_api.add_item(inventory, item_instance.new({ id = "gear.sword.2", type = "worn_iron_sword" }, registry))
+    local replaced, occupied_reason = equipment_api.equip(equipment, inventory, "gear.sword.2", "main_hand")
+    assert(not replaced); equal(occupied_reason, "slot_occupied")
+    equal(equipment_api.get(equipment, "main_hand").id, "gear.sword.1")
+    assert(inventory_api.get_item(inventory, "gear.sword.2"))
+
+    local unequipped, returned = equipment_api.unequip(equipment, inventory, "main_hand", events)
+    assert(unequipped); equal(returned.id, "gear.sword.1"); assert(equipment_api.is_slot_empty(equipment, "main_hand"))
+    equal(inventory_api.get_item(inventory, "gear.sword.1").id, "gear.sword.1")
+    equal(unequipped_event.item_id, "gear.sword.1")
+end)
+
+test("unequip fails atomically when inventory is full", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.full.gear", "hero", 1, registry)
+    local equipment = equipment_api.create("equipment.full.gear", "hero", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "gear.cap", type = "leather_cap" }, registry))
+    assert(equipment_api.equip(equipment, inventory, "gear.cap", "head"))
+    inventory_api.add_item(inventory, item_instance.new({ id = "gear.key", type = "old_iron_key" }, registry))
+    local changed, reason = equipment_api.unequip(equipment, inventory, "head")
+    assert(not changed); equal(reason, "inventory_full")
+    equal(equipment_api.get(equipment, "head").id, "gear.cap")
+    assert(inventory_api.get_item(inventory, "gear.cap") == nil)
+end)
+
 local function world_item_fixture(capacity)
     local map = { id = "item_test", version = 1, tile_size = 32, width = 4, height = 4, placements = {
         placement("ground.1", "grass", 1, 1, 7), placement("ground.2", "grass", 2, 1, 7),
@@ -375,12 +445,13 @@ test("world item placement and pickup reject invalid content", function()
     assert(world_items.get(world, "world.sealed")); assert(not inventory_api.has_item_type(inventory, "sealed_stone"))
 end)
 
-test("save v2 serializes empty and populated inventory snapshots safely", function()
+test("save v3 serializes empty and populated ownership snapshots safely", function()
     local world, empty_inventory, registry = world_item_fixture(3)
     local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
+    actor.equipment = equipment_api.create("equipment.hero", actor.id, registry)
     local empty = save_data.capture(actor, world, world.map.id)
-    equal(empty.version, 2); equal(#empty.inventory.items, 0)
-    local old = state_api.copy(empty); old.version = 1
+    equal(empty.version, 3); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
+    local old = state_api.copy(empty); old.version = 2
     local old_valid, old_reason = save_data.validate(old, world.map)
     assert(not old_valid); equal(old_reason, "unsupported_save_version")
 
@@ -400,19 +471,23 @@ test("save v2 serializes empty and populated inventory snapshots safely", functi
     equal(inventory_api.get_item(restored, "save.key").id, "save.key")
 end)
 
-test("save v2 restores exclusive inventory and world item ownership", function()
+test("save v3 restores exclusive inventory, equipment, and world ownership", function()
     events.clear()
     local map = map_loader.load("data.maps.prototype")
     local registry = item_registry_api.new(item_definitions)
     local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
     local actor = actor_api.new("player", "player", 9, 2, 7)
     actor.inventory = inventory_api.restore(map.player_inventory, registry)
+    actor.equipment = equipment_api.restore(map.player_equipment, registry)
 
     local key_pickup = item_transfers.pickup(world, actor.inventory, "world.test.key.01", actor.id)
     equal(key_pickup.inserted_quantity, 1)
     local herb_pickup = item_transfers.pickup(world, actor.inventory, "world.test.herbs.01", actor.id)
     equal(herb_pickup.inserted_quantity, 5); equal(herb_pickup.remainder.quantity, 5)
     local dropped = item_transfers.drop(world, actor.inventory, "test.starter.000001", position.new(9, 3, 7), actor.id)
+    inventory_api.add_item(actor.inventory, item_instance.new({ id = "gear.saved.000001", type = "worn_iron_sword",
+        state = { maker = "Mara" } }, registry))
+    assert(equipment_api.equip(actor.equipment, actor.inventory, "gear.saved.000001", "main_hand"))
     world:set_object_state("greyhaven.house01.front_door", { open = true })
     actor.tile_position = position.new(5, 5, 6); actor.visual_position = position.copy(actor.tile_position); actor.facing = "north"
 
@@ -426,10 +501,14 @@ test("save v2 restores exclusive inventory and world item ownership", function()
     local gameplay_events = 0
     events.on("item_picked_up", function() gameplay_events = gameplay_events + 1 end)
     events.on("item_dropped", function() gameplay_events = gameplay_events + 1 end)
+    events.on("item_equipped", function() gameplay_events = gameplay_events + 1 end)
+    events.on("item_unequipped", function() gameplay_events = gameplay_events + 1 end)
     save_data.apply_static_item_overrides(restored_world, saved)
     local restored_inventory = save_data.restore_inventory(saved, registry)
+    local restored_equipment = save_data.restore_equipment(saved, registry)
     save_data.restore_dynamic_world_items(restored_world, saved)
-    local restored_actor = actor_api.new("player", "player", 9, 2, 7); restored_actor.inventory = restored_inventory
+    local restored_actor = actor_api.new("player", "player", 9, 2, 7)
+    restored_actor.inventory, restored_actor.equipment = restored_inventory, restored_equipment
     save_data.restore_player(restored_actor, saved)
 
     equal(gameplay_events, 0); equal(restored_actor.tile_position.z, 6); equal(restored_actor.facing, "north")
@@ -441,9 +520,13 @@ test("save v2 restores exclusive inventory and world item ownership", function()
     equal(restored_drop.item.id, "test.starter.000001"); equal(restored_drop.item.state.quality, "fresh")
     equal(restored_drop.position.x, 9); equal(restored_drop.position.y, 3); equal(restored_drop.position.z, 7)
     assert(inventory_api.get_item(restored_inventory, "test.starter.000001") == nil)
+    local restored_sword = equipment_api.get(restored_equipment, "main_hand")
+    equal(restored_sword.id, "gear.saved.000001"); equal(restored_sword.state.maker, "Mara")
+    assert(inventory_api.get_item(restored_inventory, "gear.saved.000001") == nil)
 
     local allocator = save_data.create_item_id_allocator(saved, map)
     equal(allocator:next("test.starter"), "test.starter.000002")
+    equal(allocator:next("gear.saved"), "gear.saved.000002")
 end)
 
 test("save validation rejects duplicate item ownership", function()
@@ -451,8 +534,9 @@ test("save validation rejects duplicate item ownership", function()
     local registry = item_registry_api.new(item_definitions)
     local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
     local actor = actor_api.new("player", "player", 9, 2, 7); actor.inventory = inventory_api.restore(map.player_inventory, registry)
+    actor.equipment = equipment_api.restore(map.player_equipment, registry)
     local saved = save_data.capture(actor, world, map.id)
-    saved.inventory.items[#saved.inventory.items + 1] = state_api.copy(map.item_placements[1].item)
+    saved.equipment.slots.main_hand = state_api.copy(saved.inventory.items[1])
     local valid, reason = save_data.validate(saved, map)
     assert(not valid); equal(reason, "duplicate_item_ownership")
 end)
@@ -462,9 +546,11 @@ test("fresh session after reset uses authored item state", function()
     local registry = item_registry_api.new(item_definitions)
     local fresh_world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
     local fresh_inventory = inventory_api.restore(map.player_inventory, registry)
+    local fresh_equipment = equipment_api.restore(map.player_equipment, registry)
     equal(world_items.get(fresh_world, "world.test.herbs.01").item.quantity, 10)
     equal(world_items.get(fresh_world, "world.test.key.01").item.id, "test.key.01")
     equal(inventory_api.get_item(fresh_inventory, "test.starter.000001").quantity, 15)
+    assert(equipment_api.is_slot_empty(fresh_equipment, "main_hand"))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))
