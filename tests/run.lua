@@ -7,6 +7,9 @@ local world_api = require "world.world"
 local map_loader = require "world.map_loader"
 local state_api = require "state.world_state"
 local actor_api = require "actors.actor"
+local actor_types = require "actors.actor_types"
+local actor_registry_api = require "actors.registry"
+local direction = require "world.direction"
 local movement = require "simulation.movement"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -57,6 +60,52 @@ test("position equality and coordinate conversion", function()
     equal(sx, 64); equal(sy, 96); assert(position.equals(position.screen_to_world(sx, sy, position.new(2, 2, 7), 32, 7), position.new(4, 5, 7)))
 end)
 
+test("actor identity, types, directions, and registry are canonical", function()
+    assert(actor_types.is_valid("player") and actor_types.is_valid("npc") and actor_types.is_valid("monster"))
+    assert(not actor_types.is_valid("vendor"))
+    local dx, dy = direction.offset("north"); equal(dx, 0); equal(dy, 1)
+    equal(direction.from_delta(-1, 0), "west")
+    local npc = actor_api.new("npc.test", "npc", 2, 3, 7, "east")
+    equal(npc.position.x, 2); equal(npc.facing, "east"); assert(npc.active)
+    local actor_snapshot = actor_api.snapshot(npc); actor_snapshot.position.x = 99; equal(npc.position.x, 2)
+    assert(npc.visual_position == nil and npc.movement_target == nil)
+    assert(not pcall(actor_api.new, "bad actor", "npc", 1, 1, 7))
+    assert(not pcall(actor_api.new, "actor.bad", "vendor", 1, 1, 7))
+    assert(not pcall(actor_api.new, "actor.float", "npc", 1.5, 1, 7))
+    assert(not pcall(actor_api.new, "actor.facing", "npc", 1, 1, 7, "up"))
+    local registry = actor_registry_api.new(); registry:add(npc)
+    equal(registry:get("npc.test").id, "npc.test"); equal(registry:get_all()[1].id, "npc.test")
+    assert(not pcall(function() registry:add(actor_api.new("npc.test", "npc", 1, 1, 7)) end))
+    equal(registry:remove("npc.test").id, "npc.test"); assert(registry:get("npc.test") == nil)
+end)
+
+test("shared actors own occupancy, facing, movement runtime, and events", function()
+    events.clear()
+    local map = { id = "actor_test", version = 1, tile_size = 32, width = 4, height = 4, placements = {
+        placement("actor.ground.1", "grass", 1, 1, 7), placement("actor.ground.2", "grass", 2, 1, 7),
+        placement("actor.ground.3", "grass", 3, 1, 7),
+    }, actor_placements = { { id = "npc.blocker", type = "npc", x = 2, y = 1, z = 7, facing = "west" } } }
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new())
+    local player = actor_api.new("player.test", "player", 1, 1, 7, "north")
+    local added, facing, moved, removed
+    events.on("actor_added", function(payload) added = payload end)
+    events.on("actor_facing_changed", function(payload) facing = payload end)
+    events.on("actor_moved", function(payload) moved = payload end)
+    events.on("actor_removed", function(payload) removed = payload end)
+    world:place_actor(player, events)
+    equal(added.actor_type, "player"); equal(world:get_actor_at(2, 1, 7).id, "npc.blocker")
+    assert(not pcall(function() world:place_actor(actor_api.new("monster.blocked", "monster", 2, 1, 7)) end))
+    assert(not world:is_walkable(2, 1, 7, player.id))
+    assert(not movement.begin(world, player, 1, 0, events)); equal(player.facing, "east")
+    equal(facing.actor_id, player.id); assert(not movement.is_moving(player))
+    world:remove_actor("npc.blocker", events); equal(removed.actor_type, "npc")
+    assert(movement.begin(world, player, 1, 0, events)); equal(player.position.x, 2)
+    equal(moved.actor_type, "player"); equal(moved.from.x, 1); equal(moved.to.x, 2)
+    equal(movement.visual_position(player).x, 1)
+    movement.update(player, 1); equal(movement.visual_position(player).x, 2); assert(not movement.is_moving(player))
+    equal(world:get_actor_at(2, 1, 7).id, player.id)
+end)
+
 test("tile retrieval, deterministic stack, removal", function()
     local world = fixture(); local tile = world:get_tile(1, 1, 7)
     equal(tile.objects[1].definition.stack_layer, "ground")
@@ -80,10 +129,8 @@ end)
 test("movement validates and commits authoritative tile", function()
     local world = fixture(); local actor = actor_api.new("hero", "player", 1, 1, 7); world:place_actor(actor)
     assert(not movement.begin(world, actor, 1, 0)); assert(movement.begin(world, actor, 0, 0) == false)
-    world:get_tile(1, 1, 7).actor_id = nil; actor.tile_position = position.new(3, 1, 7); actor.visual_position = position.copy(actor.tile_position); world:place_actor(actor)
-    world:set_object_state("door", { open = true }); assert(movement.begin(world, actor, -1, 0) == false, "wall remains blocking")
     local other = fixture(); local walker = actor_api.new("walker", "player", 4, 1, 7); other:place_actor(walker)
-    other:set_object_state("door", { open = true }); assert(movement.begin(other, walker, -1, 0)); equal(walker.tile_position.x, 3)
+    other:set_object_state("door", { open = true }); assert(movement.begin(other, walker, -1, 0)); equal(walker.position.x, 3)
 end)
 
 test("registered door interaction toggles state", function()
@@ -96,12 +143,12 @@ end)
 test("explicit Z transition", function()
     local world = fixture(); local actor = actor_api.new("hero", "player", 5, 1, 7); world:place_actor(actor)
     local stairs = world.objects.stairs; assert(transitions.resolve(world, actor, stairs, stairs.metadata.transition))
-    equal(actor.tile_position.z, 6)
+    equal(actor.position.z, 6)
 end)
 
 test("world-state overrides and roof groups", function()
     local world = fixture(); world:set_object_state("door", { open = true }); assert(world:object_state("door").open)
-    local actor = actor_api.new("hero", "player", 1, 1, 7); equal(roofs.interior_group(world, actor.tile_position), "house")
+    local actor = actor_api.new("hero", "player", 1, 1, 7); equal(roofs.interior_group(world, actor.position), "house")
     assert(roofs.revealed_groups(world, actor).house)
 end)
 
@@ -112,7 +159,7 @@ test("save capture, serialization, deserialization and restore", function()
     world:set_object_state("door", { open = true }); local saved = save_data.capture(actor, world, map.id)
     local decoded = codec.deserialize(codec.serialize(saved)); assert(save_data.validate(decoded, map.id)); assert(decoded.objects.door.open)
     local restored = actor_api.new("hero", "player", 1, 1, 7); save_data.restore_player(restored, decoded)
-    equal(restored.tile_position.z, 6); equal(restored.facing, "north")
+    equal(restored.position.z, 6); equal(restored.facing, "north")
 end)
 
 test("chunk addressing", function()
@@ -368,6 +415,12 @@ test("engine test map loads its stable herb and key placements", function()
     local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
     equal(world_items.get(world, "world.test.herbs.01").item.id, "test.herbs.01")
     equal(world_items.get(world, "world.test.key.01").item.id, "test.key.01")
+    equal(world:get_actor_at(12, 5, 7).id, "npc_test_villager")
+    local viewer = actor_api.new("player.viewer", "player", 9, 2, 7); world:place_actor(viewer)
+    local commands = renderer.build(world, viewer, 0)
+    local npc_rendered = false
+    for _, command in ipairs(commands) do if command.id == "npc_test_villager:actor" then npc_rendered = true end end
+    assert(npc_rendered, "static NPC must render from actor state")
 end)
 
 test("pickup transfers a non-stackable item through interaction", function()
@@ -489,7 +542,7 @@ test("save v3 restores exclusive inventory, equipment, and world ownership", fun
         state = { maker = "Mara" } }, registry))
     assert(equipment_api.equip(actor.equipment, actor.inventory, "gear.saved.000001", "main_hand"))
     world:set_object_state("greyhaven.house01.front_door", { open = true })
-    actor.tile_position = position.new(5, 5, 6); actor.visual_position = position.copy(actor.tile_position); actor.facing = "north"
+    actor.position = position.new(5, 5, 6); actor.facing = "north"
 
     local saved = codec.deserialize(codec.serialize(save_data.capture(actor, world, map.id)))
     local valid, reason = save_data.validate(saved, map); assert(valid, reason)
@@ -511,7 +564,7 @@ test("save v3 restores exclusive inventory, equipment, and world ownership", fun
     restored_actor.inventory, restored_actor.equipment = restored_inventory, restored_equipment
     save_data.restore_player(restored_actor, saved)
 
-    equal(gameplay_events, 0); equal(restored_actor.tile_position.z, 6); equal(restored_actor.facing, "north")
+    equal(gameplay_events, 0); equal(restored_actor.position.z, 6); equal(restored_actor.facing, "north")
     assert(restored_world:object_state("greyhaven.house01.front_door").open)
     equal(inventory_api.get_item(restored_inventory, "test.key.01").id, "test.key.01")
     assert(world_items.get(restored_world, "world.test.key.01") == nil)

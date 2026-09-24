@@ -20,6 +20,15 @@ function M.load(module_name)
         assert(type(placement.position) == "table", "world item placements require positions")
         ids[placement.id], item_ids[placement.item.id] = true, true
     end
+    local actor_ids = {}
+    for _, placement in ipairs(map.actor_placements or {}) do
+        assert(type(placement.id) == "string", "actor placements require stable string ids")
+        assert(not actor_ids[placement.id], "duplicate actor id: " .. placement.id)
+        assert(type(placement.type) == "string" and type(placement.x) == "number"
+            and type(placement.y) == "number" and type(placement.z) == "number",
+            "actor placements require type and position")
+        actor_ids[placement.id] = true
+    end
     if map.player_inventory then
         assert(type(map.player_inventory.id) == "string" and type(map.player_inventory.owner_id) == "string",
             "player inventory requires stable identity")

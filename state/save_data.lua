@@ -3,6 +3,7 @@ local equipment_api = require "items.equipment"
 local equipment_slots = require "items.equipment_slots"
 local inventory_api = require "items.inventory"
 local position = require "world.position"
+local direction = require "world.direction"
 local state_api = require "state.world_state"
 local world_items = require "world.world_items"
 local M = { VERSION = 3 }
@@ -68,8 +69,8 @@ function M.capture(player, world, map_id)
         end
     end
     table.sort(item_state.dynamic, function(left, right) return left.id < right.id end)
-    return { version = M.VERSION, map_id = map_id, player = { x = player.tile_position.x,
-        y = player.tile_position.y, z = player.tile_position.z, facing = player.facing },
+    return { version = M.VERSION, map_id = map_id, player = { x = player.position.x,
+        y = player.position.y, z = player.position.z, facing = player.facing },
         objects = state_api.copy(world.state.objects), flags = state_api.copy(world.state.flags),
         inventory = inventory_api.snapshot(player.inventory), equipment = equipment_api.snapshot(player.equipment),
         world_items = item_state }
@@ -80,7 +81,8 @@ function M.validate(data, expected_map)
     local expected_map_id = type(expected_map) == "table" and expected_map.id or expected_map
     if data.map_id ~= expected_map_id then return false, "wrong_map" end
     local p = data.player
-    if type(p) ~= "table" or type(p.x) ~= "number" or type(p.y) ~= "number" or type(p.z) ~= "number" then
+    if type(p) ~= "table" or type(p.x) ~= "number" or type(p.y) ~= "number" or type(p.z) ~= "number"
+        or p.x % 1 ~= 0 or p.y % 1 ~= 0 or p.z % 1 ~= 0 or not direction.is_valid(p.facing) then
         return false, "invalid_player"
     end
     if type(data.objects) ~= "table" or type(data.flags) ~= "table" then return false, "invalid_world_state" end
@@ -178,9 +180,8 @@ function M.create_fresh_item_id_allocator(map)
 end
 
 function M.restore_player(player, data)
-    player.tile_position = position.new(data.player.x, data.player.y, data.player.z)
-    player.visual_position = position.copy(player.tile_position)
-    player.movement_target, player.facing = nil, data.player.facing or "south"
+    player.position = position.new(data.player.x, data.player.y, data.player.z)
+    player.facing = data.player.facing or "south"
 end
 
 return M

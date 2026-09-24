@@ -16,6 +16,10 @@ required = [
     "items/inventory.lua",
     "items/equipment_slots.lua",
     "items/equipment.lua",
+    "actors/actor_types.lua",
+    "actors/registry.lua",
+    "world/direction.lua",
+    "render/actor_renderer.lua",
     "world/world_items.lua",
     "simulation/item_transfers.lua",
 ]

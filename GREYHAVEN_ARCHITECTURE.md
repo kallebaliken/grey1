@@ -5,8 +5,8 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 ## Implemented layers
 
 1. **Data** — `data/maps/prototype.lua` and `objects/object_defs.lua` declare immutable initial content.
-2. **World model** — `world/` owns positions, chunk-addressed tiles, stable object and world-item placements, merged object state, Z visibility, and roof queries.
-3. **Simulation** — `simulation/` validates movement, resolves explicit transitions, transfers item ownership, and dispatches interaction handlers.
+2. **World model** — `world/` owns positions/directions, chunk-addressed tiles, stable object and world-item placements, the shared Actor registry/occupancy, Z visibility, and roof queries.
+3. **Simulation** — `simulation/` owns actor interpolation runtime, validates generic actor movement, resolves transitions, transfers item ownership, and dispatches interaction handlers.
 4. **State** — `state/` owns runtime object deltas, inventory/equipment snapshots, static-item overrides, dynamic world-item snapshots, deterministic diagnostic serialization, and the Defold `sys.save` adapter.
 5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered draw commands.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
@@ -16,7 +16,8 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 
 ## Runtime invariants
 
-- Authoritative actor positions are integer `tile_position` values. `visual_position` is interpolation only.
+- Authoritative actor positions are integer `position` values; visual interpolation exists only in movement runtime.
+- Actors share stable identity, canonical player/NPC/monster types, integer logical `position`, facing, and active state. Movement interpolation is separate weak runtime state rather than Actor data.
 - A tile owns a sorted stack of logical entries plus one optional actor reservation.
 - A logical object has a stable string ID, type, position, variant, immutable initial state, and metadata. Definitions own behavior-neutral traits and graphical patterns.
 - Graphical footprint and collision footprint are independent. The test wall draws 2×2 while occupying 1×1.
@@ -30,6 +31,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Equipment is another exclusive owner of the same item-instance model. Canonical slot data and per-definition compatibility policy govern transfers; occupied slots reject replacement and full inventories reject unequip.
 - World placements contain the same item instances used by inventories. Pickup/drop are explicit transfers: only accepted quantities change owner, item IDs survive, and tile placement does not require walkability.
 - Save restoration constructs the authored world first, applies static item deltas, restores inventory and dynamic placements through public APIs, then restores player state. Validation rejects item IDs owned by more than one location.
+- One Actor registry and one-per-tile reservation policy serve players, NPCs, and monsters; rendering consumes Actor state and never owns occupancy.
 
 ## Scale boundary
 

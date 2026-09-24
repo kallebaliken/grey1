@@ -31,9 +31,11 @@ Add immutable item definitions and per-instance state; reusable containers; inve
 
 Completed slices: validated item definitions and instances, containers, inventory/world transfers, save-v2 item ownership, and data-driven equipment with save-v3 exclusive ownership. Nested containers, combat-derived equipment effects, and item use remain out of scope.
 
-### 5 — Actors, navigation, and combat
+### 5 — Actors, navigation, and combat (in progress)
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
+
+Completed first slice: shared Actor identity/type/position/facing, canonical directions, runtime registry and occupancy, generic movement/transition handling, actor rendering, and one inert NPC. Health, factions, conditions, pathfinding, AI, and combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -45,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add the shared Actor foundation for player, NPC, and monster identities, occupancy, movement, and facing. Equipment effects, nested containers, pathfinding, combat, narrative, and production content remain explicitly out of scope for that slice.
+Add A* pathfinding over the authoritative world grid with actor-aware blocking. Autonomous NPC/monster behavior, equipment effects, combat, narrative, and production content remain explicitly out of scope for that slice.

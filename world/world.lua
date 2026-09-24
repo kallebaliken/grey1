@@ -1,8 +1,11 @@
 local chunks = require "world.chunks"
+local actor_api = require "actors.actor"
+local actor_registry_api = require "actors.registry"
 local tile_api = require "world.tile"
 local instance_api = require "world.object_instance"
 local item_instance = require "items.item_instance"
 local world_items = require "world.world_items"
+local position = require "world.position"
 local state_api = require "state.world_state"
 local M = {}
 
@@ -11,12 +14,16 @@ methods.__index = methods
 
 function M.new(map, registry, runtime_state, item_registry)
     local self = setmetatable({ map = map, registry = registry, state = runtime_state,
-        item_registry = item_registry, chunks = {}, objects = {}, world_items = {}, actors = {} }, methods)
+        item_registry = item_registry, chunks = {}, objects = {}, world_items = {},
+        actor_registry = actor_registry_api.new() }, methods)
     for _, placement in ipairs(map.placements) do self:add_object(instance_api.new(placement)) end
     for _, placement in ipairs(map.item_placements or {}) do
         assert(item_registry, "map item placements require an item registry")
         local item = item_instance.new(placement.item, item_registry)
         world_items.place(self, item, placement.position, placement.id)
+    end
+    for _, placement in ipairs(map.actor_placements or {}) do
+        self:place_actor(actor_api.new(placement.id, placement.type, placement.x, placement.y, placement.z, placement.facing))
     end
     return self
 end
@@ -90,17 +97,48 @@ function methods:is_walkable(x, y, z, moving_actor_id)
     return true
 end
 
-function methods:place_actor(actor)
-    local target = assert(self:get_tile(actor.tile_position.x, actor.tile_position.y, actor.tile_position.z), "actor requires a tile")
+function methods:place_actor(actor, events)
+    local target = assert(self:get_tile(actor.position.x, actor.position.y, actor.position.z), "actor requires a tile")
     assert(not target.actor_id or target.actor_id == actor.id, "tile occupied")
-    target.actor_id, self.actors[actor.id] = actor.id, actor
+    local existing = self.actor_registry:get(actor.id)
+    assert(not existing or existing == actor, "duplicate actor id: " .. actor.id)
+    if not existing then self.actor_registry:add(actor) end
+    target.actor_id = actor.id
+    if events and not existing then events.emit("actor_added", { actor_id = actor.id, actor_type = actor.type,
+        position = position.copy(actor.position) }) end
 end
 
 function methods:move_actor(actor, destination)
-    local old = self:get_tile(actor.tile_position.x, actor.tile_position.y, actor.tile_position.z)
+    assert(self.actor_registry:get(actor.id) == actor, "actor is not registered in world")
+    local old = self:get_tile(actor.position.x, actor.position.y, actor.position.z)
     local target = assert(self:get_tile(destination.x, destination.y, destination.z), "destination requires a tile")
+    assert(not target.actor_id or target.actor_id == actor.id, "destination occupied")
     if old then old.actor_id = nil end
     target.actor_id = actor.id
+end
+
+function methods:get_actor(id)
+    return self.actor_registry:get(id)
+end
+
+function methods:get_actor_at(x, y, z)
+    local tile = self:get_tile(x, y, z)
+    return tile and tile.actor_id and self.actor_registry:get(tile.actor_id) or nil
+end
+
+function methods:get_actors()
+    return self.actor_registry:get_all()
+end
+
+function methods:remove_actor(id, events)
+    local actor = self.actor_registry:get(id)
+    if not actor then return nil end
+    local tile = self:get_tile(actor.position.x, actor.position.y, actor.position.z)
+    if tile and tile.actor_id == id then tile.actor_id = nil end
+    local removed = self.actor_registry:remove(id)
+    if events then events.emit("actor_removed", { actor_id = actor.id, actor_type = actor.type,
+        position = position.copy(actor.position) }) end
+    return removed
 end
 
 return M

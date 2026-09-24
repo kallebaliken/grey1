@@ -10,6 +10,8 @@ Controls: **E** uses or picks up the target ahead, **G** drops the first invento
 
 Persistence route: start fresh with 15 carried herbs. Step west and back east to face the gold key, then press E to pick it up. Step east onto the key's former tile and back west to face the green 10-herb stack, then press E. Five herbs merge into the carried stack and five remain on the tile because both inventory slots are occupied. Press G on a different tile to drop the carried 20-herb stack while retaining the key. Follow the dirt road left to the cottage, open its brown door, enter, use the cyan stair, and save downstairs with F5. Restart or use F9. Door, chest, stairs, and pickup are registered interactions; the chest intentionally only toggles placeholder state.
 
+The brown-orange test villager stands at `(12, 5, 7)`. It is an inert shared Actor used only to verify rendering and one-actor-per-tile collision.
+
 ## Checklist
 
 - [ ] project builds and launches without errors
@@ -20,6 +22,7 @@ Persistence route: start fresh with 15 carried herbs. Step west and back east to
 - [ ] F1 shows stable item IDs and quantities in the inventory diagnostic
 - [ ] F1 includes the equipment diagnostic (empty in the authored engine-test start)
 - [ ] item pickup/drop does not affect door, chest, stair, or movement behavior
+- [ ] the test villager renders at `(12,5,7)` and blocks the player from entering its tile
 - [ ] walls and table block the player
 - [ ] closed door blocks the player
 - [ ] E opens/closes the targeted door and its appearance changes

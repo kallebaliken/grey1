@@ -3,6 +3,7 @@ local order = require "render.render_order"
 local roofs = require "world.roofs"
 local z_levels = require "world.z_levels"
 local world_items = require "world.world_items"
+local actor_renderer = require "render.actor_renderer"
 local M = {}
 
 local function append(commands, instance, definition, state, visible, viewed_z, revealed)
@@ -23,7 +24,7 @@ end
 
 function M.build(world, player, inspection_offset)
     local commands, revealed = {}, roofs.revealed_groups(world, player)
-    local visible, viewed_z = z_levels.get_visible_levels(player.tile_position.z, inspection_offset)
+    local visible, viewed_z = z_levels.get_visible_levels(player.position.z, inspection_offset)
     for _, instance in pairs(world.objects) do
         local definition = world.registry:get(instance.type)
         append(commands, instance, definition, instance_api.state(instance, world.state), visible, viewed_z, revealed)
@@ -32,6 +33,7 @@ function M.build(world, player, inspection_offset)
         local definition = world.item_registry:get(world_item.item.type)
         append(commands, world_item, definition, world_item.item.state, visible, viewed_z, revealed)
     end
+    actor_renderer.append(commands, world, viewed_z)
     table.sort(commands, order.less)
     return commands, revealed
 end
