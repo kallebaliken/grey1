@@ -1,0 +1,5 @@
+name: "greyhaven"
+embedded_instances {
+  id: "game"
+  data: "components {\n  id: \"manager\"\n  component: \"/main/game_manager.script\"\n}\ncomponents {\n  id: \"view\"\n  component: \"/main/world.gui\"\n}\n"
+}

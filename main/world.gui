@@ -1,0 +1,26 @@
+script: "/main/world.gui_script"
+fonts {
+  name: "default"
+  font: "/builtins/fonts/default.font"
+}
+nodes {
+  position { x: 16.0 y: 620.0 }
+  size { x: 900.0 y: 24.0 }
+  color { x: 0.92 y: 0.92 z: 0.84 w: 1.0 }
+  type: TYPE_TEXT
+  text: "Greyhaven"
+  font: "default"
+  id: "status"
+  pivot: PIVOT_W
+}
+nodes {
+  position { x: 16.0 y: 580.0 }
+  size { x: 920.0 y: 160.0 }
+  color { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }
+  type: TYPE_TEXT
+  text: ""
+  font: "default"
+  id: "debug"
+  pivot: PIVOT_NW
+  line_break: true
+}

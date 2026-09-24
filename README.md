@@ -1,151 +1,47 @@
-# Canary
+# Greyhaven
 
-[![Discord](https://img.shields.io/discord/528117503952551936.svg?style=flat-square&logo=discord)](https://discord.gg/gvTj5sh9Mp)
-[![CI](https://github.com/opentibiabr/canary/actions/workflows/ci.yml/badge.svg)](https://github.com/opentibiabr/canary/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=opentibiabr_canary&metric=alert_status)](https://sonarcloud.io/dashboard?id=opentibiabr_canary)
-![Repository size](https://img.shields.io/github/repo-size/opentibiabr/canary)
-[![License](https://img.shields.io/github/license/opentibiabr/canary.svg)](https://github.com/opentibiabr/canary/blob/main/LICENSE)
+Greyhaven is the beginning of an original single-player 2D RPG built with [Defold](https://defold.com/). It uses a 32×32 logical grid, explicit Z-levels, stacked world objects, smooth presentation, and data-authored maps. The engine-test slice includes a stateful cottage door, grouped roof reveal, explicit basement stairs, and versioned local save/load.
 
-Canary is a free and open-source MMORPG server emulator for the OpenTibia community, written in C++20 and Lua. It is a fork of the [OTServBR-Global](https://github.com/opentibiabr/otservbr-global) project. The repository includes the server core, datapacks, Lua scripts, database schema, build presets, automated tests and development tooling used by the project.
+This repository began as a fork of the GPL-2.0 Canary MMORPG server. Canary's source remains temporarily as architectural reference while systems are replaced incrementally; it is **not** used by the Greyhaven runtime. Existing licenses and notices remain in place. New Greyhaven Lua and documentation are independently authored, and all current visuals are simple original color placeholders.
 
----
+## Run in Defold
 
-## Getting Started
+1. Install the current stable Defold editor.
+2. Choose **Open From Disk** and select this repository's `game.project`.
+3. Build and run the project (`Project` → `Build`).
+4. Move with WASD/arrows, use the faced object with E, toggle diagnostics with F1, save with F5, and load with F9. Follow the detailed [runtime checklist](docs/runtime-test.md).
 
-- [Wiki](https://github.com/opentibiabr/canary/wiki).
+The project has no external library or asset dependencies. Its initial collection is `main/main.collection`.
 
----
+## Current foundation
 
-## Docker Quickstart
+- Lua map format with stable placement IDs and `(x, y, z)` coordinates.
+- Chunk-addressed tiles with sorted object stacks, actor reservations, gameplay footprints, and authoritative walkability.
+- Stable object instances separate from registry definitions, including a 2×2 visual object with a distinct 1×1 gameplay footprint.
+- Deterministic semantic render layers and a player-following presentation camera.
+- Smooth visual player interpolation after grid movement validation.
+- Grouped roof rendering from `z + 1`, interior/reveal-zone detection, and actual playable Z transitions.
+- Registered interactions for stateful doors, explicit stairs, and a chest placeholder.
+- Synchronous semantic events, object-ID world-state deltas, and validated Defold local saves.
 
-Canary includes a lightweight Docker quickstart for running a local test server
-without compiling Canary locally. The stack starts MariaDB, the published Canary
-runtime image, MyAAC as the website/admin AAC, and `opentibiabr/login-server` as
-the client login webservice.
-
-This quickstart is for local development, testing, and LAN demos. Do not expose
-it directly to the public Internet with the default test accounts and passwords.
-
-Run from the `docker` directory:
-
-```bash
-cp .env.dist .env
-docker compose up -d --build
-```
-
-The `docker` directory also provides guarded start scripts that start the stack
-and clean safe Docker leftovers without removing database volumes:
-
-```powershell
-.\up.ps1
-```
-
-```bash
-sh ./up.sh
-```
-
-Default local endpoints:
-
-- Website/admin: `http://localhost:8080`
-- Client login webservice: `http://localhost:8088/login`
-- Game port: `7172`
-
-MyAAC's `login.php` is intentionally removed from the quickstart image. Clients
-should use `login-server` only. See [docs/docker/quickstart-for-beginners.md](docs/docker/quickstart-for-beginners.md)
-for a beginner guide and [docker/DOCKER.md](docker/DOCKER.md) for the full setup,
-environment variables, test account, and troubleshooting guide.
-
----
+This is deliberately a narrow world-engine slice. Inventory, NPCs, monsters, combat, pathfinding, dialogue, and quests remain planned rather than represented by misleading stubs.
 
 ## Documentation
 
-- [Recompile on Linux with executable backups](docs/building/recompile.md).
-  Covers seven-day retention, crash analysis, optional restart and WSL tests.
-- [Hardware sizing and capacity planning](docs/hardware-sizing.md). Measure
-  RAM and CPU, compare training and hunting workloads, and review capacity.
-- [Shared build cache for worktrees and forks](docs/development/shared-build-cache.md).
-- [Docker beginner quickstart](docs/docker/quickstart-for-beginners.md).
-- [Multiprotocol runtime profiles](docs/systems/multiprotocol.md). Covers the
-  current, 11.00, and 8.60 runtime contracts, port layout, client preparation,
-  and validation checklist.
-- [System documentation](docs/systems/README.md).
-- [Lua API reference and VSCode IntelliSense stubs](docs/lua-api/lua_api.md). Canary generates these files from the C++ Lua bindings during startup when `generateLuaApiDocs` is enabled. The repository `.luarc.json` already adds `docs/lua-api` to the Lua Language Server workspace library; for VSCode workspace settings, run `tools/setup_vscode_lua_api.ps1`.
+- [Migration plan](MIGRATION_PLAN.md)
+- [Canary system audit](CANARY_SYSTEM_MAP.md)
+- [Architecture decision record](GREYHAVEN_ARCHITECTURE.md)
+- [Runtime architecture](docs/architecture.md)
+- [World format](docs/world-format.md)
+- [Object format](docs/object-format.md)
+- [Save format direction](docs/save-format.md)
+- [Runtime test checklist](docs/runtime-test.md)
+- [Phase 2 runtime audit](docs/phase2-runtime-audit.md)
 
----
+## Repository status
 
-## Recommended Tools and Clients
+The legacy C++ server, datapacks, database files, and deployment tooling are quarantined by non-use rather than deleted in this first milestone. They will be removed in coherent, reviewable phases after their useful concepts are documented and Greyhaven replacements exist. Do not add new gameplay to the legacy server.
 
-- [Assets Editor](https://github.com/Arch-Mina/Assets-Editor). Use this as the
-  single asset source of truth, then export legacy-compatible `.dat`/`.spr`
-  packages for 8.60 clients from the same current asset set.
-- [Remere's Map Editor](https://github.com/opentibiabr/remeres-map-editor/).
-- [OTClient Redemption](https://github.com/opentibiabr/otclient).
-- [Tibia Extended Client Library](https://github.com/dudantas/Tibia-Extended-Client-Library).
-  Use this to prepare compatible 8.60/11.00 CipSoft clients with extended
-  limits, config-driven login redirect, and per-client local state.
-- [Game Client](https://github.com/dudantas/tibia-client/releases/latest).
+## License and content
 
----
-
-## Nightly Packages
-
-Development builds can be downloaded from GitHub Actions artifacts. They are useful for testing recent changes from the `main` branch, but may include behavior that is not present in stable releases yet.
-
-- [Github Actions](https://github.com/opentibiabr/canary/actions/workflows/ci.yml?query=branch%3Amain).
-
----
-
-## Running Tests
-
-Tests can be run from the repository root using the tool versions and tasks
-pinned in `.mise.toml`:
-
-```bash
-mise install
-mise run configure linux-debug
-mise run build linux-debug
-mise run test linux-debug
-
-# Replace linux-debug with macos-debug or windows-debug as needed.
-```
-
-For detailed testing information including adding tests and framework usage, see [tests/README.md](tests/README.md).
-
----
-
-## Support & Community
-
-For real-time support, join the [OpenTibiaBR Discord](https://discord.gg/gvTj5sh9Mp).
-
-The GitHub issue tracker should be used for bugs, improvements and technical project tasks. It is not a support forum.
-
----
-
-## Contributing
-
-Contributions are welcome. You can help in several ways:
-
-- Report bugs through the [Issue Tracker](https://github.com/opentibiabr/canary/issues/new/choose).
-- Submit improvements through [Pull Requests](https://github.com/opentibiabr/canary/pulls).
-- Improve tests, documentation, scripts, datapacks, or C++ code.
-- Validate releases, nightly builds and recent changes.
-
-Before contributing, read the [Code of Conduct](https://github.com/opentibiabr/canary/blob/main/CODE_OF_CONDUCT.md) and the project [Contributing](https://github.com/opentibiabr/canary/blob/main/CONTRIBUTING.md) guide.
-
----
-
-## Sponsorship
-
-Canary is maintained by community contributors. To support development, visit the [OpenTibiaBR sponsors page](https://github.com/sponsors/opentibiabr).
-
----
-
-## Acknowledgements
-
-Thanks to all contributors of [Canary](https://github.com/opentibiabr/canary/graphs/contributors), [OTServBR-Global](https://github.com/opentibiabr/otservbr-global/graphs/contributors) and the OpenTibia community.
-
----
-
-## License
-
-This project is distributed under the [GPL-2.0 license](https://github.com/opentibiabr/canary/blob/main/LICENSE).
+See [`LICENSE`](LICENSE). Do not add Tibia/CipSoft graphics, maps, audio, writing, or other proprietary content. Greyhaven requires original or appropriately licensed assets and content.
