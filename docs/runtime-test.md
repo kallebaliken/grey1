@@ -20,13 +20,14 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **E** | Interact with the tile in front (door, chest, stair, or pickupable item) |
 | **G** | Development control: drop the first inventory item on the current tile |
 | **H** | Development control: calculate and execute the test NPC's path to `(14,7,7)` |
+| **J** | Development control: deal exactly 5 damage to `monster_test_rat` |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
+F1 reports the player Actor ID/type, logical tile and Z, facing, player and test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, equipment, and the latest notice. Equipment has no development control or GUI; initialization and persistence remain covered by automated tests.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -49,6 +50,17 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 14. Confirm the player still moves manually, then press **H**. The NPC should calculate a route and visibly walk tile by tile to `(14,7,7)`, including a turn. F1 should show `moving`, decreasing remaining steps, and the next target, followed by `completed`.
 15. Reset and press **H** again, then place the player on the NPC's next reported tile. Confirm the NPC becomes `blocked`, never walks through the player, and does not replan or restart by itself. Confirm no Defold runtime errors occur.
 16. Press **F8**. Confirm the authored key, 10-herb stack, 15-herb starter inventory, empty equipment, closed door/chest, original NPC position, and original player spawn return.
+
+## Health/death development check
+
+1. Launch or reset with **F8**, enable **F1**, and confirm player HP is `100/100` and `monster_test_rat` is `20/20`, `dead: false`.
+2. Confirm existing movement, rendering, interaction, and the explicit H route still work.
+3. Press **J** once and confirm the rat becomes `15/20`; each press applies exactly five damage.
+4. Press **J** until it reaches `0/20`, `dead: true`. The rat remains visible and occupies its tile.
+5. Press **J** again. Confirm the status reports `actor_dead`, health remains zero, and no repeated death error occurs.
+6. The test rat has no autonomous or debug path command. Automated tests verify that a dead Actor's supplied route blocks; no Actor chooses a new route.
+7. Save/load after player damage when a future player-damage control exists; Save Format v4 already persists player health. Rat damage intentionally resets because static Actor combat persistence is deferred.
+8. Press **F8** and confirm both authored health values are full with dead flags cleared. Confirm no Defold runtime errors occurred.
 
 ## Expected prototype content
 

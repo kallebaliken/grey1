@@ -11,6 +11,7 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 5. **Rendering** — `render/` converts the model into engine-neutral, deterministically ordered, camera-culled draw commands. Culling uses graphical extents and a small viewport margin, never gameplay collision footprints.
 6. **Defold adapter/UI** — `main/game_manager.script` routes lifecycle/input and `main/world.gui_script` draws placeholder nodes and debug text. Their adapter-local `view_model` passes frame tables without attempting to serialize nested data through Defold messages.
 7. **Items** — `items/` validates immutable item-type definitions, creates runtime instances, provides generic containers/inventories, and transfers instances through data-driven equipment slots. It has no Defold dependency and does not implement nested containers or combat effects.
+8. **Combat state** — `combat/` composes validated health/death records with known Actor IDs. Capability policies prevent dead Actors from beginning movement or interaction without placing combat logic on Actor.
 
 Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; world and simulation modules are ordinary Lua.
 
@@ -34,6 +35,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - One Actor registry and one-per-tile reservation policy serve players, NPCs, and monsters; rendering consumes Actor state and never owns occupancy.
 - A* derives starts from registered Actors and queries authoritative walkability with canonical cardinal directions. It is same-Z, uniformly costed, bounded, deterministic, and separate from movement or AI state.
 - The pure-Lua movement controller owns supplied route progress by Actor ID outside Actor state. It advances only through shared movement after each interpolation completes; stale steps block without replanning, while cancellation/replacement preserve an already committed visual step.
+- Combat registries privately own integer health state. Death is one-way in this foundation: health clamps to zero, the Actor remains registered and occupying its tile, and shared capabilities reject new movement and interaction.
 
 ## Scale boundary
 

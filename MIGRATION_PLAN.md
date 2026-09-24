@@ -29,13 +29,13 @@ Support independent visual/gameplay footprints, ordered stacks, grouped roofs, r
 
 Add immutable item definitions and per-instance state; reusable containers; inventory/equipment policies; world pickup/drop actions; events; and serialization tests. No GUI dependency belongs in these modules.
 
-Completed slices: validated item definitions and instances, containers, inventory/world transfers, save-v2 item ownership, and data-driven equipment with save-v3 exclusive ownership. Nested containers, combat-derived equipment effects, and item use remain out of scope.
+Completed slices: validated item definitions and instances, containers, inventory/world transfers, save-v2 item ownership, data-driven equipment with save-v3 exclusive ownership, and save-v4 player combat state. Nested containers, combat-derived equipment effects, and item use remain out of scope.
 
 ### 5 — Actors, navigation, and combat (in progress)
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A* over authoritative walkability, and explicit supplied-route execution through shared movement. Health, factions, conditions, autonomous AI, and combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, one inert NPC, bounded deterministic A* over authoritative walkability, explicit supplied-route execution, and composed integer health/damage/death state. Factions, conditions, attacks, autonomous AI, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -47,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add the minimal health and damage foundation shared by Actors. Autonomous NPC/monster behavior, equipment effects, combat actions, narrative, and production content remain explicitly out of scope for that slice.
+Add an explicit basic attack action and cooldown policy over the existing damage API. Weapons, armor, skills, spells, conditions, autonomous NPC/monster behavior, loot, narrative, and production content remain explicitly out of scope for that slice.

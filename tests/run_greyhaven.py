@@ -18,6 +18,9 @@ required = [
     "items/equipment.lua",
     "actors/actor_types.lua",
     "actors/registry.lua",
+    "actors/capabilities.lua",
+    "combat/health.lua",
+    "combat/registry.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -59,6 +62,6 @@ map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
-for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "save_manager.save", "movement.begin", "renderer.build"):
+for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 print("Greyhaven project wiring passed")

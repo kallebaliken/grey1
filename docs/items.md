@@ -44,4 +44,4 @@ World items share deterministic tile ordering with fixtures but resolve visuals 
 
 ## Deferred boundaries
 
-The item ownership layers deliberately do not yet implement equipment GUI, combat/stat effects, durability, nested backpacks or container references, item usage, merchants, loot generation, weight limits, or partial-stack dropping. Save version 3 persists inventory, equipment, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.
+The item ownership layers deliberately do not yet implement equipment GUI, combat/stat effects, durability, nested backpacks or container references, item usage, merchants, loot generation, weight limits, or partial-stack dropping. Save version 4 persists inventory, equipment, player combat state, static placement overrides, and dynamic world items through the existing versioned snapshot model; see `docs/save-format.md`.

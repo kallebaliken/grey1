@@ -20,6 +20,7 @@ local equipment_api = require "items.equipment"
 local item_transfers = require "simulation.item_transfers"
 local pathfinding = require "simulation.pathfinding"
 local movement_controller = require "simulation.movement_controller"
+local combat_registry = require "combat.registry"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -62,6 +63,8 @@ local function render(self)
     local npc_status = movement_controller.get_status(self.path_controller, npc_id) or "unavailable"
     local npc_remaining = movement_controller.get_remaining_steps(self.path_controller, npc_id) or 0
     local npc_next = movement_controller.get_next_target(self.path_controller, npc_id)
+    local player_combat = combat_registry.get(self.combat, self.player.id)
+    local rat_combat = combat_registry.get(self.combat, "monster_test_rat")
     view_model.frame = { commands = commands,
         player_x = visual.x, player_y = visual.y,
         actor_id = self.player.id, actor_type = self.player.type,
@@ -73,7 +76,9 @@ local function render(self)
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
-        npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none" }
+        npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
+        player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
+        rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead }
     msg.post("#view", "render_world")
 end
 
@@ -97,6 +102,14 @@ local function create_session(self, map, loaded)
     if loaded then save_data.restore_player(self.player, loaded) end
     movement.reset(self.player); movement.configure(self.player, { speed = 7 })
     self.world:place_actor(self.player)
+    self.combat = combat_registry.create(self.world, events)
+    local saved_combat = loaded and save_data.restore_player_combat(loaded) or nil
+    assert(combat_registry.add(self.combat, self.player.id,
+        saved_combat and saved_combat.max_health or self.map.player_max_health,
+        saved_combat and saved_combat.health or nil))
+    for _, placement in ipairs(self.map.actor_placements or {}) do
+        if placement.max_health then assert(combat_registry.add(self.combat, placement.id, placement.max_health)) end
+    end
     self.path_controller = movement_controller.create(self.world, events)
     self.interior_group = roofs.interior_group(self.world, self.player.position)
 end
@@ -160,6 +173,12 @@ function on_input(self, action_id, action)
         self.notice = assigned and ("NPC path started: " .. #result.path .. " steps")
             or ("NPC path: " .. tostring(reason))
         render(self); return true
+    elseif action.pressed and action_id == hash("debug_damage") then
+        local result = combat_registry.apply_damage(self.combat, "monster_test_rat", 5,
+            { source = "development_control" })
+        self.notice = result.success and ("Rat damage: 5, HP " .. result.health)
+            or ("Rat damage: " .. result.reason)
+        render(self); return true
     elseif action.pressed and action_id == hash("drop_item") then
         local first = inventory_api.get_items(self.player.inventory)[1]
         if not first then self.notice = "Drop: inventory empty"
@@ -170,7 +189,8 @@ function on_input(self, action_id, action)
         end
         render(self); return true
     elseif action.pressed and action_id == hash("save") then
-        self.notice = save_manager.save(self.player, self.world, self.map.id) and "Game saved" or "Save failed"; render(self); return true
+        self.notice = save_manager.save(self.player, self.world, self.map.id,
+            combat_registry.get(self.combat, self.player.id)) and "Game saved" or "Save failed"; render(self); return true
     elseif action.pressed and action_id == hash("load") then load_game(self); render(self); return true
     elseif action.pressed and action_id == hash("reset_save") then
         save_manager.reset(); create_session(self, map_loader.load("data.maps.prototype"), nil)

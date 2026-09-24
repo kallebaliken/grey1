@@ -6,7 +6,7 @@ local position = require "world.position"
 local direction = require "world.direction"
 local state_api = require "state.world_state"
 local world_items = require "world.world_items"
-local M = { VERSION = 3 }
+local M = { VERSION = 4 }
 
 local function equal(left, right, seen)
     if type(left) ~= type(right) then return false end
@@ -41,7 +41,7 @@ local function reserve(used, id)
     return true
 end
 
-function M.capture(player, world, map_id)
+function M.capture(player, world, map_id, player_combat)
     assert(player.inventory, "player inventory is required for save capture")
     assert(player.equipment, "player equipment is required for save capture")
     local placements = static_placements(world.map)
@@ -69,8 +69,10 @@ function M.capture(player, world, map_id)
         end
     end
     table.sort(item_state.dynamic, function(left, right) return left.id < right.id end)
+    player_combat = player_combat or { actor_id = player.id, max_health = 100, health = 100, dead = false }
     return { version = M.VERSION, map_id = map_id, player = { x = player.position.x,
         y = player.position.y, z = player.position.z, facing = player.facing },
+        combat = { player = state_api.copy(player_combat) },
         objects = state_api.copy(world.state.objects), flags = state_api.copy(world.state.flags),
         inventory = inventory_api.snapshot(player.inventory), equipment = equipment_api.snapshot(player.equipment),
         world_items = item_state }
@@ -86,11 +88,18 @@ function M.validate(data, expected_map)
         return false, "invalid_player"
     end
     if type(data.objects) ~= "table" or type(data.flags) ~= "table" then return false, "invalid_world_state" end
+    local player_combat = data.combat and data.combat.player
+    if type(player_combat) ~= "table" or not valid_id(player_combat.actor_id)
+        or type(player_combat.max_health) ~= "number" or player_combat.max_health <= 0 or player_combat.max_health % 1 ~= 0
+        or type(player_combat.health) ~= "number" or player_combat.health < 0 or player_combat.health % 1 ~= 0
+        or player_combat.health > player_combat.max_health or type(player_combat.dead) ~= "boolean"
+        or player_combat.dead ~= (player_combat.health == 0) then return false, "invalid_combat_state" end
     local inventory = data.inventory
     if type(inventory) ~= "table" or not valid_id(inventory.id) or not valid_id(inventory.owner_id)
         or type(inventory.capacity) ~= "number" or inventory.capacity < 0 or inventory.capacity % 1 ~= 0
         or type(inventory.items) ~= "table" then return false, "invalid_inventory" end
     if #inventory.items > inventory.capacity then return false, "invalid_inventory" end
+    if player_combat.actor_id ~= inventory.owner_id then return false, "invalid_combat_state" end
     local equipment = data.equipment
     if type(equipment) ~= "table" or not valid_id(equipment.id) or not valid_id(equipment.owner_id)
         or equipment.owner_id ~= inventory.owner_id or type(equipment.slots) ~= "table" then
@@ -144,6 +153,10 @@ end
 
 function M.restore_equipment(data, registry)
     return equipment_api.restore(data.equipment, registry)
+end
+
+function M.restore_player_combat(data)
+    return state_api.copy(data.combat.player)
 end
 
 function M.apply_static_item_overrides(world, data)

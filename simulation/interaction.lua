@@ -1,4 +1,5 @@
 local movement = require "simulation.movement"
+local capabilities = require "actors.capabilities"
 local M = { handlers = {} }
 
 function M.register(kind, handler) M.handlers[kind] = handler end
@@ -15,6 +16,7 @@ function M.find_target(world, actor)
 end
 
 function M.use(world, actor, events)
+    if not capabilities.allows(actor, "interaction") then return false, "actor_dead" end
     local instance, definition = M.find_target(world, actor)
     if not instance then return false, "nothing_to_use" end
     local handler = M.handlers[definition.interaction]

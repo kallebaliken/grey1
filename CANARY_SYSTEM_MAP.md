@@ -58,6 +58,8 @@ The current runtime now replaces the relevant `Position`, tile stack, object/typ
 
 Door, stair, and placeholder chest actions now use the registered interaction dispatcher. This validates the category/registration concept without adopting the C++ Lua binding layer or `Cylinder` hierarchy.
 
+Canary `Creature` health/change/death concepts now map to a composed Greyhaven CombatState and deterministic explicit-damage API. Formula calculation, schedulers, conditions, PvP policy, experience, loot, network messages, and server death processing are not part of this foundation.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

@@ -36,6 +36,7 @@ return { version = 1, id = "greyhaven.engine_test", tile_size = 32, width = 18, 
     player_spawn = { x = 9, y = 2, z = 7, facing = "west" }, placements = placements,
     actor_placements = {
         { id = "npc_test_villager", type = "npc", x = 12, y = 5, z = 7, facing = "south" },
+        { id = "monster_test_rat", type = "monster", x = 14, y = 10, z = 7, facing = "west", max_health = 20 },
     },
     item_placements = {
         { id = "world.test.herbs.01", item = { id = "test.herbs.01", type = "healing_herb", quantity = 10,
@@ -44,6 +45,7 @@ return { version = 1, id = "greyhaven.engine_test", tile_size = 32, width = 18, 
         { id = "world.test.key.01", item = { id = "test.key.01", type = "old_iron_key" },
             position = { x = 10, y = 2, z = 7 } },
     },
+    player_max_health = 100,
     player_inventory = { id = "inventory.player", owner_id = "player", capacity = 2, items = {
         { id = "test.starter.000001", type = "healing_herb", quantity = 15, state = { quality = "fresh" } },
     } },

@@ -12,6 +12,8 @@ local actor_registry_api = require "actors.registry"
 local direction = require "world.direction"
 local movement = require "simulation.movement"
 local movement_controller = require "simulation.movement_controller"
+local health = require "combat.health"
+local combat_registry = require "combat.registry"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -347,6 +349,90 @@ test("movement controller blocks stale Actor and door paths without replanning",
     movement_controller.update(player_controller, 1)
     equal(movement_controller.get_status(player_controller, player.id), "blocked")
     equal(player.position.x, 0)
+end)
+
+test("health state validates bounds and applies deterministic clamped damage", function()
+    local state = health.create("combat.health.actor", 20)
+    equal(health.get_current(state), 20); equal(health.get_max(state), 20); assert(not health.is_dead(state))
+    assert(not pcall(health.damage, state, 0)); assert(not pcall(health.damage, state, -1))
+    local changed = health.damage(state, 4)
+    equal(changed.previous_health, 20); equal(changed.health, 16); equal(changed.damage, 4); assert(not changed.died)
+    changed = health.damage(state, 99)
+    equal(changed.previous_health, 16); equal(changed.health, 0); assert(changed.died); assert(health.is_dead(state))
+    assert(not pcall(health.create, "combat.bad.zero", 0))
+    assert(not pcall(health.create, "combat.bad.float", 2.5))
+    assert(not pcall(health.damage, state, 1))
+end)
+
+test("combat registry owns isolated health, events, death, and explicit cleanup", function()
+    events.clear()
+    local world = path_world(3, 1)
+    local actor = actor_api.new("combat.registry.actor", "monster", 0, 0, 7); world:place_actor(actor)
+    local damaged, died = 0, 0
+    events.on("actor_damaged", function(payload)
+        damaged = damaged + 1; equal(payload.actor_id, actor.id); equal(payload.amount, 3)
+    end)
+    events.on("actor_died", function(payload) died = died + 1; equal(payload.actor_id, actor.id) end)
+    local combat = combat_registry.create(world, events)
+    local created = assert(combat_registry.add(combat, actor.id, 5))
+    equal(created.health, 5); assert(combat.states == nil)
+    created.health = 1; equal(combat_registry.get(combat, actor.id).health, 5)
+    equal(combat_registry.apply_damage(combat, actor.id, 0).reason, "invalid_damage")
+    local hit = combat_registry.apply_damage(combat, actor.id, 3, { source = { id = "test" } })
+    assert(hit.success); equal(hit.previous_health, 5); equal(hit.health, 2); assert(not hit.died); equal(damaged, 1)
+    hit.context.source.id = "changed"
+    local fatal = combat_registry.apply_damage(combat, actor.id, 9)
+    assert(fatal.success and fatal.died); equal(fatal.health, 0); equal(died, 1); equal(damaged, 2)
+    local rejected = combat_registry.apply_damage(combat, actor.id, 1)
+    assert(not rejected.success); equal(rejected.reason, "actor_dead"); equal(died, 1); equal(damaged, 2)
+    equal(combat_registry.apply_damage(combat, "missing", 1).reason, "unknown_actor")
+    local removed = assert(combat_registry.remove(combat, actor.id)); assert(removed.dead)
+    assert(combat_registry.get(combat, actor.id) == nil)
+    local missing, reason = combat_registry.add(combat, "missing", 5); assert(missing == nil); equal(reason, "unknown_actor")
+end)
+
+test("combat capabilities stop dead movement, interaction, and supplied routes", function()
+    events.clear(); actions.register_defaults()
+    local world = path_world(4, 1)
+    local actor = actor_api.new("combat.movement.actor", "npc", 0, 0, 7, "east"); world:place_actor(actor)
+    local combat = combat_registry.create(world, events); assert(combat_registry.add(combat, actor.id, 2))
+    assert(movement.begin(world, actor, 1, 0)); movement.update(actor, 1)
+    local controller = movement_controller.create(world, events)
+    assert(movement_controller.set_path(controller, actor.id,
+        { position.new(2, 0, 7), position.new(3, 0, 7) }))
+    movement_controller.update(controller, 0)
+    equal(actor.position.x, 2); assert(movement.is_moving(actor))
+    assert(combat_registry.apply_damage(combat, actor.id, 2).died)
+    movement_controller.update(controller, 1)
+    movement_controller.update(controller, 0)
+    equal(actor.position.x, 2); equal(movement_controller.get_status(controller, actor.id), "blocked")
+    assert(not movement.begin(world, actor, 1, 0))
+    local used, reason = interaction.use(world, actor, events); assert(not used); equal(reason, "actor_dead")
+    equal(world:get_actor_at(2, 0, 7).id, actor.id)
+
+    combat_registry.remove(combat, actor.id); world:remove_actor(actor.id)
+    local living = actor_api.new("combat.living.actor", "player", 0, 0, 7); world:place_actor(living)
+    assert(movement.begin(world, living, 1, 0))
+end)
+
+test("save v4 preserves player combat state and a fresh registry resets health", function()
+    local world, inventory, registry = world_item_fixture(2)
+    local actor = actor_api.new("player", "player", 1, 1, 7); actor.inventory = inventory
+    actor.equipment = equipment_api.create("equipment.combat.save", actor.id, registry); world:place_actor(actor)
+    local combat = combat_registry.create(world); assert(combat_registry.add(combat, actor.id, 100))
+    combat_registry.apply_damage(combat, actor.id, 35)
+    local saved = save_data.capture(actor, world, world.map.id, combat_registry.get(combat, actor.id))
+    local valid, reason = save_data.validate(saved, world.map); assert(valid, reason)
+    local restored = save_data.restore_player_combat(saved)
+    equal(restored.health, 65); equal(restored.max_health, 100); assert(not restored.dead)
+    restored.health = 1; equal(saved.combat.player.health, 65)
+
+    local fresh_world, fresh_inventory, fresh_registry = world_item_fixture(2)
+    local fresh_actor = actor_api.new("player", "player", 1, 1, 7); fresh_actor.inventory = fresh_inventory
+    fresh_actor.equipment = equipment_api.create("equipment.combat.fresh", fresh_actor.id, fresh_registry)
+    fresh_world:place_actor(fresh_actor)
+    local fresh_combat = combat_registry.create(fresh_world); combat_registry.add(fresh_combat, fresh_actor.id, 100)
+    equal(combat_registry.get(fresh_combat, fresh_actor.id).health, 100)
 end)
 
 test("tile retrieval, deterministic stack, removal", function()
@@ -687,6 +773,8 @@ test("engine test map loads its stable herb and key placements", function()
     equal(world_items.get(world, "world.test.herbs.01").item.id, "test.herbs.01")
     equal(world_items.get(world, "world.test.key.01").item.id, "test.key.01")
     equal(world:get_actor_at(12, 5, 7).id, "npc_test_villager")
+    equal(world:get_actor_at(14, 10, 7).id, "monster_test_rat")
+    equal(world:get_actor("monster_test_rat").type, "monster")
     local viewer = actor_api.new("player.viewer", "player", 9, 2, 7); world:place_actor(viewer)
     local commands = renderer.build(world, viewer, 0)
     local npc_rendered = false
@@ -769,13 +857,13 @@ test("world item placement and pickup reject invalid content", function()
     assert(world_items.get(world, "world.sealed")); assert(not inventory_api.has_item_type(inventory, "sealed_stone"))
 end)
 
-test("save v3 serializes empty and populated ownership snapshots safely", function()
+test("save v4 serializes empty and populated ownership snapshots safely", function()
     local world, empty_inventory, registry = world_item_fixture(3)
     local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
     actor.equipment = equipment_api.create("equipment.hero", actor.id, registry)
     local empty = save_data.capture(actor, world, world.map.id)
-    equal(empty.version, 3); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
-    local old = state_api.copy(empty); old.version = 2
+    equal(empty.version, 4); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
+    local old = state_api.copy(empty); old.version = 3
     local old_valid, old_reason = save_data.validate(old, world.map)
     assert(not old_valid); equal(old_reason, "unsupported_save_version")
 
@@ -795,7 +883,7 @@ test("save v3 serializes empty and populated ownership snapshots safely", functi
     equal(inventory_api.get_item(restored, "save.key").id, "save.key")
 end)
 
-test("save v3 restores exclusive inventory, equipment, and world ownership", function()
+test("save v4 restores exclusive inventory, equipment, and world ownership", function()
     events.clear()
     local map = map_loader.load("data.maps.prototype")
     local registry = item_registry_api.new(item_definitions)

@@ -33,8 +33,14 @@ function M.load(module_name)
         assert(type(placement.type) == "string" and type(placement.x) == "number"
             and type(placement.y) == "number" and type(placement.z) == "number",
             "actor placements require type and position")
+        if placement.max_health ~= nil then
+            assert(type(placement.max_health) == "number" and placement.max_health > 0
+                and placement.max_health % 1 == 0, "actor max health must be a positive integer")
+        end
         actor_ids[placement.id] = true
     end
+    assert(type(map.player_max_health) == "number" and map.player_max_health > 0
+        and map.player_max_health % 1 == 0, "player max health must be a positive integer")
     if map.player_inventory then
         assert(type(map.player_inventory.id) == "string" and type(map.player_inventory.owner_id) == "string",
             "player inventory requires stable identity")

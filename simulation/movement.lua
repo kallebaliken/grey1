@@ -1,5 +1,6 @@
 local direction = require "world.direction"
 local position = require "world.position"
+local capabilities = require "actors.capabilities"
 local M = {}
 
 -- Interpolation is presentation runtime keyed by actor identity; it is not Actor state.
@@ -37,12 +38,14 @@ end
 
 function M.can_move(world, actor, dx, dy)
     local from = actor.position
-    return not M.is_moving(actor) and world:is_walkable(from.x + dx, from.y + dy, from.z, actor.id)
+    return capabilities.allows(actor, "movement") and not M.is_moving(actor)
+        and world:is_walkable(from.x + dx, from.y + dy, from.z, actor.id)
 end
 
 function M.begin(world, actor, dx, dy, events)
     if dx == 0 and dy == 0 then return false end
     assert(math.abs(dx) + math.abs(dy) == 1, "actor movement must be one cardinal tile")
+    if not capabilities.allows(actor, "movement") then return false end
     local facing = assert(direction.from_delta(dx, dy), "actor movement requires a direction")
     if actor.facing ~= facing then
         local previous = actor.facing
