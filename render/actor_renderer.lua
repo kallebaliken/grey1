@@ -25,7 +25,8 @@ function M.append(commands, world, viewed_z, viewport, creature_service)
                 order = order.value("actor"), tie = order.tie("actor"),
                 color = render and render.color or COLORS[actor.type],
                 size = render and render.size or 22, object_id = actor.id, piece_index = 1,
-                offset_x = piece.offset_x, offset_y = piece.offset_y, animation = piece.animation }
+                offset_x = piece.offset_x, offset_y = piece.offset_y, animation = piece.animation,
+                category = "actor", multi_piece = false }
         end
     end
 end

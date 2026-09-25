@@ -36,6 +36,10 @@ Door animation selection reads the existing authoritative `open` state. Roof vis
 
 `render/world_render_piece.go` contains one atlas-backed sprite. A single collection factory creates these pieces; `render/world_sprite_renderer.script` retains instances by stable render-command identity (`object ID + piece index`), updates animation/position, and deletes only pieces absent from the next visible command set.
 
+The prototype exterior currently peaks at **332 visible sprite pieces**: 284 ground/detail pieces, 25 world-object pieces, 4 items, 3 Actors, and 16 roof pieces. Of those, 28 belong to multi-piece walls/roofs and overlap the category counts. `game.project` configures `collection.max_instances = 2048`, leaving more than 1,700 Game Object slots of development headroom for the root object, visible pieces, and later prototype additions. Before this fix, `collection.max_instances` was not explicitly configured.
+
+Allocation reconciliation is mark-and-sweep. Unchanged command IDs reuse the same successful factory handle, changed animations are sent only when necessary, and pieces absent from the next frame are deleted. A failed `factory.create()` result is never stored or addressed as a sprite; it is counted, logged once per failure streak, skipped, and retried on the next frame.
+
 The adapter projects current camera-relative coordinates without changing logical coordinates. Pure-Lua ordering first separates ground, details, bottom items, the shared Y-sorted Actor/top-object band, effects, and roofs. Within the world band, each piece's logical anchor plus graphical pixel offset supplies its sort point; higher Y draws first so pieces lower on screen overlap naturally, and stable IDs break remaining ties. The adapter maps that final order into `[-0.8, 0.8]`, keeping semantic layer numbers and logical Z levels out of Defold depth values.
 
 ## Replacing grass

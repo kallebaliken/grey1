@@ -49,6 +49,9 @@ required = [
     "render/viewport.lua",
     "render/render_definition.lua",
     "render/world_animations.lua",
+    "render/sprite_reconciler.lua",
+    "render/sprite_diagnostics.lua",
+    "render/command_diagnostics.lua",
     "render/world_sprite_renderer.script",
     "render/world_render_piece.go",
     "render/world_render_piece.sprite",
@@ -93,6 +96,7 @@ else:
 project = (ROOT / "game.project").read_text()
 assert "main_collection = /main/main.collectionc" in project
 assert "game_binding = /input/game.input_bindingc" in project
+assert "[collection]" in project and "max_instances = 2048" in project
 collection = (ROOT / "main/main.collection").read_text()
 assert 'component: \\"/main/game_manager.script\\"' in collection
 assert 'component: \\"/main/world.gui\\"' in collection
@@ -124,6 +128,7 @@ assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
 assert 'quest_registry_api.new(quest_definitions)' in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
+assert "local SPRITE_CAPACITY = 2048" in manager
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()
@@ -145,4 +150,11 @@ for animation in ("grass_01", "dirt_01", "wood_floor_01", "basement_floor_01", "
 sprite_adapter = (ROOT / "render/world_sprite_renderer.script").read_text()
 for contract in ("factory.create", "sprite.play_flipbook", "go.set_position", "go.delete"):
     assert contract in sprite_adapter, contract
+assert "if not instance_id" in sprite_adapter
+assert "animation_changed" in sprite_adapter
+sprite_go = (ROOT / "render/world_render_piece.go").read_text()
+assert 'id: "sprite"' in sprite_go
+reconciler_source = (ROOT / "render/sprite_reconciler.lua").read_text()
+assert "reconciler.instances[command.id] = entry" in reconciler_source
+assert "if handle then" in reconciler_source
 print("Greyhaven project wiring passed")

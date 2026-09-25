@@ -38,7 +38,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-command/sprite-piece count, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
+F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-piece category counts, active sprite instances, per-frame creation/reuse/removal/failure counts, configured capacity, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
 
 Diagnostics identify the player faction as `player`, `npc_test_villager` as definition `test_villager` / type `npc` / faction `townsfolk`, and `monster_test_rat` as definition `rat` / type `monster` / faction `vermin`. Villager-to-player is friendly and rat-to-player is hostile. These associations live outside the generic Actor.
 
@@ -221,6 +221,9 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 9. Confirm status, F1 diagnostics, and dialogue remain GUI content above the sprite world.
 10. Exercise quest progression, explicit combat, perception, save/load, and reset; confirm their behavior is unchanged.
 11. Confirm there are no missing-atlas, missing-factory, invalid-animation, black-world, GUI-overflow, or recurring Defold errors.
+12. Stand still for several frames and confirm F1 reports zero new creations, stable active instances, and reuse equal to the visible piece count.
+13. Move between exterior, cottage, and basement viewports and confirm stale pieces are removed, active instances remain below the configured 2048 capacity, and factory failures remain zero.
+14. Confirm the console contains no `Gameobject buffer is full`, `/game#sprite`, or `play_animation` dispatch errors.
 
 ## Expected prototype content
 

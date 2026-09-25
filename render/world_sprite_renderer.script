@@ -1,11 +1,14 @@
 local camera_api = require "world.camera"
 local view_model = require "main.view_model"
+local reconciler_api = require "render.sprite_reconciler"
+local diagnostics = require "render.sprite_diagnostics"
 
 local TILE_SIZE = 32
 local DEPTH_MIN = -0.8
 local DEPTH_SPAN = 1.6
 
 local function sprite_url(instance_id)
+    assert(instance_id, "world sprite instance id is required")
     return msg.url(nil, instance_id, "sprite")
 end
 
@@ -13,44 +16,52 @@ local function depth(index, count)
     return DEPTH_MIN + DEPTH_SPAN * index / (count + 1)
 end
 
-local function create_piece(self, piece_id)
-    local instance_id = factory.create("#world_piece_factory")
-    self.instances[piece_id] = instance_id
-    return instance_id
-end
-
-local function update_piece(self, instance_id, command, index, count)
-    local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
-    x = x + (command.offset_x or 0)
-    y = y + (command.offset_y or 0)
-    go.set_position(vmath.vector3(x, y, depth(index, count)), instance_id)
-    sprite.play_flipbook(sprite_url(instance_id), hash(command.animation or "fallback_01"))
+local function create_reconciler(self)
+    return reconciler_api.new({
+        create = function()
+            local instance_id = factory.create("#world_piece_factory")
+            if not instance_id and not self.factory_failure_reported then
+                print("ERROR: Greyhaven world sprite factory creation failed; piece skipped and will retry")
+                self.factory_failure_reported = true
+            end
+            return instance_id
+        end,
+        update = function(instance_id, command, index, count, animation_changed)
+            local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
+            x = x + (command.offset_x or 0)
+            y = y + (command.offset_y or 0)
+            go.set_position(vmath.vector3(x, y, depth(index, count)), instance_id)
+            if animation_changed then
+                sprite.play_flipbook(sprite_url(instance_id), hash(command.animation or "fallback_01"))
+            end
+        end,
+        remove = function(instance_id)
+            go.delete(instance_id)
+        end,
+    })
 end
 
 local function synchronize(self, frame)
     camera_api.follow(self.camera, frame.player_x, frame.player_y)
-    local seen = {}
-    for index, command in ipairs(frame.commands) do
-        local instance_id = self.instances[command.id] or create_piece(self, command.id)
-        seen[command.id] = true
-        update_piece(self, instance_id, command, index, #frame.commands)
-    end
-    for piece_id, instance_id in pairs(self.instances) do
-        if not seen[piece_id] then
-            go.delete(instance_id)
-            self.instances[piece_id] = nil
-        end
-    end
+    local stats = reconciler_api.synchronize(self.reconciler, frame.commands)
+    if stats.failures == 0 then self.factory_failure_reported = false end
+    diagnostics.set(stats)
+    frame.sprite_instances = stats.active
+    frame.sprite_created = stats.created
+    frame.sprite_reused = stats.reused
+    frame.sprite_removed = stats.removed
+    frame.sprite_failures = stats.failures
 end
 
 function init(self)
     self.camera = camera_api.new(960, 640)
-    self.instances = {}
+    self.factory_failure_reported = false
+    self.reconciler = create_reconciler(self)
 end
 
 function final(self)
-    for _, instance_id in pairs(self.instances) do go.delete(instance_id) end
-    self.instances = {}
+    reconciler_api.clear(self.reconciler)
+    diagnostics.set(reconciler_api.get_stats(self.reconciler))
 end
 
 function on_message(self, message_id)

@@ -41,10 +41,13 @@ local binding_registry_api = require "event_bindings.binding_registry"
 local event_bindings = require "event_bindings.event_bindings"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
+local command_diagnostics = require "render.command_diagnostics"
+local sprite_diagnostics = require "render.sprite_diagnostics"
 
 local VIEW_WIDTH_TILES = 960 / 32
 local VIEW_HEIGHT_TILES = 640 / 32
 local VIEW_MARGIN_TILES = 2
+local SPRITE_CAPACITY = 2048
 local TEST_DIALOGUE_FLAG = "greyhaven.test_dialogue_flag"
 local MET_VILLAGER_FLAG = "greyhaven.met_test_villager"
 
@@ -85,6 +88,8 @@ local function render(self)
     local visual = movement.visual_position(self.player)
     local viewport = viewport_api.new(visual.x, visual.y, VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES, VIEW_MARGIN_TILES)
     local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset, viewport, self.creatures)
+    local render_counts = command_diagnostics.summarize(commands)
+    local sprite_stats = sprite_diagnostics.get()
     local target = interaction.find_target(self.world, self.player)
     local p = self.player.position
     local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
@@ -139,6 +144,12 @@ local function render(self)
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
+        render_ground = render_counts.ground, render_objects = render_counts.world_objects,
+        render_multi_piece = render_counts.multi_piece, render_items = render_counts.items,
+        render_actors = render_counts.actors, render_roofs = render_counts.roofs,
+        sprite_instances = sprite_stats.active, sprite_created = sprite_stats.created,
+        sprite_reused = sprite_stats.reused, sprite_removed = sprite_stats.removed,
+        sprite_failures = sprite_stats.failures, sprite_capacity = SPRITE_CAPACITY,
         npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
         player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
         rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,
@@ -165,8 +176,8 @@ local function render(self)
         player_armor_sources = #armor_sources > 0 and table.concat(armor_sources, ",") or "none",
         last_attack = last_attack and string.format("raw %d - armor %d = %d",
             last_attack.raw_damage, last_attack.armor, last_attack.damage) or "none" }
-    msg.post("#view", "render_world")
     msg.post("#world_sprite_renderer", "render_world")
+    msg.post("#view", "render_world")
 end
 
 local function create_session(self, map, loaded)

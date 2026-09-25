@@ -59,6 +59,8 @@ local item_transfers = require "simulation.item_transfers"
 local renderer = require "render.world_renderer"
 local render_order = require "render.render_order"
 local render_definition = require "render.render_definition"
+local sprite_reconciler = require "render.sprite_reconciler"
+local command_diagnostics = require "render.command_diagnostics"
 local viewport_api = require "render.viewport"
 local events = require "core.events"
 
@@ -112,6 +114,71 @@ test("sprite render definitions normalize shorthand, pieces, variants, and fallb
     equal(definitions.wall_block.footprint_width, 1)
     equal(#render_definition.resolve(definitions.wall_block.render), 4)
     assert(not pcall(render_definition.normalize, { animation = "grass_01", pieces = { {} } }))
+end)
+
+test("sprite reconciliation reuses stable pieces and removes only stale identities", function()
+    local created, updated, removed, next_handle = {}, {}, {}, 0
+    local reconciler = sprite_reconciler.new({
+        create = function(command)
+            next_handle = next_handle + 1
+            local handle = "handle." .. next_handle
+            created[#created + 1] = { id = command.id, handle = handle }
+            return handle
+        end,
+        update = function(handle, command, _, _, animation_changed)
+            updated[#updated + 1] = { handle = handle, id = command.id, changed = animation_changed }
+        end,
+        remove = function(handle) removed[#removed + 1] = handle end,
+    })
+    local frame = {
+        { id = "ground:1", animation = "grass_01" },
+        { id = "wall:1", animation = "wall_01" },
+        { id = "wall:2", animation = "wall_01" },
+    }
+    local first = sprite_reconciler.synchronize(reconciler, frame)
+    equal(first.active, 3); equal(first.created, 3); equal(first.reused, 0); equal(#updated, 3)
+    local handles = { reconciler.instances["ground:1"].handle, reconciler.instances["wall:1"].handle,
+        reconciler.instances["wall:2"].handle }
+    local second = sprite_reconciler.synchronize(reconciler, frame)
+    equal(second.active, 3); equal(second.created, 0); equal(second.reused, 3); equal(#created, 3)
+    equal(reconciler.instances["ground:1"].handle, handles[1])
+    equal(reconciler.instances["wall:1"].handle, handles[2])
+    equal(reconciler.instances["wall:2"].handle, handles[3])
+    assert(not updated[#updated].changed)
+
+    local changed = {
+        { id = "wall:1", animation = "wall_01" }, { id = "wall:2", animation = "wall_01" },
+        { id = "roof:1", animation = "roof_01" },
+    }
+    local third = sprite_reconciler.synchronize(reconciler, changed)
+    equal(third.active, 3); equal(third.created, 1); equal(third.reused, 2); equal(third.removed, 1)
+    equal(removed[1], handles[1]); assert(reconciler.instances["ground:1"] == nil)
+    equal(reconciler.instances["wall:1"].handle, handles[2])
+    equal(reconciler.instances["wall:2"].handle, handles[3])
+end)
+
+test("sprite reconciliation never stores or updates a failed factory allocation and retries", function()
+    local attempts, updates, removed = 0, 0, 0
+    local reconciler = sprite_reconciler.new({
+        create = function()
+            attempts = attempts + 1
+            if attempts == 1 then return nil end
+            return "recovered.handle"
+        end,
+        update = function() updates = updates + 1 end,
+        remove = function() removed = removed + 1 end,
+    })
+    local command = { { id = "retry:1", animation = "grass_01" } }
+    local failed = sprite_reconciler.synchronize(reconciler, command)
+    equal(failed.failures, 1); equal(failed.active, 0); equal(updates, 0)
+    assert(reconciler.instances["retry:1"] == nil)
+    local recovered = sprite_reconciler.synchronize(reconciler, command)
+    equal(recovered.failures, 0); equal(recovered.created, 1); equal(recovered.active, 1)
+    equal(updates, 1); equal(reconciler.instances["retry:1"].handle, "recovered.handle")
+    local stable = sprite_reconciler.synchronize(reconciler, command)
+    equal(stable.reused, 1); equal(stable.active, 1); equal(attempts, 2)
+    local empty = sprite_reconciler.synchronize(reconciler, {})
+    equal(empty.removed, 1); equal(empty.active, 0); equal(removed, 1)
 end)
 
 test("map loader exposes only statically registered Defold map modules", function()
@@ -2079,6 +2146,10 @@ test("engine test map loads its stable herb and key placements", function()
     equal(attacks.get_profile(attack_service, "monster_test_rat").damage, 2)
     local viewer = actor_api.new("player.viewer", "player", 9, 2, 7); world:place_actor(viewer)
     local commands = renderer.build(world, viewer, 0, nil, creature_service)
+    local render_counts = command_diagnostics.summarize(commands)
+    equal(render_counts.total, 332); equal(render_counts.ground, 284)
+    equal(render_counts.world_objects, 25); equal(render_counts.multi_piece, 28)
+    equal(render_counts.items, 4); equal(render_counts.actors, 3); equal(render_counts.roofs, 16)
     local npc_rendered, rat_rendered = false, false
     for _, command in ipairs(commands) do
         if command.id == "npc_test_villager:actor" then
