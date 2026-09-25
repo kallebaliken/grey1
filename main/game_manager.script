@@ -13,7 +13,40 @@ local state_api = require "state.world_state"
 local save_data = require "state.save_data"
 local save_manager = require "state.save_manager"
 local definitions = require "objects.object_defs"
+local item_definitions = require "items.item_defs"
+local item_registry_api = require "items.item_registry"
+local inventory_api = require "items.inventory"
+local equipment_api = require "items.equipment"
+local item_transfers = require "simulation.item_transfers"
+local pathfinding = require "simulation.pathfinding"
+local movement_controller = require "simulation.movement_controller"
+local combat_registry = require "combat.registry"
+local attacks = require "combat.attacks"
+local creature_definitions = require "creatures.creature_defs"
+local creature_registry_api = require "creatures.creature_registry"
+local creatures = require "creatures.creatures"
+local perception = require "simulation.perception"
+local faction_definitions = require "factions.faction_defs"
+local relationship_definitions = require "factions.relationship_defs"
+local faction_registry_api = require "factions.faction_registry"
+local factions = require "factions.factions"
+local dialogue_definitions = require "dialogue.dialogue_defs"
+local dialogue_registry_api = require "dialogue.dialogue_registry"
+local dialogue = require "dialogue.dialogue"
+local quest_definitions = require "quests.quest_defs"
+local quest_registry_api = require "quests.quest_registry"
+local quests = require "quests.quests"
+local binding_definitions = require "event_bindings.binding_defs"
+local binding_registry_api = require "event_bindings.binding_registry"
+local event_bindings = require "event_bindings.event_bindings"
 local view_model = require "main.view_model"
+local viewport_api = require "render.viewport"
+
+local VIEW_WIDTH_TILES = 960 / 32
+local VIEW_HEIGHT_TILES = 640 / 32
+local VIEW_MARGIN_TILES = 2
+local TEST_DIALOGUE_FLAG = "greyhaven.test_dialogue_flag"
+local MET_VILLAGER_FLAG = "greyhaven.met_test_villager"
 
 local function describe_tile(world, position)
     local names = {}
@@ -21,42 +54,186 @@ local function describe_tile(world, position)
     return #names > 0 and table.concat(names, ",") or "empty"
 end
 
+
+local function describe_inventory(inventory)
+    local names = {}
+    for _, item in ipairs(inventory_api.get_items(inventory)) do
+        names[#names + 1] = string.format("%s:%s x%d", item.id, item.type, item.quantity)
+    end
+    return #names > 0 and table.concat(names, ",") or "empty"
+end
+
+local function describe_equipment(equipment)
+    local names = {}
+    for slot_id, item in pairs(equipment_api.get_items(equipment)) do
+        names[#names + 1] = slot_id .. ":" .. item.id
+    end
+    table.sort(names)
+    return #names > 0 and table.concat(names, ",") or "empty"
+end
+
+local function describe_perception(entries)
+    local descriptions = {}
+    for _, entry in ipairs(entries) do
+        descriptions[#descriptions + 1] = string.format("%s [%d, %s]", entry.actor_id, entry.distance,
+            entry.relationship or "unaffiliated")
+    end
+    return #descriptions > 0 and table.concat(descriptions, ", ") or "none"
+end
+
 local function render(self)
-    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset)
+    local visual = movement.visual_position(self.player)
+    local viewport = viewport_api.new(visual.x, visual.y, VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES, VIEW_MARGIN_TILES)
+    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset, viewport, self.creatures)
     local target = interaction.find_target(self.world, self.player)
-    local p = self.player.tile_position
+    local p = self.player.position
     local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
+    local npc_id = "npc_test_villager"
+    local npc_status = movement_controller.get_status(self.path_controller, npc_id) or "unavailable"
+    local npc_remaining = movement_controller.get_remaining_steps(self.path_controller, npc_id) or 0
+    local npc_next = movement_controller.get_next_target(self.path_controller, npc_id)
+    local player_combat = combat_registry.get(self.combat, self.player.id)
+    local rat_combat = combat_registry.get(self.combat, "monster_test_rat")
+    local rat = self.world:get_actor("monster_test_rat")
+    local villager = self.world:get_actor("npc_test_villager")
+    local rat_definition = creatures.get_definition_id(self.creatures, rat.id)
+    local villager_definition = creatures.get_definition_id(self.creatures, villager.id)
+    local player_faction = factions.get_actor_faction(self.factions, self.player.id)
+    local rat_faction = factions.get_actor_faction(self.factions, rat.id)
+    local villager_faction = factions.get_actor_faction(self.factions, villager.id)
+    local rat_relationship = factions.relationship_between_actors(self.factions, rat.id, self.player.id)
+    local villager_relationship = factions.relationship_between_actors(self.factions, villager.id, self.player.id)
+    local player_attack = attacks.get_profile(self.attacks, self.player.id)
+    local player_damage = attacks.get_damage(self.attacks, self.player.id)
+    local player_armor = attacks.get_armor(self.attacks, self.player.id)
+    local armor_sources = {}
+    for _, source in ipairs(player_armor.sources) do
+        armor_sources[#armor_sources + 1] = source.slot .. ":" .. source.item_type .. " [" .. source.item_id .. "]"
+    end
+    local last_attack = self.last_attack
+    local conversation = dialogue.get_current(self.dialogue)
+    local quest_definition = self.quest_registry:get("rat_problem")
+    local quest_status = quests.get_status(self.quests, "rat_problem")
+    local quest_progress = quests.get_objective_progress(self.quests, "rat_problem", "investigate") or 0
+    local binding_results = event_bindings.get_last_results(self.event_bindings)
+    local last_binding = binding_results[#binding_results]
+    local rat_perception = perception.get_config(self.perception, rat.id)
+    local rat_awareness = perception.get_awareness(self.perception, rat.id)
+    local dialogue_text = ""
+    if conversation then
+        local lines = { conversation.speaker_name, "", conversation.text, "" }
+        for index, choice in ipairs(conversation.choices) do
+            lines[#lines + 1] = index .. ". " .. choice.text
+        end
+        lines[#lines + 1] = "Esc. Close"
+        dialogue_text = table.concat(lines, "\n")
+    end
     view_model.frame = { commands = commands,
-        player_x = self.player.visual_position.x, player_y = self.player.visual_position.y,
+        player_x = visual.x, player_y = visual.y,
+        actor_id = self.player.id, actor_type = self.player.type,
         logical_x = p.x, logical_y = p.y, player_z = p.z, facing = self.player.facing,
         debug_visible = self.debug_visible, tile_objects = describe_tile(self.world, p),
         target = target and (target.id .. " (" .. target.type .. ")") or "none",
+        inventory = describe_inventory(self.player.inventory),
+        equipment = describe_equipment(self.player.equipment),
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
-        inspection_offset = self.inspect_offset, notice = self.notice or "" }
+        inspection_offset = self.inspect_offset, notice = self.notice or "",
+        render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
+        npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
+        player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
+        rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,
+        rat_definition = rat_definition, rat_type = rat.type,
+        villager_definition = villager_definition, villager_type = villager.type,
+        player_faction = player_faction, rat_faction = rat_faction, villager_faction = villager_faction,
+        rat_relationship = rat_relationship, villager_relationship = villager_relationship,
+        dialogue_active = conversation ~= nil, dialogue_text = dialogue_text,
+        dialogue_speaker = conversation and conversation.npc_actor_id or "none",
+        dialogue_definition = conversation and conversation.dialogue_id or "none",
+        dialogue_node = conversation and conversation.node_id or "none",
+        test_dialogue_flag = state_api.get_flag(self.state, TEST_DIALOGUE_FLAG),
+        met_villager_flag = state_api.get_flag(self.state, MET_VILLAGER_FLAG),
+        quest_title = quest_definition.title, quest_status = quest_status,
+        quest_progress = quest_progress, quest_target = quest_definition.objectives[1].target,
+        last_binding = last_binding and (last_binding.binding_id .. " = "
+            .. (last_binding.success and "success" or (last_binding.failure and last_binding.failure.reason or "failed")))
+            or "none",
+        rat_sight = rat_perception and rat_perception.sight_range or 0,
+        rat_perceives = describe_perception(rat_awareness.perceived),
+        player_attack = player_damage.damage, player_attack_source = player_damage.source,
+        player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
+        player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
+        player_armor_sources = #armor_sources > 0 and table.concat(armor_sources, ",") or "none",
+        last_attack = last_attack and string.format("raw %d - armor %d = %d",
+            last_attack.raw_damage, last_attack.armor, last_attack.damage) or "none" }
     msg.post("#view", "render_world")
+    msg.post("#world_sprite_renderer", "render_world")
 end
 
-local function create_session(self, loaded)
-    self.map = map_loader.load("data.maps.prototype")
+local function create_session(self, map, loaded)
+    if self.event_bindings then event_bindings.destroy(self.event_bindings); self.event_bindings = nil end
+    self.map = map
     self.state = state_api.new(loaded)
-    self.world = world_api.new(self.map, registry_api.new(definitions), self.state)
+    self.item_registry = item_registry_api.new(item_definitions)
+    self.world = world_api.new(self.map, registry_api.new(definitions), self.state, self.item_registry)
+    if loaded then save_data.apply_static_item_overrides(self.world, loaded) end
     local spawn = self.map.player_spawn
     self.player = player_api.new(spawn.x, spawn.y, spawn.z)
+    self.player.inventory = loaded and save_data.restore_inventory(loaded, self.item_registry)
+        or inventory_api.restore(self.map.player_inventory, self.item_registry)
+    self.player.equipment = loaded and save_data.restore_equipment(loaded, self.item_registry)
+        or equipment_api.restore(self.map.player_equipment, self.item_registry)
+    if loaded then
+        save_data.restore_dynamic_world_items(self.world, loaded)
+        self.item_ids = save_data.create_item_id_allocator(loaded, self.map)
+    else self.item_ids = save_data.create_fresh_item_id_allocator(self.map) end
     self.player.facing = spawn.facing or self.player.facing
     if loaded then save_data.restore_player(self.player, loaded) end
+    movement.reset(self.player); movement.configure(self.player, { speed = 7 })
     self.world:place_actor(self.player)
-    self.interior_group = roofs.interior_group(self.world, self.player.tile_position)
+    self.combat = combat_registry.create(self.world, events)
+    local saved_combat = loaded and save_data.restore_player_combat(loaded) or nil
+    assert(combat_registry.add(self.combat, self.player.id,
+        saved_combat and saved_combat.max_health or self.map.player_max_health,
+        saved_combat and saved_combat.health or nil))
+    self.attacks = attacks.create(self.world, self.combat, events, self.item_registry)
+    assert(attacks.add_profile(self.attacks, self.player.id, self.map.player_attack))
+    assert(attacks.set_equipment(self.attacks, self.player.id, self.player.equipment))
+    self.faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
+    self.factions = factions.create(self.world, self.faction_registry)
+    assert(factions.associate(self.factions, self.player.id, "player"))
+    self.perception = perception.create(self.world, self.combat, self.factions)
+    self.quest_registry = quest_registry_api.new(quest_definitions)
+    self.quests = quests.create(self.quest_registry, events, loaded and save_data.restore_quests(loaded) or nil)
+    self.dialogue_registry = dialogue_registry_api.new(dialogue_definitions, self.quest_registry)
+    self.creature_registry = creature_registry_api.new(creature_definitions, self.faction_registry,
+        self.dialogue_registry)
+    self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events,
+        self.factions, self.perception)
+    for _, placement in ipairs(self.map.actor_placements or {}) do
+        creatures.spawn(self.creatures, placement)
+    end
+    self.binding_registry = binding_registry_api.new(binding_definitions, self.creature_registry,
+        self.quest_registry)
+    self.event_bindings = event_bindings.create(self.binding_registry, events, self.world, self.creatures,
+        { world_state = self.state, quests = self.quests, quest_registry = self.quest_registry })
+    self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events,
+        self.quests, self.quest_registry)
+    actions.register_defaults({ dialogue = self.dialogue })
+    self.path_controller = movement_controller.create(self.world, events)
+    self.last_attack = nil
+    self.interior_group = roofs.interior_group(self.world, self.player.position)
 end
 
 local function load_game(self)
-    local loaded, reason = save_manager.load(self.map and self.map.id or "greyhaven.engine_test")
+    local map = map_loader.load("data.maps.prototype")
+    local loaded, reason = save_manager.load(map)
     if not loaded then self.notice = "Load: " .. reason; return false end
-    create_session(self, loaded); self.notice = "Save loaded"; events.emit("game_loaded", { map_id = self.map.id })
+    create_session(self, map, loaded); self.notice = "Save loaded"; events.emit("game_loaded", { map_id = self.map.id })
     return true
 end
 
 local function update_interior(self)
-    local current = roofs.interior_group(self.world, self.player.tile_position)
+    local current = roofs.interior_group(self.world, self.player.position)
     if current ~= self.interior_group then
         if self.interior_group then events.emit("player_left_interior", { actor_id = self.player.id, interior_group = self.interior_group }) end
         if current then events.emit("player_entered_interior", { actor_id = self.player.id, interior_group = current }) end
@@ -67,15 +244,17 @@ end
 function init(self)
     msg.post(".", "acquire_input_focus")
     self.held, self.debug_visible, self.inspect_offset = {}, false, 0
-    actions.register_defaults()
-    create_session(self, save_manager.load("greyhaven.engine_test"))
+    local map = map_loader.load("data.maps.prototype")
+    create_session(self, map, save_manager.load(map))
     events.emit("world_loaded", { map_id = self.map.id })
     render(self)
 end
 
 function update(self, dt)
-    local moving = movement.update(self.player, dt)
-    if not self.player.movement_target then
+    local moving = attacks.update(self.attacks, dt)
+    if movement.update(self.player, dt) then moving = true end
+    if movement_controller.update(self.path_controller, dt) then moving = true end
+    if not dialogue.is_active(self.dialogue) and not movement.is_moving(self.player) then
         local dx = (self.held.right and 1 or 0) - (self.held.left and 1 or 0)
         local dy = (self.held.up and 1 or 0) - (self.held.down and 1 or 0)
         if dx ~= 0 then dy = 0 end
@@ -85,6 +264,22 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    if dialogue.is_active(self.dialogue) then
+        if action.pressed and action_id == hash("debug") then
+            self.debug_visible = not self.debug_visible; render(self); return true
+        end
+        local choices = { [hash("dialogue_1")] = 1, [hash("dialogue_2")] = 2,
+            [hash("dialogue_3")] = 3, [hash("dialogue_4")] = 4 }
+        if action.pressed and choices[action_id] then
+            local changed, reason = dialogue.choose_index(self.dialogue, choices[action_id])
+            local failure = type(reason) == "table" and reason.reason or reason
+            self.notice = changed and "Dialogue choice selected" or ("Dialogue: " .. tostring(failure))
+            render(self); return true
+        elseif action.pressed and action_id == hash("dialogue_close") then
+            dialogue.close(self.dialogue, "cancelled"); self.notice = "Dialogue closed"; render(self); return true
+        end
+        return true
+    end
     local directions = { [hash("up")] = "up", [hash("down")] = "down", [hash("left")] = "left", [hash("right")] = "right" }
     local direction = directions[action_id]
     if direction then
@@ -93,13 +288,117 @@ function on_input(self, action_id, action)
         return true
     elseif action.pressed and action_id == hash("interact") then
         local changed, reason = interaction.use(self.world, self.player, events)
+        if dialogue.is_active(self.dialogue) then self.held = {} end
         self.notice = changed and "Interaction used" or reason; update_interior(self); render(self); return true
     elseif action.pressed and action_id == hash("debug") then
         self.debug_visible = not self.debug_visible; render(self); return true
+    elseif action.pressed and action_id == hash("debug_npc_path") then
+        local npc_id = "npc_test_villager"
+        local result = pathfinding.find_path(self.world, npc_id, { x = 14, y = 7, z = 7 })
+        local assigned, reason = false, result.reason
+        if result.success then assigned, reason = movement_controller.set_path(self.path_controller, npc_id, result.path) end
+        self.notice = assigned and ("NPC path started: " .. #result.path .. " steps")
+            or ("NPC path: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_damage") then
+        local result = combat_registry.apply_damage(self.combat, "monster_test_rat", 5,
+            { source = "development_control" })
+        self.notice = result.success and ("Rat damage: 5, HP " .. result.health)
+            or ("Rat damage: " .. result.reason)
+        render(self); return true
+    elseif action.pressed and action_id == hash("attack") then
+        local dx, dy = movement.facing_offset(self.player.facing)
+        local target = self.world:get_actor_at(self.player.position.x + dx, self.player.position.y + dy,
+            self.player.position.z)
+        local result = target and attacks.try_attack(self.attacks, self.player.id, target.id)
+            or { success = false, reason = "no_target" }
+        if result.success then self.last_attack = result end
+        self.notice = result.success and string.format("Attack: %d damage, target HP %d",
+            result.damage, result.target_health) .. " (" .. result.damage_source .. ")" or ("Attack: " .. result.reason)
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_toggle_weapon") then
+        local equipped = equipment_api.get(self.player.equipment, "main_hand")
+        local changed, reason, item
+        if equipped then
+            changed, item = equipment_api.unequip(self.player.equipment, self.player.inventory, "main_hand", events)
+            reason = changed and nil or item
+        else
+            for _, candidate in ipairs(inventory_api.get_items(self.player.inventory)) do
+                local definition = self.item_registry:get(candidate.type)
+                if definition.weapon then item = candidate; break end
+            end
+            if item then changed, reason = equipment_api.equip(self.player.equipment, self.player.inventory,
+                item.id, "main_hand", events)
+            else changed, reason = false, "no_main_hand_weapon" end
+        end
+        self.notice = changed and (equipped and "Weapon unequipped" or "Weapon equipped")
+            or ("Weapon: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_toggle_armor") then
+        local equipped = equipment_api.get(self.player.equipment, "torso")
+        local changed, reason, item
+        if equipped then
+            changed, item = equipment_api.unequip(self.player.equipment, self.player.inventory, "torso", events)
+            reason = changed and nil or item
+        else
+            for _, candidate in ipairs(inventory_api.get_items(self.player.inventory)) do
+                local definition = self.item_registry:get(candidate.type)
+                if definition.armor then
+                    local allowed = equipment_api.can_equip(self.player.equipment, candidate, "torso")
+                    if allowed then item = candidate; break end
+                end
+            end
+            if item then changed, reason = equipment_api.equip(self.player.equipment, self.player.inventory,
+                item.id, "torso", events)
+            else changed, reason = false, "no_torso_armor" end
+        end
+        self.notice = changed and (equipped and "Armor unequipped" or "Armor equipped")
+            or ("Armor: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_rat_attack") then
+        local result = attacks.try_attack(self.attacks, "monster_test_rat", self.player.id)
+        if result.success then self.last_attack = result end
+        self.notice = result.success and string.format("Rat attack: raw %d, armor %d, damage %d",
+            result.raw_damage, result.armor, result.damage) or ("Rat attack: " .. result.reason)
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_rat_perception") then
+        local awareness = perception.get_awareness(self.perception, "monster_test_rat")
+        self.notice = "Rat perceives: " .. describe_perception(awareness.perceived)
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_toggle_dialogue_flag") then
+        local value = not state_api.get_flag(self.state, TEST_DIALOGUE_FLAG)
+        state_api.set_flag(self.state, TEST_DIALOGUE_FLAG, value)
+        self.notice = "Dialogue flag: " .. tostring(value)
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_start") then
+        local changed, reason = quests.start(self.quests, "rat_problem")
+        self.notice = changed and "Quest started" or ("Quest start: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_advance") then
+        local changed, reason = quests.advance_objective(self.quests, "rat_problem", "investigate", 1)
+        self.notice = changed and "Quest objective advanced" or ("Quest advance: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_complete") then
+        local changed, reason = quests.complete(self.quests, "rat_problem")
+        self.notice = changed and "Quest completed" or ("Quest complete: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("drop_item") then
+        local first = inventory_api.get_items(self.player.inventory)[1]
+        if not first then self.notice = "Drop: inventory empty"
+        else
+            local dropped, reason = item_transfers.drop(self.world, self.player.inventory, first.id,
+                self.player.position, self.player.id, events)
+            self.notice = dropped and ("Dropped " .. dropped.item.type) or ("Drop: " .. reason)
+        end
+        render(self); return true
     elseif action.pressed and action_id == hash("save") then
-        self.notice = save_manager.save(self.player, self.state, self.map.id) and "Game saved" or "Save failed"; render(self); return true
+        self.notice = save_manager.save(self.player, self.world, self.map.id,
+            combat_registry.get(self.combat, self.player.id), quests.get_snapshot(self.quests))
+            and "Game saved" or "Save failed"; render(self); return true
     elseif action.pressed and action_id == hash("load") then load_game(self); render(self); return true
-    elseif action.pressed and action_id == hash("reset_save") then save_manager.reset(); self.notice = "Save reset"; render(self); return true
+    elseif action.pressed and action_id == hash("reset_save") then
+        save_manager.reset(); create_session(self, map_loader.load("data.maps.prototype"), nil)
+        self.notice = "Save reset"; render(self); return true
     elseif action.pressed and (action_id == hash("inspect_up") or action_id == hash("inspect_down")) then
         self.inspect_offset = action_id == hash("inspect_up") and 1 or -1; render(self); return true
     elseif action.released and (action_id == hash("inspect_up") or action_id == hash("inspect_down")) then

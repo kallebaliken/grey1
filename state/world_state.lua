@@ -1,3 +1,4 @@
+local ids = require "core.ids"
 local M = {}
 
 local function copy(value)
@@ -21,6 +22,23 @@ function M.patch_object(state, id, patch)
     for key, value in pairs(patch) do current[key] = copy(value) end
     state.objects[id] = current
     return current
+end
+
+function M.get_flag(state, id)
+    ids.require_stable(id, "world flag id")
+    return state.flags[id] == true
+end
+
+function M.has_flag(state, id)
+    ids.require_stable(id, "world flag id")
+    return state.flags[id] ~= nil
+end
+
+function M.set_flag(state, id, value)
+    ids.require_stable(id, "world flag id")
+    assert(type(value) == "boolean", "world flag value must be boolean")
+    state.flags[id] = value
+    return value
 end
 
 function M.copy(value) return copy(value) end
