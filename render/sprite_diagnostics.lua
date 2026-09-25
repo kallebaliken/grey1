@@ -1,5 +1,5 @@
 local M = {}
-local current = { active = 0, created = 0, reused = 0, removed = 0, failures = 0 }
+local current = { active = 0, created = 0, reused = 0, removed = 0, failures = 0, deferred = 0 }
 
 function M.set(stats)
     current = {}

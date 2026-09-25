@@ -6,6 +6,7 @@ local diagnostics = require "render.sprite_diagnostics"
 local TILE_SIZE = 32
 local DEPTH_MIN = -0.8
 local DEPTH_SPAN = 1.6
+local INSTANCE_RESERVE = 32
 
 local function sprite_url(instance_id)
     assert(instance_id, "world sprite instance id is required")
@@ -38,7 +39,7 @@ local function create_reconciler(self)
         remove = function(instance_id)
             go.delete(instance_id)
         end,
-    })
+    }, { max_active = self.sprite_budget })
 end
 
 local function synchronize(self, frame)
@@ -51,10 +52,15 @@ local function synchronize(self, frame)
     frame.sprite_reused = stats.reused
     frame.sprite_removed = stats.removed
     frame.sprite_failures = stats.failures
+    frame.sprite_deferred = stats.deferred
 end
 
 function init(self)
     self.camera = camera_api.new(960, 640)
+    self.collection_capacity = sys.get_config_int("collection.max_instances", 1024)
+    self.sprite_budget = math.max(0, self.collection_capacity - INSTANCE_RESERVE)
+    print(string.format("Greyhaven sprite capacity: collection=%d sprite_budget=%d reserve=%d",
+        self.collection_capacity, self.sprite_budget, INSTANCE_RESERVE))
     self.factory_failure_reported = false
     self.reconciler = create_reconciler(self)
 end

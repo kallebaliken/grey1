@@ -222,7 +222,7 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 10. Exercise quest progression, explicit combat, perception, save/load, and reset; confirm their behavior is unchanged.
 11. Confirm there are no missing-atlas, missing-factory, invalid-animation, black-world, GUI-overflow, or recurring Defold errors.
 12. Stand still for several frames and confirm F1 reports zero new creations, stable active instances, and reuse equal to the visible piece count.
-13. Move between exterior, cottage, and basement viewports and confirm stale pieces are removed, active instances remain below the configured 2048 capacity, and factory failures remain zero.
+13. Perform a clean rebuild (project settings are not applied by hot reload), then move between exterior, cottage, and basement viewports. Confirm stale pieces are removed, active instances remain below the runtime-reported 4096 capacity, and factory failures remain zero. A one-frame nonzero `deferred` count is allowed during a capacity-bound viewport replacement; it must recover on the following frame.
 14. Confirm the console contains no `Gameobject buffer is full`, `/game#sprite`, or `play_animation` dispatch errors.
 
 ## Expected prototype content

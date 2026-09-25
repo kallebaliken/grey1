@@ -17,4 +17,4 @@ game_binding = /input/game.input_bindingc
 shared_state = 1
 
 [collection]
-max_instances = 2048
+max_instances = 4096

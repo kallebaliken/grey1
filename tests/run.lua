@@ -181,6 +181,33 @@ test("sprite reconciliation never stores or updates a failed factory allocation 
     equal(empty.removed, 1); equal(empty.active, 0); equal(removed, 1)
 end)
 
+test("sprite reconciliation defers creation before exhausting its collection budget", function()
+    local creates, removes = 0, 0
+    local reconciler = sprite_reconciler.new({
+        create = function(command) creates = creates + 1; return "handle." .. command.id end,
+        update = function() end,
+        remove = function() removes = removes + 1 end,
+    }, { max_active = 2 })
+    local first = sprite_reconciler.synchronize(reconciler, {
+        { id = "old:1", animation = "grass_01" }, { id = "old:2", animation = "grass_01" },
+    })
+    equal(first.active, 2); equal(first.deferred, 0); equal(creates, 2)
+
+    -- Defold deletes Game Objects at the end of the frame. Do not call the factory for
+    -- replacements until the prior handles have been released by this sweep.
+    local transition = sprite_reconciler.synchronize(reconciler, {
+        { id = "new:1", animation = "grass_01" }, { id = "new:2", animation = "grass_01" },
+    })
+    equal(transition.active, 0); equal(transition.deferred, 2); equal(transition.removed, 2)
+    equal(creates, 2); equal(removes, 2)
+
+    local recovered = sprite_reconciler.synchronize(reconciler, {
+        { id = "new:1", animation = "grass_01" }, { id = "new:2", animation = "grass_01" },
+    })
+    equal(recovered.active, 2); equal(recovered.created, 2); equal(recovered.deferred, 0)
+    equal(creates, 4)
+end)
+
 test("map loader exposes only statically registered Defold map modules", function()
     local map = map_loader.load("data.maps.prototype")
     equal(map.id, "greyhaven.engine_test")

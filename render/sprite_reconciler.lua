@@ -1,30 +1,39 @@
 local M = {}
 
-function M.new(callbacks)
+function M.new(callbacks, options)
     assert(type(callbacks) == "table" and type(callbacks.create) == "function"
         and type(callbacks.update) == "function" and type(callbacks.remove) == "function",
         "sprite reconciler requires create/update/remove callbacks")
-    return { callbacks = callbacks, instances = {}, last = {
-        active = 0, created = 0, reused = 0, removed = 0, failures = 0,
+    options = options or {}
+    assert(options.max_active == nil or (type(options.max_active) == "number" and options.max_active >= 0),
+        "sprite reconciler max_active must be non-negative")
+    return { callbacks = callbacks, instances = {}, max_active = options.max_active, last = {
+        active = 0, created = 0, reused = 0, removed = 0, failures = 0, deferred = 0,
     } }
 end
 
 function M.synchronize(reconciler, commands)
     local seen = {}
-    local stats = { active = 0, created = 0, reused = 0, removed = 0, failures = 0 }
+    local stats = { active = 0, created = 0, reused = 0, removed = 0, failures = 0, deferred = 0 }
+    local prior_active = 0
+    for _ in pairs(reconciler.instances) do prior_active = prior_active + 1 end
+    local creation_slots = reconciler.max_active and math.max(0, reconciler.max_active - prior_active) or math.huge
     for index, command in ipairs(commands) do
         local entry = reconciler.instances[command.id]
         if entry then
             stats.reused = stats.reused + 1
-        else
+        elseif creation_slots > 0 then
             local handle = reconciler.callbacks.create(command)
             if handle then
+                creation_slots = creation_slots - 1
                 entry = { handle = handle, animation = nil }
                 reconciler.instances[command.id] = entry
                 stats.created = stats.created + 1
             else
                 stats.failures = stats.failures + 1
             end
+        else
+            stats.deferred = stats.deferred + 1
         end
         if entry then
             seen[command.id] = true
@@ -48,7 +57,7 @@ end
 function M.clear(reconciler)
     for _, entry in pairs(reconciler.instances) do reconciler.callbacks.remove(entry.handle) end
     reconciler.instances = {}
-    reconciler.last = { active = 0, created = 0, reused = 0, removed = 0, failures = 0 }
+    reconciler.last = { active = 0, created = 0, reused = 0, removed = 0, failures = 0, deferred = 0 }
 end
 
 function M.get_stats(reconciler)
