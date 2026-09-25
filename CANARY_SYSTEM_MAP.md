@@ -64,6 +64,8 @@ Canary creature attack execution now maps to an explicit deterministic Actor att
 
 Canary `ItemType` weapon/combat concepts map only to validated Greyhaven item `weapon.damage` metadata, explicit main-hand damage resolution, and the existing CombatState mutation path. The equipped logical item keeps its normal stable identity; skills, hit/defense formulas, weapon speed, imbuements, ammo, charges, critical hits, PvP modifiers, and server scheduling are not carried over.
 
+Canary equipment/defense concepts map to positive-integer Greyhaven `armor.defense` metadata, a deterministic equipped-item mitigation resolver, and the same CombatState damage path. Shielding skills, block chance, random/formula reduction, PvP modifiers, elemental resistance, conditions, imbuements, and durability remain excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

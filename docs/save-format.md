@@ -71,4 +71,6 @@ Attack profiles come from static map data and attack cooldowns are temporary sim
 
 Weapon damage is also derived rather than serialized: equipped item identity/type already persists in the equipment snapshot, and its immutable item definition supplies `weapon.damage` after load. No save-version change is required for equipped weapon integration.
 
+Armor mitigation follows the same rule: equipped item identity/type persists, immutable definitions supply `armor.defense`, and total defense is recomputed after load. Save Format v4 stores no derived armor total.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

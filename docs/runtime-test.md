@@ -23,13 +23,15 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **J** | Development control: deal exactly 5 damage to `monster_test_rat` |
 | **K** | Explicitly attack the Actor on the tile directly in front of the player |
 | **L** | Development control: equip/unequip the first inventory weapon in `main_hand` |
+| **O** | Development control: equip/unequip the first compatible inventory armor in `torso` |
+| **P** | Explicitly invoke one test-rat attack against the player; the rat remains otherwise inert |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, player and test-rat health/death, render-command count, active dynamic GUI nodes, the configured 1024-node capacity, test-NPC path status/remaining steps/next target, objects on the current tile, interaction target, chunk, revealed roof group, inventory, and equipment. There is no equipment or combat GUI; **L** is development-only.
+F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, render-command count, active dynamic GUI nodes, path status, tile context, inventory, and equipment. There is no equipment or combat GUI; **L**, **O**, and **P** are development-only.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -87,9 +89,19 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 6. Press **L** again, then **F5** and **F9** (or restart). Confirm the sword remains equipped with the same ID and eight weapon damage still resolves from its definition.
 7. Continue attacking only as health allows, or press **F8** between comparisons. Confirm the dead rat still occupies its tile and no Defold runtime errors occur.
 
+## Equipped armor check
+
+1. Press **F8**, enable **F1**, and confirm player armor is zero. Move east so `test.armor.01` at `(12,2,7)` is ahead and pick it up with **E**; avoid filling the second inventory slot first.
+2. Walk next to the inert rat. Press **P** once while adjacent and confirm its explicit fixed attack deals the full raw two damage. The rat never attacks without **P**.
+3. Wait for the rat's one-second cooldown, press **O**, and confirm `torso:patched_leather_armor [test.armor.01]` plus total Armor 2 in F1.
+4. Press **P** again while adjacent. Confirm F1/notice reports `raw 2 - armor 2 = 1`, demonstrating the minimum-one rule.
+5. Press **O** to unequip, wait for cooldown, and press **P** again. Confirm damage returns to two and the exact armor item ID is back in inventory.
+6. Re-equip with **O**, save with **F5**, then load with **F9** or restart. Confirm torso equipment and Armor 2 are restored and the next explicit rat attack is still mitigated to one.
+7. Confirm sword attacks still resolve weapon damage before target armor, cooldowns are unchanged, and all existing world systems remain operational without Defold errors.
+
 ## Expected prototype content
 
-The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, the inert test rat, a healing-herb stack, an iron key, and the original `worn_iron_sword` test placement.
+The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, the inert test rat, a healing-herb stack, an iron key, and original sword/armor test placements.
 
 ## Automated checks
 

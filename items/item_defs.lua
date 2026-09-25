@@ -35,11 +35,13 @@ return {
         tags = { "equipment", "armor" }, stack_layer = "bottom", interaction = "pickup",
         patterns = { { { 0.47, 0.28, 0.14, 1 } } },
         equipment = { slots = { "head" } },
+        armor = { defense = 1 },
     },
     patched_leather_armor = {
         id = "patched_leather_armor", name = "Patched Leather Armor", pickupable = true,
         tags = { "equipment", "armor" }, stack_layer = "bottom", interaction = "pickup",
         patterns = { { { 0.40, 0.23, 0.12, 1 } } },
         equipment = { slots = { "torso" } },
+        armor = { defense = 2 },
     },
 }

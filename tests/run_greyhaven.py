@@ -23,6 +23,7 @@ required = [
     "combat/registry.lua",
     "combat/attacks.lua",
     "combat/attack_damage.lua",
+    "combat/armor.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -63,6 +64,8 @@ assert "command.order" not in gui_script
 binding = (ROOT / "input/game.input_binding").read_text()
 assert 'input: KEY_K action: "attack"' in binding
 assert 'input: KEY_L action: "debug_toggle_weapon"' in binding
+assert 'input: KEY_O action: "debug_toggle_armor"' in binding
+assert 'input: KEY_P action: "debug_rat_attack"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader

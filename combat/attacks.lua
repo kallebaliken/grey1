@@ -2,6 +2,7 @@ local ids = require "core.ids"
 local movement = require "simulation.movement"
 local combat_registry = require "combat.registry"
 local attack_damage = require "combat.attack_damage"
+local armor = require "combat.armor"
 
 local M = {}
 local runtimes = setmetatable({}, { __mode = "k" })
@@ -79,6 +80,11 @@ function M.get_damage(service, actor_id)
     return attack_damage.resolve(profile, data.equipment[actor_id], service.item_registry)
 end
 
+function M.get_armor(service, actor_id)
+    if not service.world:get_actor(actor_id) then return nil, "unknown_actor" end
+    return armor.resolve(runtime(service).equipment[actor_id], service.item_registry, 1)
+end
+
 function M.update(service, dt)
     assert(type(dt) == "number" and dt >= 0, "attack update dt must be non-negative")
     local data = runtime(service)
@@ -117,15 +123,20 @@ function M.try_attack(service, attacker_id, target_id)
     if dx + dy ~= profile.range then return failure("out_of_range", attacker_id, target_id) end
 
     local resolved = attack_damage.resolve(profile, data.equipment[attacker_id], service.item_registry)
-    local attack_event = { attacker_id = attacker_id, target_id = target_id, damage = resolved.damage,
+    local mitigation = armor.resolve(data.equipment[target_id], service.item_registry, resolved.damage)
+    local attack_event = { attacker_id = attacker_id, target_id = target_id,
+        raw_damage = resolved.damage, armor = mitigation.armor, damage = mitigation.final_damage,
         damage_source = resolved.source, weapon_item_id = resolved.item_id, weapon_type = resolved.item_type }
     if service.events then service.events.emit("actor_attacked", attack_event) end
-    local damage = combat_registry.apply_damage(service.combat, target_id, resolved.damage,
+    local damage = combat_registry.apply_damage(service.combat, target_id, mitigation.final_damage,
         { kind = "attack", attacker_id = attacker_id, damage_source = resolved.source,
-            weapon_item_id = resolved.item_id, weapon_type = resolved.item_type })
+            weapon_item_id = resolved.item_id, weapon_type = resolved.item_type,
+            raw_damage = resolved.damage, armor = mitigation.armor })
     assert(damage.success, damage.reason)
     data.cooldowns[attacker_id] = profile.cooldown
-    return { success = true, attacker_id = attacker_id, target_id = target_id, damage = resolved.damage,
+    return { success = true, attacker_id = attacker_id, target_id = target_id,
+        raw_damage = resolved.damage, armor = mitigation.armor, armor_sources = mitigation.sources,
+        damage = mitigation.final_damage,
         damage_source = resolved.source, weapon_item_id = resolved.item_id, weapon_type = resolved.item_type,
         target_health = damage.health, target_died = damage.died, cooldown = profile.cooldown }
 end

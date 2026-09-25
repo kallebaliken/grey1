@@ -9,6 +9,8 @@ key_trigger { input: KEY_H action: "debug_npc_path" }
 key_trigger { input: KEY_J action: "debug_damage" }
 key_trigger { input: KEY_K action: "attack" }
 key_trigger { input: KEY_L action: "debug_toggle_weapon" }
+key_trigger { input: KEY_O action: "debug_toggle_armor" }
+key_trigger { input: KEY_P action: "debug_rat_attack" }
 key_trigger { input: KEY_F5 action: "save" }
 key_trigger { input: KEY_F8 action: "reset_save" }
 key_trigger { input: KEY_F9 action: "load" }

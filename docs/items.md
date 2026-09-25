@@ -36,6 +36,8 @@ Equip validates the item, requested slot, policy, and vacancy before removing th
 
 Optional `weapon = { damage = 8 }` metadata is validated with item definitions. A weapon must be non-stackable, equippable in `main_hand`, and have positive integer damage. Attack resolution reads the equipped instance through the public equipment API and resolves its type through the item registry; it never creates a combat copy, so the same stable item ID survives world, inventory, equipment, attack use, and save/load.
 
+Optional `armor = { defense = 2 }` metadata likewise requires a non-stackable item with a valid non-hand armor slot and positive integer defense. The mitigation resolver sums metadata only from currently equipped item snapshots. Inventory, world, and container items contribute nothing, and a weapon is not inferred to be armor from its slot.
+
 ## World ownership and transfers
 
 Canary moves an `Item` between `Tile` and `Cylinder` parents through its server movement machinery. Greyhaven keeps the transferable concept but makes the operation explicit: `world/world_items.lua` places the same item-instance model in a logical tile stack, while `simulation/item_transfers.lua` coordinates ownership changes between that world location and an inventory. A world placement has its own stable placement ID, position, and contained item instance; it is not another item type.

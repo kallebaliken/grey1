@@ -67,6 +67,18 @@ local function normalize(key, source)
         end
         assert(hand_allowed, "weapon must be equippable in main_hand: " .. key)
     end
+    if definition.armor ~= nil then
+        assert(type(definition.armor) == "table" and is_integer(definition.armor.defense)
+            and definition.armor.defense > 0, "armor defense must be a positive integer: " .. key)
+        assert(not definition.stackable, "stackable item cannot be armor: " .. key)
+        assert(definition.equipment ~= nil, "armor must be equippable: " .. key)
+        local armor_slots = { head = true, torso = true, legs = true, feet = true, neck = true, ring = true }
+        local armor_slot_allowed = false
+        for _, slot_id in ipairs(definition.equipment.slots) do
+            if armor_slots[slot_id] then armor_slot_allowed = true end
+        end
+        assert(armor_slot_allowed, "armor requires an armor-compatible slot: " .. key)
+    end
     return definition
 end
 

@@ -15,6 +15,7 @@ local movement_controller = require "simulation.movement_controller"
 local health = require "combat.health"
 local combat_registry = require "combat.registry"
 local attacks = require "combat.attacks"
+local armor = require "combat.armor"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -630,6 +631,107 @@ test("restored equipped weapon identity continues resolving weapon damage", func
     equal(equipment_api.get(restored, "main_hand").state.maker, "Greyhaven Smith")
 end)
 
+test("armor resolver sums equipped metadata deterministically and floors damage at one", function()
+    local defs = {}
+    for id, definition in pairs(item_definitions) do defs[id] = definition end
+    defs.plain_tunic = { id = "plain_tunic", name = "Plain Tunic", equipment = { slots = { "torso" } } }
+    local registry = item_registry_api.new(defs)
+    local inventory = inventory_api.create("inventory.armor.resolve", "armor.resolve.actor", 4, registry)
+    local equipment = equipment_api.create("equipment.armor.resolve", "armor.resolve.actor", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "armor.resolve.sword", type = "worn_iron_sword" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "armor.resolve.cap", type = "leather_cap" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "armor.resolve.torso", type = "patched_leather_armor" }, registry))
+    assert(equipment_api.equip(equipment, inventory, "armor.resolve.sword", "main_hand"))
+    assert(equipment_api.equip(equipment, inventory, "armor.resolve.cap", "head"))
+    assert(equipment_api.equip(equipment, inventory, "armor.resolve.torso", "torso"))
+    local resolved = armor.resolve(equipment, registry, 2)
+    equal(resolved.incoming_damage, 2); equal(resolved.armor, 3); equal(resolved.final_damage, 1)
+    equal(#resolved.sources, 2); equal(resolved.sources[1].slot, "head"); equal(resolved.sources[1].item_id, "armor.resolve.cap")
+    equal(resolved.sources[2].slot, "torso"); equal(resolved.sources[2].item_id, "armor.resolve.torso")
+    equal(equipment_api.get(equipment, "main_hand").id, "armor.resolve.sword")
+
+    assert(equipment_api.unequip(equipment, inventory, "torso"))
+    equal(armor.resolve(equipment, registry, 8).armor, 1)
+    local none = armor.resolve(nil, registry, 8); equal(none.armor, 0); equal(none.final_damage, 8)
+
+    local plain_equipment = equipment_api.create("equipment.armor.plain", "armor.plain.actor", registry)
+    local plain_inventory = inventory_api.create("inventory.armor.plain", "armor.plain.actor", 1, registry)
+    inventory_api.add_item(plain_inventory, item_instance.new({ id = "armor.plain.item", type = "plain_tunic" }, registry))
+    assert(equipment_api.equip(plain_equipment, plain_inventory, "armor.plain.item", "torso"))
+    equal(armor.resolve(plain_equipment, registry, 8).final_damage, 8)
+end)
+
+test("attack pipeline applies equipped armor once after weapon or unarmed resolution", function()
+    events.clear()
+    local registry = item_registry_api.new(item_definitions)
+    local world = path_world(3, 2)
+    local attacker = actor_api.new("armor.attack.player", "player", 0, 0, 7); world:place_actor(attacker)
+    local target = actor_api.new("armor.attack.monster", "monster", 1, 0, 7); world:place_actor(target)
+    local combat = combat_registry.create(world, events)
+    combat_registry.add(combat, attacker.id, 20); combat_registry.add(combat, target.id, 50)
+    local service = attacks.create(world, combat, events, registry)
+    attacks.add_profile(service, attacker.id, { damage = 5, range = 1, cooldown = 0.75 })
+
+    local payload
+    events.on("actor_attacked", function(event) payload = event end)
+    local unarmored = attacks.try_attack(service, attacker.id, target.id)
+    assert(unarmored.success); equal(unarmored.raw_damage, 5); equal(unarmored.armor, 0); equal(unarmored.damage, 5)
+    equal(combat_registry.get(combat, target.id).health, 45)
+    attacks.update(service, 1)
+
+    local target_inventory = inventory_api.create("inventory.armor.target", target.id, 3, registry)
+    local target_equipment = equipment_api.create("equipment.armor.target", target.id, registry)
+    assert(attacks.set_equipment(service, target.id, target_equipment))
+
+    local torso = item_instance.new({ id = "armor.same.torso", type = "patched_leather_armor" }, registry)
+    local cap = item_instance.new({ id = "armor.same.cap", type = "leather_cap" }, registry)
+    inventory_api.add_item(target_inventory, torso); inventory_api.add_item(target_inventory, cap)
+    assert(equipment_api.equip(target_equipment, target_inventory, torso.id, "torso"))
+    assert(equipment_api.equip(target_equipment, target_inventory, cap.id, "head"))
+    local armored = attacks.try_attack(service, attacker.id, target.id)
+    assert(armored.success); equal(armored.raw_damage, 5); equal(armored.armor, 3); equal(armored.damage, 2)
+    equal(armored.cooldown, unarmored.cooldown); equal(combat_registry.get(combat, target.id).health, 43)
+    equal(payload.raw_damage, 5); equal(payload.armor, 3); equal(payload.damage, 2)
+    equal(#armored.armor_sources, 2); equal(equipment_api.get(target_equipment, "torso").id, torso.id)
+    attacks.update(service, 1)
+
+    assert(equipment_api.unequip(target_equipment, target_inventory, "torso"))
+    local after_unequip = attacks.try_attack(service, attacker.id, target.id)
+    equal(after_unequip.armor, 1); equal(after_unequip.damage, 4)
+    attacks.update(service, 1)
+    assert(equipment_api.equip(target_equipment, target_inventory, torso.id, "torso"))
+
+    local attacker_inventory = inventory_api.create("inventory.armor.attacker", attacker.id, 1, registry)
+    local attacker_equipment = equipment_api.create("equipment.armor.attacker", attacker.id, registry)
+    inventory_api.add_item(attacker_inventory, item_instance.new({ id = "armor.weapon.sword", type = "worn_iron_sword" }, registry))
+    equipment_api.equip(attacker_equipment, attacker_inventory, "armor.weapon.sword", "main_hand")
+    attacks.set_equipment(service, attacker.id, attacker_equipment)
+    local weapon_against_armor = attacks.try_attack(service, attacker.id, target.id)
+    equal(weapon_against_armor.raw_damage, 8); equal(weapon_against_armor.armor, 3); equal(weapon_against_armor.damage, 5)
+    equal(combat_registry.get(combat, target.id).health, 34)
+end)
+
+test("restored armor equipment continues mitigating without derived save state", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.armor.save", "armor.save.target", 1, registry)
+    local equipment = equipment_api.create("equipment.armor.save", "armor.save.target", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "armor.saved.instance", type = "patched_leather_armor" }, registry))
+    assert(equipment_api.equip(equipment, inventory, "armor.saved.instance", "torso"))
+    local restored = equipment_api.restore(codec.deserialize(codec.serialize(equipment_api.snapshot(equipment))), registry)
+
+    local world = path_world(2, 1)
+    local attacker = actor_api.new("armor.save.attacker", "monster", 0, 0, 7); world:place_actor(attacker)
+    local target = actor_api.new("armor.save.target", "npc", 1, 0, 7); world:place_actor(target)
+    local combat = combat_registry.create(world); combat_registry.add(combat, attacker.id, 20); combat_registry.add(combat, target.id, 20)
+    local service = attacks.create(world, combat, nil, registry)
+    attacks.add_profile(service, attacker.id, { damage = 5, range = 1, cooldown = 1 })
+    assert(attacks.set_equipment(service, target.id, restored))
+    local result = attacks.try_attack(service, attacker.id, target.id)
+    assert(result.success); equal(result.raw_damage, 5); equal(result.armor, 2); equal(result.damage, 3)
+    equal(combat_registry.get(combat, target.id).health, 17)
+    equal(equipment_api.get(restored, "torso").id, "armor.saved.instance")
+end)
+
 test("tile retrieval, deterministic stack, removal", function()
     local world = fixture(); local tile = world:get_tile(1, 1, 7)
     equal(tile.objects[1].definition.stack_layer, "ground")
@@ -709,6 +811,15 @@ test("item definitions are validated and isolated from callers", function()
         stackable = true, max_stack = 20, equipment = { slots = { "main_hand" } }, weapon = { damage = 2 } } }))
     assert(not pcall(item_registry_api.new, { offhand_weapon = { id = "offhand_weapon", name = "Offhand Weapon",
         equipment = { slots = { "off_hand" } }, weapon = { damage = 2 } } }))
+    equal(registry:get("patched_leather_armor").armor.defense, 2)
+    assert(not pcall(item_registry_api.new, { bad_armor = { id = "bad_armor", name = "Bad Armor",
+        equipment = { slots = { "torso" } }, armor = { defense = 0 } } }))
+    assert(not pcall(item_registry_api.new, { stack_armor = { id = "stack_armor", name = "Stack Armor",
+        stackable = true, max_stack = 20, equipment = { slots = { "torso" } }, armor = { defense = 2 } } }))
+    assert(not pcall(item_registry_api.new, { unequipped_armor = { id = "unequipped_armor", name = "No Slot Armor",
+        armor = { defense = 2 } } }))
+    assert(not pcall(item_registry_api.new, { hand_armor = { id = "hand_armor", name = "Hand Armor",
+        equipment = { slots = { "main_hand" } }, armor = { defense = 2 } } }))
 end)
 
 test("item instances own bounded quantity and mutable state", function()
@@ -975,6 +1086,7 @@ test("engine test map loads its stable herb and key placements", function()
     equal(world_items.get(world, "world.test.herbs.01").item.id, "test.herbs.01")
     equal(world_items.get(world, "world.test.key.01").item.id, "test.key.01")
     equal(world_items.get(world, "world.test.sword.01").item.id, "test.sword.01")
+    equal(world_items.get(world, "world.test.armor.01").item.id, "test.armor.01")
     equal(world:get_actor_at(12, 5, 7).id, "npc_test_villager")
     equal(world:get_actor_at(14, 10, 7).id, "monster_test_rat")
     equal(world:get_actor("monster_test_rat").type, "monster")

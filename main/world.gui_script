@@ -34,14 +34,14 @@ function on_message(self, message_id, message)
     end
     for index = #message.commands + 1, #self.nodes do gui.set_enabled(self.nodes[index], false) end
     gui.set_text(gui.get_node("status"), string.format(
-        "Greyhaven | Move: WASD/arrows | E use | G drop | H path | J damage | K attack | L weapon | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
+        "Greyhaven | Move: WASD/arrows | E use | K attack | L weapon | O armor | P rat attack | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s)  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | monster_test_rat HP: %s dead: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s)  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat HP: %s dead: %s | Last attack: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
-        message.player_weapon, message.player_attack_cooldown,
-        message.rat_health, tostring(message.rat_dead),
+        message.player_weapon, message.player_attack_cooldown, message.player_armor, message.player_armor_sources,
+        message.rat_health, tostring(message.rat_dead), message.last_attack,
         message.render_commands, #message.commands, NODE_CAPACITY,
         message.npc_path_status, message.npc_path_remaining, message.npc_path_next,
         message.tile_objects, message.target, message.inventory, message.equipment,
