@@ -25,7 +25,7 @@ local function append(commands, instance, definition, state, visible, viewed_z, 
     end
 end
 
-function M.build(world, player, inspection_offset, viewport)
+function M.build(world, player, inspection_offset, viewport, creature_service)
     local commands, revealed = {}, roofs.revealed_groups(world, player)
     local visible, viewed_z = z_levels.get_visible_levels(player.position.z, inspection_offset)
     viewport = viewport or viewport_api.new(player.position.x, player.position.y, 30, 20, 2)
@@ -37,7 +37,7 @@ function M.build(world, player, inspection_offset, viewport)
         local definition = world.item_registry:get(world_item.item.type)
         append(commands, world_item, definition, world_item.item.state, visible, viewed_z, revealed, viewport)
     end
-    actor_renderer.append(commands, world, viewed_z, viewport)
+    actor_renderer.append(commands, world, viewed_z, viewport, creature_service)
     table.sort(commands, order.less)
     return commands, revealed
 end

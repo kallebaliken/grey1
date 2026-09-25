@@ -22,6 +22,9 @@ local pathfinding = require "simulation.pathfinding"
 local movement_controller = require "simulation.movement_controller"
 local combat_registry = require "combat.registry"
 local attacks = require "combat.attacks"
+local creature_definitions = require "creatures.creature_defs"
+local creature_registry_api = require "creatures.creature_registry"
+local creatures = require "creatures.creatures"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -56,7 +59,7 @@ end
 local function render(self)
     local visual = movement.visual_position(self.player)
     local viewport = viewport_api.new(visual.x, visual.y, VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES, VIEW_MARGIN_TILES)
-    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset, viewport)
+    local commands, revealed = renderer.build(self.world, self.player, self.inspect_offset, viewport, self.creatures)
     local target = interaction.find_target(self.world, self.player)
     local p = self.player.position
     local chunk_x, chunk_y = chunks.coordinates(p.x, p.y)
@@ -66,6 +69,10 @@ local function render(self)
     local npc_next = movement_controller.get_next_target(self.path_controller, npc_id)
     local player_combat = combat_registry.get(self.combat, self.player.id)
     local rat_combat = combat_registry.get(self.combat, "monster_test_rat")
+    local rat = self.world:get_actor("monster_test_rat")
+    local villager = self.world:get_actor("npc_test_villager")
+    local rat_definition = creatures.get_definition_id(self.creatures, rat.id)
+    local villager_definition = creatures.get_definition_id(self.creatures, villager.id)
     local player_attack = attacks.get_profile(self.attacks, self.player.id)
     local player_damage = attacks.get_damage(self.attacks, self.player.id)
     local player_armor = attacks.get_armor(self.attacks, self.player.id)
@@ -88,6 +95,8 @@ local function render(self)
         npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
         player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
         rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,
+        rat_definition = rat_definition, rat_type = rat.type,
+        villager_definition = villager_definition, villager_type = villager.type,
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -122,14 +131,13 @@ local function create_session(self, map, loaded)
     assert(combat_registry.add(self.combat, self.player.id,
         saved_combat and saved_combat.max_health or self.map.player_max_health,
         saved_combat and saved_combat.health or nil))
-    for _, placement in ipairs(self.map.actor_placements or {}) do
-        if placement.max_health then assert(combat_registry.add(self.combat, placement.id, placement.max_health)) end
-    end
     self.attacks = attacks.create(self.world, self.combat, events, self.item_registry)
     assert(attacks.add_profile(self.attacks, self.player.id, self.map.player_attack))
     assert(attacks.set_equipment(self.attacks, self.player.id, self.player.equipment))
+    self.creature_registry = creature_registry_api.new(creature_definitions)
+    self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events)
     for _, placement in ipairs(self.map.actor_placements or {}) do
-        if placement.attack then assert(attacks.add_profile(self.attacks, placement.id, placement.attack)) end
+        creatures.spawn(self.creatures, placement)
     end
     self.path_controller = movement_controller.create(self.world, events)
     self.last_attack = nil

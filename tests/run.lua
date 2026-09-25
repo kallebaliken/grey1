@@ -16,6 +16,9 @@ local health = require "combat.health"
 local combat_registry = require "combat.registry"
 local attacks = require "combat.attacks"
 local armor = require "combat.armor"
+local creature_definitions = require "creatures.creature_defs"
+local creature_registry_api = require "creatures.creature_registry"
+local creatures = require "creatures.creatures"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -101,6 +104,25 @@ test("actor identity, types, directions, and registry are canonical", function()
     equal(registry:remove("npc.test").id, "npc.test"); assert(registry:get("npc.test") == nil)
 end)
 
+test("creature definitions validate registration and isolate snapshots", function()
+    local registry = creature_registry_api.new(creature_definitions)
+    assert(registry:has("rat") and registry:has("test_villager"))
+    equal(#registry:get_all(), 2)
+    local rat = registry:get("rat")
+    equal(rat.actor_type, "monster"); equal(rat.combat.max_health, 20); equal(rat.attack.damage, 2)
+    rat.combat.max_health = 999; rat.render.color[1] = 0
+    equal(registry:get("rat").combat.max_health, 20); equal(registry:get("rat").render.color[1], 0.72)
+    assert(not pcall(function() registry:register(creature_definitions.rat) end))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "vendor", display_name = "Invalid" } }))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "monster", combat = { max_health = 0 } } }))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "monster", attack = { damage = 2, range = 1, cooldown = 1 } } }))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "npc", render = { color = { 2, 0, 0, 1 } } } }))
+end)
+
 test("shared actors own occupancy, facing, movement runtime, and events", function()
     events.clear()
     local map = { id = "actor_test", version = 1, tile_size = 32, width = 4, height = 4, placements = {
@@ -142,6 +164,80 @@ local function path_world(width, height, walls, actor_placements, extra_objects,
         placements = placements, actor_placements = actor_placements or {} }
     return world_api.new(map, registry_api.new(definitions), state_api.new(), item_registry)
 end
+
+local function creature_services(world, definitions_source)
+    local registry = creature_registry_api.new(definitions_source or creature_definitions)
+    local combat = combat_registry.create(world, events)
+    local attack_service = attacks.create(world, combat, events)
+    return creatures.create(world, registry, combat, attack_service, events), registry, combat, attack_service
+end
+
+test("creature spawning composes optional Actor combat and attack state", function()
+    events.clear()
+    local world = path_world(5, 3)
+    local service, _, combat, attack_service = creature_services(world)
+    local villager = creatures.spawn(service, { id = "npc.spawned", creature = "test_villager",
+        x = 1, y = 1, z = 7, facing = "east" })
+    equal(villager.id, "npc.spawned"); equal(villager.type, "npc")
+    equal(creatures.get_definition_id(service, villager.id), "test_villager")
+    assert(combat_registry.get(combat, villager.id) == nil)
+    assert(attacks.get_profile(attack_service, villager.id) == nil)
+    equal(world:get_actor_at(1, 1, 7).id, villager.id)
+
+    local rat_a = creatures.spawn(service, { id = "monster.rat.a", creature = "rat",
+        x = 2, y = 1, z = 7, facing = "west" })
+    local rat_b = creatures.spawn(service, { id = "monster.rat.b", creature = "rat",
+        x = 3, y = 1, z = 7, facing = "west" })
+    equal(rat_a.type, "monster"); equal(rat_b.type, "monster")
+    equal(combat_registry.get(combat, rat_a.id).health, 20)
+    equal(combat_registry.get(combat, rat_b.id).health, 20)
+    equal(attacks.get_profile(attack_service, rat_a.id).damage, 2)
+    equal(attacks.get_profile(attack_service, rat_a.id).cooldown, 1)
+    assert(combat_registry.apply_damage(combat, rat_a.id, 5).success)
+    equal(combat_registry.get(combat, rat_a.id).health, 15)
+    equal(combat_registry.get(combat, rat_b.id).health, 20)
+    equal(creatures.get_definition_for_actor(service, rat_a.id).id, "rat")
+    assert(rat_a.creature == nil and rat_a.combat == nil and rat_a.attack == nil)
+
+    assert(not pcall(creatures.spawn, service, { id = "monster.unknown", creature = "missing",
+        x = 4, y = 1, z = 7 }))
+    assert(not pcall(creatures.spawn, service, { id = rat_a.id, creature = "rat",
+        x = 4, y = 1, z = 7 }))
+end)
+
+test("creature attacks remain explicit and retain existing death and occupancy policy", function()
+    events.clear()
+    local world = path_world(3, 2)
+    local service, _, combat, attack_service = creature_services(world)
+    local rat = creatures.spawn(service, { id = "monster.explicit.rat", creature = "rat",
+        x = 1, y = 0, z = 7, facing = "west" })
+    local player = actor_api.new("creature.target", "player", 0, 0, 7, "east")
+    world:place_actor(player); assert(combat_registry.add(combat, player.id, 10))
+    equal(combat_registry.get(combat, player.id).health, 10)
+    local attack = attacks.try_attack(attack_service, rat.id, player.id)
+    assert(attack.success); equal(attack.damage, 2); equal(combat_registry.get(combat, player.id).health, 8)
+    assert(combat_registry.apply_damage(combat, rat.id, 20).died)
+    assert(world:get_actor(rat.id) ~= nil); equal(world:get_actor_at(1, 0, 7).id, rat.id)
+    assert(not world:is_walkable(1, 0, 7, player.id))
+end)
+
+test("actor rendering uses creature metadata with Actor type fallback", function()
+    events.clear()
+    local world = path_world(4, 2)
+    local custom = { green_test = { id = "green_test", actor_type = "npc",
+        render = { color = { 0.13, 0.77, 0.31, 1 }, size = 17 } } }
+    local service = creature_services(world, custom)
+    creatures.spawn(service, { id = "npc.render.definition", creature = "green_test",
+        x = 1, y = 0, z = 7, facing = "south" })
+    local fallback = actor_api.new("npc.render.fallback", "npc", 2, 0, 7); world:place_actor(fallback)
+    local viewer = actor_api.new("render.creature.viewer", "player", 0, 0, 7); world:place_actor(viewer)
+    local commands = renderer.build(world, viewer, 0, nil, service)
+    local by_id = {}; for _, command in ipairs(commands) do by_id[command.id] = command end
+    equal(by_id["npc.render.definition:actor"].color[1], 0.13)
+    equal(by_id["npc.render.definition:actor"].size, 17)
+    equal(by_id["npc.render.fallback:actor"].color[1], 0.78)
+    equal(by_id["npc.render.fallback:actor"].size, 22)
+end)
 
 test("A star finds deterministic cardinal paths without moving the actor", function()
     local world = path_world(5, 3)
@@ -1069,6 +1165,7 @@ test("renderer culls by viewport and preserves graphical extents, roofs, and ord
         if index > 1 then assert(not render_order.less(command, commands[index - 1])) end
     end
     assert(ids["inside.ground:1"], "inside object must render")
+    assert(ids["render.viewer:actor"], "Actor without creature definition must retain fallback rendering")
     assert(not ids["far.ground:1"], "far object must be culled")
     assert(ids["overlap.wide:2"], "graphical footprint overlapping the viewport must render")
     assert(not ids["inside.roof:1"], "revealed roof must remain hidden after culling")
@@ -1083,6 +1180,8 @@ test("engine test map loads its stable herb and key placements", function()
     local map = map_loader.load("data.maps.prototype")
     local registry = item_registry_api.new(item_definitions)
     local world = world_api.new(map, registry_api.new(definitions), state_api.new(), registry)
+    local creature_service, _, combat, attack_service = creature_services(world)
+    for _, actor_placement in ipairs(map.actor_placements) do creatures.spawn(creature_service, actor_placement) end
     equal(world_items.get(world, "world.test.herbs.01").item.id, "test.herbs.01")
     equal(world_items.get(world, "world.test.key.01").item.id, "test.key.01")
     equal(world_items.get(world, "world.test.sword.01").item.id, "test.sword.01")
@@ -1090,11 +1189,23 @@ test("engine test map loads its stable herb and key placements", function()
     equal(world:get_actor_at(12, 5, 7).id, "npc_test_villager")
     equal(world:get_actor_at(14, 10, 7).id, "monster_test_rat")
     equal(world:get_actor("monster_test_rat").type, "monster")
+    equal(map.actor_placements[1].creature, "test_villager")
+    equal(map.actor_placements[2].creature, "rat")
+    assert(map.actor_placements[2].type == nil and map.actor_placements[2].attack == nil)
+    equal(combat_registry.get(combat, "monster_test_rat").max_health, 20)
+    equal(attacks.get_profile(attack_service, "monster_test_rat").damage, 2)
     local viewer = actor_api.new("player.viewer", "player", 9, 2, 7); world:place_actor(viewer)
-    local commands = renderer.build(world, viewer, 0)
-    local npc_rendered = false
-    for _, command in ipairs(commands) do if command.id == "npc_test_villager:actor" then npc_rendered = true end end
+    local commands = renderer.build(world, viewer, 0, nil, creature_service)
+    local npc_rendered, rat_rendered = false, false
+    for _, command in ipairs(commands) do
+        if command.id == "npc_test_villager:actor" then
+            npc_rendered = true; equal(command.color[1], 0.78); equal(command.size, 22)
+        elseif command.id == "monster_test_rat:actor" then
+            rat_rendered = true; equal(command.color[1], 0.72)
+        end
+    end
     assert(npc_rendered, "static NPC must render from actor state")
+    assert(rat_rendered, "static rat must render from creature render metadata")
 end)
 
 test("pickup transfers a non-stackable item through interaction", function()

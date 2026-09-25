@@ -23,7 +23,11 @@ function M.new(map, registry, runtime_state, item_registry)
         world_items.place(self, item, placement.position, placement.id)
     end
     for _, placement in ipairs(map.actor_placements or {}) do
-        self:place_actor(actor_api.new(placement.id, placement.type, placement.x, placement.y, placement.z, placement.facing))
+        -- Legacy/direct Actor placements remain useful to pure-Lua fixtures. Creature-backed
+        -- placements are composed after combat/attack services exist.
+        if placement.type then
+            self:place_actor(actor_api.new(placement.id, placement.type, placement.x, placement.y, placement.z, placement.facing))
+        end
     end
     return self
 end

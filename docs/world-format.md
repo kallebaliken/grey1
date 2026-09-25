@@ -10,10 +10,8 @@ return {
   player_max_health = 100,
   player_attack = { damage = 5, range = 1, cooldown = 0.75 },
   actor_placements = {
-    { id = "npc_test_villager", type = "npc", x = 12, y = 5, z = 7, facing = "south" },
-    { id = "monster_test_rat", type = "monster", x = 14, y = 10, z = 7,
-      facing = "west", max_health = 20,
-      attack = { damage = 2, range = 1, cooldown = 1 } }
+    { id = "npc_test_villager", creature = "test_villager", x = 12, y = 5, z = 7, facing = "south" },
+    { id = "monster_test_rat", creature = "rat", x = 14, y = 10, z = 7, facing = "west" }
   },
   placements = {
     { id = "greyhaven.house01.front_door", type = "wood_door",
@@ -44,9 +42,9 @@ Weapon behavior is item-definition data, not placement data. The prototype autho
 
 Armor behavior is also definition data. The prototype authors `test.armor.01` as an ordinary `patched_leather_armor` world item; only equipping that same instance makes its defense participate in mitigation.
 
-`player_max_health` is the authored positive-integer new-game maximum. `actor_placements.max_health` optionally gives a static Actor combat state; omitted Actors retain normal movement/interaction capability without combat state during incremental migration.
+`player_max_health` is the authored positive-integer new-game maximum. Non-player combat state comes from optional `combat` metadata on the referenced creature definition; definitions without it remain Actor-only.
 
-`player_attack` and optional `actor_placements.attack` records grant explicit attack capability without adding fields to Actor. This foundation accepts fixed positive-integer damage, `range = 1`, and a positive cooldown in seconds. Cooldown runtime is session-only and is not map or save mutation.
+`player_attack` explicitly composes the player. Non-player attack capability comes from optional creature-definition `attack` metadata and still uses the same fixed-damage service. Cooldown runtime is session-only and is not map or save mutation.
 
 `player_inventory` is the authored new-game inventory. Save v4 replaces it with the saved inventory snapshot on load; reset returns to this authored value. It is content input, not a live runtime container.
 
@@ -54,4 +52,4 @@ Armor behavior is also definition data. The prototype authors `test.armor.01` as
 
 Coordinates are integer tiles and `tile_size` is 32. Storage maps them into 32×32 chunks; chunking is an implementation detail and does not leak into authored placement coordinates. Lower and higher Z values are both valid. Only the current gameplay level is interactive.
 
-`actor_placements` optionally seeds inert non-player Actors through the same validated Actor constructor and world occupancy path used by the player. Actor IDs are stable, types are one of `player`, `npc`, or `monster`, and no actor behavior is encoded in map data.
+`actor_placements` optionally seeds inert non-player Actors through a stable `creature` definition reference and the same validated Actor constructor/world occupancy path used by the player. Instance IDs and definition IDs are distinct. Type, optional combat/attack components, and prototype render metadata live in immutable creature definitions; no autonomous behavior is encoded in either placement or definition.

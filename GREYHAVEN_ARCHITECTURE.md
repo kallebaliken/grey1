@@ -40,6 +40,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Attack profiles/cooldowns remain outside Actor and save state. Explicit attacks require living same-Z Actors one cardinal tile apart, emit deterministic lifecycle events, and never choose targets, move, or replan paths.
 - Attack damage resolves from the exact `main_hand` equipment instance through public item APIs: validated weapon metadata replaces profile fallback damage, while empty/non-weapon hands remain unarmed. Derived damage is never persisted.
 - Target mitigation sums validated armor metadata from public equipped-item snapshots and applies `max(1, raw - defense)` before the one CombatState mutation path. Armor sources and totals are derived, deterministic, and unsaved.
+- Creature definitions are immutable registry data, separate from generic Actor instances. A pure composition service maps stable Actor IDs to definition IDs externally and delegates optional health/attack setup to existing services; definitions grant capabilities but never make decisions.
 
 ## Scale boundary
 

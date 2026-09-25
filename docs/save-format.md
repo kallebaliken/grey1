@@ -73,4 +73,6 @@ Weapon damage is also derived rather than serialized: equipped item identity/typ
 
 Armor mitigation follows the same rule: equipped item identity/type persists, immutable definitions supply `armor.defense`, and total defense is recomputed after load. Save Format v4 stores no derived armor total.
 
+Creature definitions are immutable authored data and are never serialized. Static NPC/monster Actors are reconstructed from map placements and definitions when a session starts. Save Format v4 still persists player combat state only; general creature health, death, cooldown, and position persistence remains deferred.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

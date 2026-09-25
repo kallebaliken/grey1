@@ -3,7 +3,7 @@
 See the root [architecture record](../GREYHAVEN_ARCHITECTURE.md) for invariants and [`phase2-runtime-audit.md`](phase2-runtime-audit.md) for the previous prototype assessment.
 
 ```text
-map + definitions -> object registry -> chunked World <- WorldState
+map + object/creature definitions -> registries -> chunked World <- WorldState
                                           |
                 movement / pathfinding / interaction / transitions
                                           |
@@ -13,6 +13,8 @@ map + definitions -> object registry -> chunked World <- WorldState
 ```
 
 The world API (`get_chunk`, `get_tile`, `get_objects`, `get_actor_at`, `is_walkable`) and every simulation module are pure Lua. A* queries these APIs without flattening chunks or moving Actors. `game_manager.script` is a composition/lifecycle adapter: it does not decide collision, door rules, stair destinations, roof membership, path routes, or save schema. Interaction handlers are registered by kind, avoiding an object-type conditional in the manager.
+
+Creature composition is also pure Lua: an immutable definition registry supplies Actor type and optional combat, attack, and prototype render policy; the creature service creates the generic Actor and delegates to existing runtime services. The player remains explicitly composed, and definitions never become mutable Actor state or autonomous behavior.
 
 The manager publishes an engine-neutral frame into adapter-local `main.view_model`, then posts a payload-free redraw message. This avoids Defold message payload limits and keeps render data out of authoritative state. Render command generation is bounded to the camera viewport plus a two-tile margin; graphical extents, rather than collision footprints, decide whether an object overlaps that viewport.
 

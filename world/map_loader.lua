@@ -3,6 +3,9 @@
 local maps = {
     ["data.maps.prototype"] = require("data.maps.prototype"),
 }
+local creature_registry_api = require "creatures.creature_registry"
+local creature_definitions = require "creatures.creature_defs"
+local known_creatures = creature_registry_api.new(creature_definitions)
 
 local M = {}
 
@@ -30,18 +33,11 @@ function M.load(module_name)
     for _, placement in ipairs(map.actor_placements or {}) do
         assert(type(placement.id) == "string", "actor placements require stable string ids")
         assert(not actor_ids[placement.id], "duplicate actor id: " .. placement.id)
-        assert(type(placement.type) == "string" and type(placement.x) == "number"
+        assert(type(placement.creature) == "string" and known_creatures:has(placement.creature),
+            "actor placement requires a known creature definition")
+        assert(type(placement.x) == "number"
             and type(placement.y) == "number" and type(placement.z) == "number",
-            "actor placements require type and position")
-        if placement.max_health ~= nil then
-            assert(type(placement.max_health) == "number" and placement.max_health > 0
-                and placement.max_health % 1 == 0, "actor max health must be a positive integer")
-        end
-        if placement.attack ~= nil then
-            assert(type(placement.attack) == "table" and type(placement.attack.damage) == "number"
-                and type(placement.attack.range) == "number" and type(placement.attack.cooldown) == "number",
-                "actor attack profile requires damage, range, and cooldown")
-        end
+            "actor placements require a creature reference and position")
         actor_ids[placement.id] = true
     end
     assert(type(map.player_max_health) == "number" and map.player_max_health > 0

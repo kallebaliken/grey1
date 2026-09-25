@@ -66,6 +66,8 @@ Canary `ItemType` weapon/combat concepts map only to validated Greyhaven item `w
 
 Canary equipment/defense concepts map to positive-integer Greyhaven `armor.defense` metadata, a deterministic equipped-item mitigation resolver, and the same CombatState damage path. Shielding skills, block chance, random/formula reduction, PvP modifiers, elemental resistance, conditions, imbuements, and durability remain excluded.
 
+Canary `MonsterType`, `Monster`, NPC, and Creature configuration concepts map to immutable Greyhaven CreatureDefinitions and a pure-Lua composition service that creates generic Actors plus optional existing CombatState/attack profiles. XML content, AI think loops, spells, loot, summons, voices, target switching, and server scheduling are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

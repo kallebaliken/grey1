@@ -33,6 +33,8 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, render-command count, active dynamic GUI nodes, path status, tile context, inventory, and equipment. There is no equipment or combat GUI; **L**, **O**, and **P** are development-only.
 
+Diagnostics identify `npc_test_villager` as definition `test_villager` / type `npc` and `monster_test_rat` as definition `rat` / type `monster`. These associations live in the creature runtime rather than the generic Actor.
+
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
 ## Ordered playtest route
@@ -98,6 +100,14 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 5. Press **O** to unequip, wait for cooldown, and press **P** again. Confirm damage returns to two and the exact armor item ID is back in inventory.
 6. Re-equip with **O**, save with **F5**, then load with **F9** or restart. Confirm torso equipment and Armor 2 are restored and the next explicit rat attack is still mitigated to one.
 7. Confirm sword attacks still resolve weapon damage before target armor, cooldowns are unchanged, and all existing world systems remain operational without Defold errors.
+
+## Creature definition check
+
+1. Launch Greyhaven and enable **F1**. Confirm `npc_test_villager` reports definition `test_villager`, renders at `(12,5,7)`, and still blocks movement.
+2. Confirm `monster_test_rat` reports definition `rat`, type `monster`, and 20/20 HP at its authored position.
+3. Walk adjacent and use **K**; confirm the existing attack damages the rat. Use **J** to confirm direct damage/death behavior is unchanged.
+4. Reset if needed, stand adjacent, and press **P**; confirm the definition-composed rat attack profile still deals its fixed damage.
+5. Wait without pressing a development command. Confirm neither creature chooses movement or attacks autonomously and no Defold runtime errors occur.
 
 ## Expected prototype content
 
