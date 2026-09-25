@@ -2,6 +2,7 @@ local ids = require "core.ids"
 local actor_api = require "actors.actor"
 local combat_registry = require "combat.registry"
 local attacks = require "combat.attacks"
+local factions = require "factions.factions"
 local M = {}
 
 local runtimes = setmetatable({}, { __mode = "k" })
@@ -14,10 +15,11 @@ local function integer(value)
     return type(value) == "number" and value == value and value % 1 == 0
 end
 
-function M.create(world, registry, combat, attack_service, events)
+function M.create(world, registry, combat, attack_service, events, faction_service)
     assert(type(world) == "table" and type(world.place_actor) == "function", "creatures require a world")
     assert(type(registry) == "table" and type(registry.get) == "function", "creatures require a definition registry")
-    local service = { world = world, registry = registry, combat = combat, attacks = attack_service, events = events }
+    local service = { world = world, registry = registry, combat = combat, attacks = attack_service,
+        events = events, factions = faction_service }
     runtimes[service] = { definitions_by_actor = {} }
     return service
 end
@@ -30,6 +32,7 @@ function M.spawn(service, placement)
     assert(definition, "unknown creature definition: " .. definition_id)
     assert(not definition.combat or service.combat, "creature combat metadata requires combat service")
     assert(not definition.attack or service.attacks, "creature attack metadata requires attack service")
+    assert(not definition.faction or service.factions, "creature faction metadata requires faction service")
     assert(integer(placement.x) and integer(placement.y) and integer(placement.z),
         "creature placement coordinates must be integers")
     assert(not service.world:get_actor(actor_id), "duplicate actor id: " .. actor_id)
@@ -39,6 +42,7 @@ function M.spawn(service, placement)
     local actor = actor_api.new(actor_id, definition.actor_type, placement.x, placement.y, placement.z, placement.facing)
     service.world:place_actor(actor, service.events)
     runtime(service).definitions_by_actor[actor_id] = definition_id
+    if definition.faction then assert(factions.associate(service.factions, actor_id, definition.faction)) end
     if definition.combat then
         assert(combat_registry.add(service.combat, actor_id, definition.combat.max_health))
     end

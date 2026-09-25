@@ -25,6 +25,10 @@ local attacks = require "combat.attacks"
 local creature_definitions = require "creatures.creature_defs"
 local creature_registry_api = require "creatures.creature_registry"
 local creatures = require "creatures.creatures"
+local faction_definitions = require "factions.faction_defs"
+local relationship_definitions = require "factions.relationship_defs"
+local faction_registry_api = require "factions.faction_registry"
+local factions = require "factions.factions"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -73,6 +77,11 @@ local function render(self)
     local villager = self.world:get_actor("npc_test_villager")
     local rat_definition = creatures.get_definition_id(self.creatures, rat.id)
     local villager_definition = creatures.get_definition_id(self.creatures, villager.id)
+    local player_faction = factions.get_actor_faction(self.factions, self.player.id)
+    local rat_faction = factions.get_actor_faction(self.factions, rat.id)
+    local villager_faction = factions.get_actor_faction(self.factions, villager.id)
+    local rat_relationship = factions.relationship_between_actors(self.factions, rat.id, self.player.id)
+    local villager_relationship = factions.relationship_between_actors(self.factions, villager.id, self.player.id)
     local player_attack = attacks.get_profile(self.attacks, self.player.id)
     local player_damage = attacks.get_damage(self.attacks, self.player.id)
     local player_armor = attacks.get_armor(self.attacks, self.player.id)
@@ -97,6 +106,8 @@ local function render(self)
         rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,
         rat_definition = rat_definition, rat_type = rat.type,
         villager_definition = villager_definition, villager_type = villager.type,
+        player_faction = player_faction, rat_faction = rat_faction, villager_faction = villager_faction,
+        rat_relationship = rat_relationship, villager_relationship = villager_relationship,
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -134,8 +145,12 @@ local function create_session(self, map, loaded)
     self.attacks = attacks.create(self.world, self.combat, events, self.item_registry)
     assert(attacks.add_profile(self.attacks, self.player.id, self.map.player_attack))
     assert(attacks.set_equipment(self.attacks, self.player.id, self.player.equipment))
-    self.creature_registry = creature_registry_api.new(creature_definitions)
-    self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events)
+    self.faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
+    self.factions = factions.create(self.world, self.faction_registry)
+    assert(factions.associate(self.factions, self.player.id, "player"))
+    self.creature_registry = creature_registry_api.new(creature_definitions, self.faction_registry)
+    self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events,
+        self.factions)
     for _, placement in ipairs(self.map.actor_placements or {}) do
         creatures.spawn(self.creatures, placement)
     end

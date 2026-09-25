@@ -11,7 +11,7 @@ Canary's `Creature`, `Player`, `Npc`, and `Monster` hierarchy combines identity,
 | Creature lookup/placement | `actors/registry.lua` plus `world/world.lua` occupancy | One registry and one actor reservation per tile for every actor type. |
 | Direction/facing helpers | `world/direction.lua` | One world-coordinate definition shared by movement and interaction. |
 
-The player is an Actor explicitly composed at the runtime root with inventory, equipment, CombatState, and an attack profile. NPCs and monsters use the same Actor representation but are authored through immutable creature definitions. `creatures/creatures.lua` retains the Actor-instance-to-definition association outside Actor state and composes only optional definition-declared services. Pathfinding remains separate, and dialogue, schedules, autonomous AI, stats, and decision-making remain absent.
+The player is an Actor explicitly composed at the runtime root with inventory, equipment, CombatState, attack profile, and an external `player` faction association. NPCs and monsters use the same Actor representation but are authored through immutable creature definitions. `creatures/creatures.lua` retains Actor-to-definition associations outside Actor state and composes only optional definition-declared services, including external faction association. Pathfinding remains separate, and dialogue, schedules, autonomous AI, stats, and decision-making remain absent.
 
 ## Logical state and presentation runtime
 

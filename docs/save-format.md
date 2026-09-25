@@ -75,4 +75,6 @@ Armor mitigation follows the same rule: equipped item identity/type persists, im
 
 Creature definitions are immutable authored data and are never serialized. Static NPC/monster Actors are reconstructed from map placements and definitions when a session starts. Save Format v4 still persists player combat state only; general creature health, death, cooldown, and position persistence remains deferred.
 
+Faction definitions and directional relationships are immutable authored data. Player and creature Actor associations reconstruct during session composition, so Save Format v4 stores neither faction definitions nor associations. Dynamic reputation and relationship persistence do not exist.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

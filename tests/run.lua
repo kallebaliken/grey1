@@ -19,6 +19,11 @@ local armor = require "combat.armor"
 local creature_definitions = require "creatures.creature_defs"
 local creature_registry_api = require "creatures.creature_registry"
 local creatures = require "creatures.creatures"
+local faction_definitions = require "factions.faction_defs"
+local relationship_definitions = require "factions.relationship_defs"
+local faction_registry_api = require "factions.faction_registry"
+local faction_relationships = require "factions.relationships"
+local factions = require "factions.factions"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -105,7 +110,8 @@ test("actor identity, types, directions, and registry are canonical", function()
 end)
 
 test("creature definitions validate registration and isolate snapshots", function()
-    local registry = creature_registry_api.new(creature_definitions)
+    local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
+    local registry = creature_registry_api.new(creature_definitions, faction_registry)
     assert(registry:has("rat") and registry:has("test_villager"))
     equal(#registry:get_all(), 2)
     local rat = registry:get("rat")
@@ -121,6 +127,33 @@ test("creature definitions validate registration and isolate snapshots", functio
         id = "invalid", actor_type = "monster", attack = { damage = 2, range = 1, cooldown = 1 } } }))
     assert(not pcall(creature_registry_api.new, { invalid = {
         id = "invalid", actor_type = "npc", render = { color = { 2, 0, 0, 1 } } } }))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "npc", faction = "missing" } }, faction_registry))
+end)
+
+test("faction definitions and directional relationships are canonical and isolated", function()
+    local registry = faction_registry_api.new(faction_definitions, relationship_definitions)
+    assert(registry:has("player") and registry:has("townsfolk") and registry:has("vermin"))
+    equal(#registry:get_all(), 3)
+    local townsfolk = registry:get("townsfolk"); townsfolk.display_name = "Changed"
+    equal(registry:get("townsfolk").display_name, "Greyhaven Townsfolk")
+    assert(not pcall(function() registry:register(faction_definitions.player) end))
+    assert(registry:get("missing") == nil)
+    equal(registry:relationship("player", "player"), faction_relationships.FRIENDLY)
+    equal(registry:relationship("player", "townsfolk"), faction_relationships.FRIENDLY)
+    equal(registry:relationship("player", "vermin"), faction_relationships.HOSTILE)
+    assert(not pcall(function() registry:relationship("missing", "player") end))
+    assert(not pcall(faction_registry_api.new, faction_definitions, { player = { vermin = "afraid" } }))
+
+    local directional_defs = {
+        first = { id = "first", display_name = "First" },
+        second = { id = "second", display_name = "Second" },
+        third = { id = "third", display_name = "Third" },
+    }
+    local directional = faction_registry_api.new(directional_defs, { first = { second = "hostile" } })
+    equal(directional:relationship("first", "second"), faction_relationships.HOSTILE)
+    equal(directional:relationship("second", "first"), faction_relationships.NEUTRAL)
+    equal(directional:relationship("first", "third"), faction_relationships.NEUTRAL)
 end)
 
 test("shared actors own occupancy, facing, movement runtime, and events", function()
@@ -166,16 +199,19 @@ local function path_world(width, height, walls, actor_placements, extra_objects,
 end
 
 local function creature_services(world, definitions_source)
-    local registry = creature_registry_api.new(definitions_source or creature_definitions)
+    local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
+    local faction_service = factions.create(world, faction_registry)
+    local registry = creature_registry_api.new(definitions_source or creature_definitions, faction_registry)
     local combat = combat_registry.create(world, events)
     local attack_service = attacks.create(world, combat, events)
-    return creatures.create(world, registry, combat, attack_service, events), registry, combat, attack_service
+    return creatures.create(world, registry, combat, attack_service, events, faction_service),
+        registry, combat, attack_service, faction_service, faction_registry
 end
 
 test("creature spawning composes optional Actor combat and attack state", function()
     events.clear()
     local world = path_world(5, 3)
-    local service, _, combat, attack_service = creature_services(world)
+    local service, _, combat, attack_service, faction_service = creature_services(world)
     local villager = creatures.spawn(service, { id = "npc.spawned", creature = "test_villager",
         x = 1, y = 1, z = 7, facing = "east" })
     equal(villager.id, "npc.spawned"); equal(villager.type, "npc")
@@ -183,6 +219,7 @@ test("creature spawning composes optional Actor combat and attack state", functi
     assert(combat_registry.get(combat, villager.id) == nil)
     assert(attacks.get_profile(attack_service, villager.id) == nil)
     equal(world:get_actor_at(1, 1, 7).id, villager.id)
+    equal(factions.get_actor_faction(faction_service, villager.id), "townsfolk")
 
     local rat_a = creatures.spawn(service, { id = "monster.rat.a", creature = "rat",
         x = 2, y = 1, z = 7, facing = "west" })
@@ -197,12 +234,57 @@ test("creature spawning composes optional Actor combat and attack state", functi
     equal(combat_registry.get(combat, rat_a.id).health, 15)
     equal(combat_registry.get(combat, rat_b.id).health, 20)
     equal(creatures.get_definition_for_actor(service, rat_a.id).id, "rat")
+    equal(factions.get_actor_faction(faction_service, rat_a.id), "vermin")
+    equal(factions.get_actor_faction(faction_service, rat_b.id), "vermin")
     assert(rat_a.creature == nil and rat_a.combat == nil and rat_a.attack == nil)
 
     assert(not pcall(creatures.spawn, service, { id = "monster.unknown", creature = "missing",
         x = 4, y = 1, z = 7 }))
     assert(not pcall(creatures.spawn, service, { id = rat_a.id, creature = "rat",
         x = 4, y = 1, z = 7 }))
+end)
+
+test("Actor faction queries remain informational and support unaffiliated Actors", function()
+    events.clear()
+    local world = path_world(5, 2)
+    local creature_service, _, combat, attack_service, faction_service = creature_services(world)
+    local player = actor_api.new("faction.player", "player", 0, 0, 7, "east")
+    world:place_actor(player); assert(combat_registry.add(combat, player.id, 20))
+    assert(factions.associate(faction_service, player.id, "player"))
+    local villager = creatures.spawn(creature_service, { id = "faction.villager", creature = "test_villager",
+        x = 1, y = 0, z = 7, facing = "west" })
+    local rat = creatures.spawn(creature_service, { id = "faction.rat", creature = "rat",
+        x = 2, y = 0, z = 7, facing = "west" })
+    local unaffiliated = actor_api.new("faction.none", "npc", 3, 0, 7); world:place_actor(unaffiliated)
+
+    equal(factions.get_actor_faction(faction_service, player.id), "player")
+    equal(factions.get_actor_faction(faction_service, villager.id), "townsfolk")
+    equal(factions.get_actor_faction(faction_service, rat.id), "vermin")
+    equal(factions.get_actor_faction(faction_service, unaffiliated.id), nil)
+    equal(factions.relationship_between_actors(faction_service, villager.id, player.id), "friendly")
+    equal(factions.relationship_between_actors(faction_service, rat.id, player.id), "hostile")
+    equal(factions.relationship_between_actors(faction_service, unaffiliated.id, player.id), "neutral")
+    assert(factions.are_friendly(faction_service, villager.id, player.id))
+    assert(factions.are_hostile(faction_service, rat.id, player.id))
+    assert(factions.are_neutral(faction_service, unaffiliated.id, player.id))
+    local missing, reason = factions.get_actor_faction(faction_service, "missing")
+    assert(missing == nil); equal(reason, "unknown_actor")
+
+    local rat_health = combat_registry.get(combat, rat.id).health
+    local rat_position = position.copy(rat.position)
+    local cooldown = attacks.get_profile(attack_service, rat.id).cooldown_remaining
+    for _ = 1, 3 do assert(factions.are_hostile(faction_service, rat.id, player.id)) end
+    equal(combat_registry.get(combat, rat.id).health, rat_health)
+    assert(position.equals(rat.position, rat_position)); assert(not movement.is_moving(rat))
+    equal(attacks.get_profile(attack_service, rat.id).cooldown_remaining, cooldown)
+
+    local ally = actor_api.new("faction.ally", "npc", 0, 1, 7, "south")
+    world:place_actor(ally); assert(combat_registry.add(combat, ally.id, 10))
+    assert(factions.associate(faction_service, ally.id, "player"))
+    assert(attacks.add_profile(attack_service, player.id, { damage = 1, range = 1, cooldown = 1 }))
+    assert(factions.are_friendly(faction_service, player.id, ally.id))
+    local explicit_friendly_attack = attacks.try_attack(attack_service, player.id, ally.id)
+    assert(explicit_friendly_attack.success); equal(combat_registry.get(combat, ally.id).health, 9)
 end)
 
 test("creature attacks remain explicit and retain existing death and occupancy policy", function()

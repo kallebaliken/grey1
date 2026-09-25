@@ -68,6 +68,8 @@ Canary equipment/defense concepts map to positive-integer Greyhaven `armor.defen
 
 Canary `MonsterType`, `Monster`, NPC, and Creature configuration concepts map to immutable Greyhaven CreatureDefinitions and a pure-Lua composition service that creates generic Actors plus optional existing CombatState/attack profiles. XML content, AI think loops, spells, loot, summons, voices, target switching, and server scheduling are excluded.
 
+Canary skull/hostility, party, and guild relationship concepts do not map directly. Greyhaven instead uses a small authored directional faction graph plus external Actor associations. PvP skulls, guild wars, party behavior, player-killing rules, crime, reputation, and automatic targeting are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

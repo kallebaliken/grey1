@@ -35,7 +35,7 @@ Completed slices: validated item definitions and instances, containers, inventor
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Factions, conditions, autonomous AI, skills, accuracy, shielding, and broader combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Dynamic reputation, conditions, autonomous AI, skills, accuracy, shielding, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -47,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add authored faction identity and relationship queries without autonomous behavior or combat targeting. AI, schedules, dialogue, merchants, loot, conditions, narrative content, and production creature content remain explicitly out of scope for that slice.
+Add a minimal dialogue-data foundation that can describe explicit interaction text without schedules, quests, merchants, reputation responses, or autonomous NPC behavior.

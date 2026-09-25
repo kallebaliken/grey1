@@ -5,6 +5,7 @@ local M = {}
 local methods = {}
 methods.__index = methods
 local records = setmetatable({}, { __mode = "k" })
+local faction_registries = setmetatable({}, { __mode = "k" })
 
 local function copy(value, seen)
     if type(value) ~= "table" then return value end
@@ -20,11 +21,16 @@ local function positive_integer(value)
     return type(value) == "number" and value == value and value > 0 and value % 1 == 0
 end
 
-local function normalize(source)
+local function normalize(source, faction_registry)
     assert(type(source) == "table", "creature definition must be a table")
     local definition = copy(source)
     definition.id = ids.require_stable(definition.id, "creature definition id")
     definition.actor_type = actor_types.require_valid(definition.actor_type)
+    if definition.faction ~= nil then
+        ids.require_stable(definition.faction, "creature faction id")
+        assert(faction_registry and faction_registry:has(definition.faction),
+            "unknown creature faction: " .. definition.faction)
+    end
     assert(definition.display_name == nil or (type(definition.display_name) == "string"
         and definition.display_name ~= ""), "creature display name must be non-empty")
     if definition.combat then
@@ -55,9 +61,10 @@ local function normalize(source)
     return definition
 end
 
-function M.new(definitions)
+function M.new(definitions, faction_registry)
     local registry = setmetatable({}, methods)
     records[registry] = {}
+    faction_registries[registry] = faction_registry
     for key, definition in pairs(definitions or {}) do
         assert(type(key) == "string" and definition.id == key, "creature definition key/id mismatch")
         registry:register(definition)
@@ -66,7 +73,7 @@ function M.new(definitions)
 end
 
 function methods:register(definition)
-    local normalized = normalize(definition)
+    local normalized = normalize(definition, faction_registries[self])
     assert(not records[self][normalized.id], "duplicate creature definition: " .. normalized.id)
     records[self][normalized.id] = normalized
     return copy(normalized)

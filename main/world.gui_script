@@ -37,12 +37,14 @@ function on_message(self, message_id, message)
         "Greyhaven | Move: WASD/arrows | E use | K attack | L weapon | O armor | P rat attack | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s)  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
-        message.actor_id, message.actor_type, message.logical_x, message.logical_y, message.player_z, message.facing,
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+        message.actor_id, message.actor_type, message.player_faction,
+        message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
         message.player_weapon, message.player_attack_cooldown, message.player_armor, message.player_armor_sources,
-        message.rat_definition, message.rat_type, message.rat_health, tostring(message.rat_dead), message.last_attack,
-        message.villager_definition, message.villager_type,
+        message.rat_definition, message.rat_type, message.rat_faction, message.rat_relationship,
+        message.rat_health, tostring(message.rat_dead), message.last_attack,
+        message.villager_definition, message.villager_type, message.villager_faction, message.villager_relationship,
         message.render_commands, #message.commands, NODE_CAPACITY,
         message.npc_path_status, message.npc_path_remaining, message.npc_path_next,
         message.tile_objects, message.target, message.inventory, message.equipment,

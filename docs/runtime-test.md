@@ -33,7 +33,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, render-command count, active dynamic GUI nodes, path status, tile context, inventory, and equipment. There is no equipment or combat GUI; **L**, **O**, and **P** are development-only.
 
-Diagnostics identify `npc_test_villager` as definition `test_villager` / type `npc` and `monster_test_rat` as definition `rat` / type `monster`. These associations live in the creature runtime rather than the generic Actor.
+Diagnostics identify the player faction as `player`, `npc_test_villager` as definition `test_villager` / type `npc` / faction `townsfolk`, and `monster_test_rat` as definition `rat` / type `monster` / faction `vermin`. Villager-to-player is friendly and rat-to-player is hostile. These associations live outside the generic Actor.
 
 The colored GUI boxes are temporary prototype/debug world presentation. Rendering is camera-culled with a two-tile margin and nodes are pooled. World nodes remain at safe GUI Z 0; their already-sorted node order preserves ground-to-roof stacking, while the HUD uses a separate layer above the world. Production rendering should later use Defold tilemaps, sprites, meshes/batching, or chunk rendering rather than one GUI node per visible sprite piece.
 
@@ -108,6 +108,15 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 3. Walk adjacent and use **K**; confirm the existing attack damages the rat. Use **J** to confirm direct damage/death behavior is unchanged.
 4. Reset if needed, stand adjacent, and press **P**; confirm the definition-composed rat attack profile still deals its fixed damage.
 5. Wait without pressing a development command. Confirm neither creature chooses movement or attacks autonomously and no Defold runtime errors occur.
+
+## Faction relationship check
+
+1. Launch Greyhaven and enable **F1**. Confirm the player faction is `player`.
+2. Inspect `npc_test_villager`; confirm faction `townsfolk` and relationship to player `friendly`.
+3. Inspect `monster_test_rat`; confirm faction `vermin` and relationship to player `hostile`.
+4. Wait and move around. Confirm the rat and villager remain inert: faction queries cause no attacks, chasing, dialogue, or movement.
+5. Use **K**, **J**, and **P** as before. Confirm explicit combat remains possible because faction data does not impose friendly-fire or targeting policy.
+6. Save/load or reset and confirm the same authored associations reconstruct without a save migration or runtime errors.
 
 ## Expected prototype content
 
