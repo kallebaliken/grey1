@@ -25,13 +25,17 @@ Load Lua map data into `(x,y,z)` tiles; resolve object definitions; determine wa
 
 Support independent visual/gameplay footprints, ordered stacks, grouped roofs, registered door/chest/stair interactions, playable Z transitions, chunk-addressed tiles, actor occupancy, debugging, and versioned local save/load. Fading and editor-authored schema tooling remain later work.
 
-### 4 — Items and inventory
+### 4 — Items and inventory (in progress)
 
 Add immutable item definitions and per-instance state; reusable containers; inventory/equipment policies; world pickup/drop actions; events; and serialization tests. No GUI dependency belongs in these modules.
 
-### 5 — Actors, navigation, and combat
+Completed slices: validated item definitions and instances, containers, inventory/world transfers, save-v2 item ownership, data-driven equipment with save-v3 exclusive ownership, and save-v4 player combat state. Nested containers, combat-derived equipment effects, and item use remain out of scope.
+
+### 5 — Actors, navigation, and combat (in progress)
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
+
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, explicit data-driven NPC dialogue, persistent boolean world flags with generic conditions/actions, minimal persisted quest state with generic read-only conditions and explicit actions, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Quest rewards, merchants, dynamic reputation, autonomous/event-driven progression, AI, skills, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -43,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add A* pathfinding and stronger map-schema diagnostics before introducing NPCs. Inventory, combat, narrative, and production content remain explicitly out of scope until the world engine has been manually smoke-tested in Defold.
+Choose the next narrow Greyhaven subsystem explicitly; do not expand explicit quest actions into rewards, combat/event-driven progression, items, merchants, reputation, markers, or arbitrary scripts automatically.

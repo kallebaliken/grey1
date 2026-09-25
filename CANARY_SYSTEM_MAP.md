@@ -23,7 +23,7 @@ This audit records concepts, not code to port. It sampled the major ownership bo
 
 ### Implemented Greyhaven replacements
 
-The current runtime now replaces the relevant `Position`, tile stack, object/type identity, creature occupancy, movement-destination validation, teleport/floor transition, and world-query concepts with pure Lua modules. Storage is chunk-addressed from the start. Door and stair notifications are semantic local events rather than Canary spectator/protocol updates.
+The current runtime now replaces the relevant `Position`, tile stack, object/type identity, creature occupancy, movement-destination validation, teleport/floor transition, and world-query concepts with pure Lua modules. Bounded deterministic A* uses Manhattan distance and authoritative walkability directly across chunk boundaries. Canary creature route execution maps to a separate Greyhaven path controller that feeds supplied steps through shared movement and interpolation; it has no creature think loop, scheduler, autonomous goal selection, or network coupling. Door and stair notifications are semantic local events rather than Canary spectator/protocol updates.
 
 ## Objects and items
 
@@ -57,6 +57,34 @@ The current runtime now replaces the relevant `Position`, tile stack, object/typ
 | Quests, doors, actions as script categories | KEEP AS CONCEPT / REIMPLEMENT | Small registries subscribe to semantic events and use stable IDs. |
 
 Door, stair, and placeholder chest actions now use the registered interaction dispatcher. This validates the category/registration concept without adopting the C++ Lua binding layer or `Cylinder` hierarchy.
+
+Canary `Creature` health/change/death concepts now map to a composed Greyhaven CombatState and deterministic explicit-damage API. Formula calculation, schedulers, conditions, PvP policy, experience, loot, network messages, and server death processing are not part of this foundation.
+
+Canary creature attack execution now maps to an explicit deterministic Actor attack service that validates a caller-supplied target and delegates fixed damage to CombatState. It does not retain Canary weapon/skill formulas, attack scheduling, PvP, conditions, spells, critical hits, imbuements, networking, or combat messages; attack capability is not decision-making AI.
+
+Canary `ItemType` weapon/combat concepts map only to validated Greyhaven item `weapon.damage` metadata, explicit main-hand damage resolution, and the existing CombatState mutation path. The equipped logical item keeps its normal stable identity; skills, hit/defense formulas, weapon speed, imbuements, ammo, charges, critical hits, PvP modifiers, and server scheduling are not carried over.
+
+Canary equipment/defense concepts map to positive-integer Greyhaven `armor.defense` metadata, a deterministic equipped-item mitigation resolver, and the same CombatState damage path. Shielding skills, block chance, random/formula reduction, PvP modifiers, elemental resistance, conditions, imbuements, and durability remain excluded.
+
+Canary `MonsterType`, `Monster`, NPC, and Creature configuration concepts map to immutable Greyhaven CreatureDefinitions and a pure-Lua composition service that creates generic Actors plus optional existing CombatState/attack profiles. XML content, AI think loops, spells, loot, summons, voices, target switching, and server scheduling are excluded.
+
+Canary skull/hostility, party, and guild relationship concepts do not map directly. Greyhaven instead uses a small authored directional faction graph plus external Actor associations. PvP skulls, guild wars, party behavior, player-killing rules, crime, reputation, and automatic targeting are excluded.
+
+Canary NPC interaction concepts map only to immutable Greyhaven DialogueDefinitions, explicit adjacent Actor interaction, and a single temporary DialogueSession. Tibia NPC scripts/content, keyword handlers, shops, travel, quests, storage values, server callbacks, and NPC scheduling are excluded.
+
+Canary storage-value and script-condition concepts map only to stable boolean Greyhaven WorldState flags plus a generic read-only condition evaluator. Numeric storage conventions, arbitrary Lua callbacks, quest actions, item/faction/health conditions, and server scripts are excluded.
+
+Canary/Tibia storage-style mutation concepts map only to validated Greyhaven `set_flag` actions that write stable boolean WorldState facts through a generic executor. Dialogue may invoke those actions from an explicit selected choice; numeric storage keys, quests, rewards, item grants, callback scripts, and autonomous execution are excluded.
+
+Canary quest/storage progression concepts map only to immutable Greyhaven QuestDefinitions plus explicit persisted QuestState status and objective counters. Server scripts, storage-number conventions, rewards, XP, items, markers, automatic discovery, and NPC/AI coupling are excluded.
+
+Canary/Tibia quest storage checks map to structured read-only Greyhaven `quest_status` and `quest_objective` conditions evaluated through public QuestState APIs. Numeric storage keys, quest-specific script branches, automatic progression, and dialogue mutation are not retained.
+
+Canary/Tibia quest storage mutations map to named, validated `start_quest`, `advance_quest`, and `complete_quest` actions that delegate to Greyhaven QuestState. Numeric storage scripts, rewards, combat bindings, automatic progression, and arbitrary callbacks are excluded.
+
+Canary creature-event concepts map only to whitelisted, immutable Greyhaven Event Bindings. The initial `actor_died` rule resolves public Actor/CreatureDefinition identity and invokes validated Actions; Lua callbacks, server scheduling, loot, rewards, respawning, and arbitrary event scripting are excluded.
+
+Canary awareness concepts map only to deterministic Greyhaven Perception queries over authoritative logical positions and explicit sight blockers. Target lists, think loops, aggro, chasing, spells, summons, and scheduling are excluded.
 
 ## Infrastructure
 

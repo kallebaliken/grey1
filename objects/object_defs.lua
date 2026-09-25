@@ -9,11 +9,13 @@ return {
     basement_floor = { id = "basement_floor", stack_layer = "ground", patterns = { solid({ .22, .24, .25, 1 }) } },
     interior = { id = "interior", stack_layer = "ground_detail", patterns = { solid({ .52, .35, .20, .18 }) } },
     wall_block = { id = "wall_block", stack_layer = "top", graphical_width = 2, graphical_height = 2,
-        footprint_width = 1, footprint_height = 1, blocking = true, patterns = { {
+        footprint_width = 1, footprint_height = 1, blocking = true, blocks_sight = true, patterns = { {
             { .45, .48, .52, 1 }, { .55, .58, .61, 1 }, { .31, .33, .36, 1 }, { .37, .39, .42, 1 } } } },
-    wall = { id = "wall", stack_layer = "top", blocking = true, patterns = { solid({ .42, .44, .47, 1 }) } },
+    wall = { id = "wall", stack_layer = "top", blocking = true, blocks_sight = true,
+        patterns = { solid({ .42, .44, .47, 1 }) } },
     wood_door = { id = "wood_door", stack_layer = "top", interaction = "door", blocking = true,
         blocking_state = function(state) return not state.open end,
+        blocks_sight_state = function(state) return not state.open end,
         state_patterns = function(state) return state.open and { solid(open_door) } or { solid(closed_door) } end,
         patterns = { solid(closed_door) } },
     table = { id = "table", stack_layer = "top", blocking = true, patterns = { solid({ .35, .18, .08, 1 }) } },
