@@ -1,5 +1,6 @@
 local ids = require "core.ids"
 local conditions = require "conditions.conditions"
+local world_actions = require "actions.world_actions"
 local M = {}
 
 local methods = {}
@@ -46,6 +47,12 @@ local function normalize(source)
                     "dialogue choice conditions must not be empty")
                 choice.conditions = copy(source_choice.conditions)
                 for _, condition in ipairs(choice.conditions) do conditions.validate(condition) end
+            end
+            if source_choice.actions ~= nil then
+                assert(type(source_choice.actions) == "table" and #source_choice.actions > 0,
+                    "dialogue choice actions must not be empty")
+                world_actions.validate_all(source_choice.actions)
+                choice.actions = copy(source_choice.actions)
             end
             node.choices[#node.choices + 1], choices[choice_id] = choice, true
         end

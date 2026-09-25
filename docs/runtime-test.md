@@ -127,11 +127,11 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 2. Confirm the HUD dialogue panel shows `Test Villager`, “Morning, traveler.”, and numbered choices.
 3. Hold movement keys and press **K**, **E**, or development controls. Confirm player movement and unrelated actions are ignored while dialogue is active.
 4. Press **1** for “What is this place?” and confirm the panel advances to “Greyhaven. Quiet enough, most days.”
-5. Press **1** to return to the greeting, or **2** to say goodbye and close. Also verify **Escape** closes explicitly.
+5. Press **1** to return to the greeting, **2** for the newly conditioned follow-up, or **3** to say goodbye and close. Also verify **Escape** closes explicitly.
 6. Confirm movement and existing explicit combat controls resume after closing.
 7. Face `monster_test_rat` and press **E**. Confirm it reports no dialogue and opens no panel.
 8. Save or load while no dialogue is active; confirm sessions never persist and the next game begins with no conversation.
-9. Confirm the villager never initiates dialogue and no quests, items, health, factions, or world state change through choices.
+9. Confirm the villager never initiates dialogue and choices change no quests, items, health, factions, movement, or world state other than their explicitly authored boolean flag action.
 
 ## Persistent condition check
 
@@ -141,7 +141,18 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 4. Talk to the villager again; confirm the rat question is now visible. Select it and verify the normal `rat_problem` text transition.
 5. Close dialogue and press **F5**, then restart/load or press **F9**. Confirm the flag remains true and the gated choice remains available.
 6. Press **F8** and confirm the flag returns to false and the gated choice disappears again.
-7. Confirm evaluating or selecting choices does not change the flag, health, inventory, faction, Actor position, or any other world state, and no Defold errors occur.
+7. Confirm evaluating conditions and selecting the rat-information choice do not change that test flag, health, inventory, faction, Actor position, or any other world state, and no Defold errors occur.
+
+## Dialogue flag action check
+
+1. Press **F8**, enable **F1**, and confirm `greyhaven.met_test_villager` is false.
+2. Face `npc_test_villager`, press **E**, and select “What is this place?” without using **T**.
+3. Confirm F1 now shows `greyhaven.met_test_villager` as true.
+4. Confirm the conditioned “I am glad we spoke.” response is available on the resulting node.
+5. Close dialogue, press **F5**, restart/load or press **F9**, and confirm the flag remains true.
+6. Reopen dialogue and confirm conditioned content reflects the restored flag.
+7. Press **F8** and confirm the flag returns to false and the conditioned response is absent until the authored action runs again.
+8. Confirm no Defold runtime errors and no items, quests, health, movement, factions, or AI were changed.
 
 ## Expected prototype content
 

@@ -3,6 +3,7 @@ local combat_registry = require "combat.registry"
 local creatures = require "creatures.creatures"
 local movement = require "simulation.movement"
 local conditions = require "conditions.conditions"
+local world_actions = require "actions.world_actions"
 local M = {}
 
 local runtimes = setmetatable({}, { __mode = "k" })
@@ -97,10 +98,25 @@ function M.choose(service, choice_id)
     local choice
     for _, candidate in ipairs(current.choices) do if candidate.id == choice_id then choice = candidate; break end end
     if not choice then return false, "invalid_choice" end
-    emit(service, "dialogue_choice_selected", session, { choice_id = choice.id })
-    if choice.close then return M.close(service, "choice") end
+    -- Authored actions were validated at registration. Revalidate the complete
+    -- batch before mutation so a malformed runtime copy cannot partially apply.
+    local ok, results = pcall(world_actions.execute_all, choice.actions or {},
+        { world_state = service.world.state }, service.events)
+    if not ok then return false, "action_failed" end
+    local previous_node_id = session.node_id
+    if choice.close then
+        runtime(service).session = nil
+        emit(service, "dialogue_choice_selected", session,
+            { choice_id = choice.id, action_results = results })
+        emit(service, "dialogue_closed", session, { reason = "choice" })
+        return true
+    end
     session.node_id = choice.next
-    emit(service, "dialogue_node_changed", session, { choice_id = choice.id })
+    emit(service, "dialogue_choice_selected", session,
+        { choice_id = choice.id, node_id = previous_node_id,
+            previous_node_id = previous_node_id, action_results = results })
+    emit(service, "dialogue_node_changed", session,
+        { choice_id = choice.id, previous_node_id = previous_node_id })
     return true, M.get_current(service)
 end
 

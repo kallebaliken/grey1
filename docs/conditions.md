@@ -13,13 +13,14 @@
 
 Groups must be non-empty, every flag ID and boolean comparison is validated, and a condition must contain exactly one form. Evaluation receives `{ world_state = state }`, reads only through the WorldState flag API, and never mutates its condition, context, or any gameplay system.
 
-Dialogue is the first consumer. Choices may contain a list of conditions, interpreted as all-required. Unavailable choices are hidden and cannot be selected by a stale choice ID or index. Each `get_current` call reevaluates the current WorldState without editing the immutable DialogueDefinition. Dialogue still cannot set flags or run actions.
+Dialogue is the first consumer. Choices may contain a list of conditions, interpreted as all-required. Unavailable choices are hidden and cannot be selected by a stale choice ID or index. Each `get_current` call reevaluates the current WorldState without editing the immutable DialogueDefinition. The separate action executor may set flags only after an explicit choice is selected; condition evaluation itself remains side-effect free.
 
 The architectural boundary is:
 
 - World State stores mutable facts.
 - Condition Evaluator asks questions about those facts.
 - Dialogue may use conditions to determine available content.
+- Actions may mutate facts, but never from condition evaluation.
 - Future Actions may change World State.
 - Future Quests may compose conditions and actions.
 - Future AI may query conditions but remains separate.

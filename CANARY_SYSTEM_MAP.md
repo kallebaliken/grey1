@@ -74,6 +74,8 @@ Canary NPC interaction concepts map only to immutable Greyhaven DialogueDefiniti
 
 Canary storage-value and script-condition concepts map only to stable boolean Greyhaven WorldState flags plus a generic read-only condition evaluator. Numeric storage conventions, arbitrary Lua callbacks, quest actions, item/faction/health conditions, and server scripts are excluded.
 
+Canary/Tibia storage-style mutation concepts map only to validated Greyhaven `set_flag` actions that write stable boolean WorldState facts through a generic executor. Dialogue may invoke those actions from an explicit selected choice; numeric storage keys, quests, rewards, item grants, callback scripts, and autonomous execution are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

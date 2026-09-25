@@ -28,6 +28,7 @@ local dialogue_definitions = require "dialogue.dialogue_defs"
 local dialogue_registry_api = require "dialogue.dialogue_registry"
 local dialogue = require "dialogue.dialogue"
 local conditions = require "conditions.conditions"
+local world_actions = require "actions.world_actions"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -144,8 +145,10 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     local definition = registry:get("test_villager")
     equal(definition.start, "greeting"); equal(definition.nodes.greeting.choices[1].id, "ask_place")
     definition.nodes.greeting.text = "Changed"; definition.nodes.greeting.choices[1].text = "Changed"
+    definition.nodes.greeting.choices[1].actions[1].value = false
     definition.nodes.greeting.choices[2].conditions[1].equals = false
     equal(registry:get("test_villager").nodes.greeting.text, "Morning, traveler.")
+    assert(registry:get("test_villager").nodes.greeting.choices[1].actions[1].value)
     assert(registry:get("test_villager").nodes.greeting.choices[2].conditions[1].equals)
     assert(not pcall(function() registry:register(dialogue_definitions.test_villager) end))
     local function invalid(nodes, start)
@@ -166,6 +169,12 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
         { id = "condition", text = "Bad", close = true,
             conditions = { { type = "flag", id = "bad flag", equals = true } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "action", text = "Bad", close = true,
+            actions = { { type = "give_item", id = "item", value = true } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "action", text = "Bad", close = true,
+            actions = { { type = "set_flag", id = "greyhaven.flag", value = "true" } } } } } }))
 end)
 
 test("world flags and recursive conditions are deterministic and side-effect free", function()
@@ -198,6 +207,29 @@ test("world flags and recursive conditions are deterministic and side-effect fre
     assert(not pcall(conditions.evaluate, { type = "flag", id = "greyhaven.flag.alpha" }, context))
     assert(not pcall(conditions.evaluate, { all = {} }, context))
     assert(not pcall(conditions.evaluate, { all = { alpha_true }, any = { beta_true } }, context))
+end)
+
+test("world flag actions validate complete batches and execute in authored order", function()
+    local state = state_api.new()
+    local context = { world_state = state }
+    local set_true = { type = "set_flag", id = "greyhaven.action.flag", value = true }
+    assert(world_actions.validate(set_true))
+    assert(not pcall(world_actions.validate, { type = "unknown", id = "greyhaven.action.flag", value = true }))
+    assert(not pcall(world_actions.validate, { type = "set_flag", id = "bad flag", value = true }))
+    assert(not pcall(world_actions.validate, { type = "set_flag", id = "greyhaven.action.flag", value = 1 }))
+    assert(not pcall(world_actions.validate, {
+        type = "set_flag", id = "greyhaven.action.flag", value = true, next = "node" }))
+
+    local invalid_batch = { set_true,
+        { type = "set_flag", id = "greyhaven.action.other", value = "yes" } }
+    assert(not pcall(world_actions.execute_all, invalid_batch, context))
+    assert(not state_api.has_flag(state, "greyhaven.action.flag"))
+
+    local results = world_actions.execute_all({ set_true,
+        { type = "set_flag", id = "greyhaven.action.flag", value = false } }, context)
+    equal(#results, 2); assert(not results[1].previous); assert(results[1].value)
+    assert(results[2].previous); assert(not results[2].value)
+    assert(not state_api.get_flag(state, "greyhaven.action.flag"))
 end)
 
 test("faction definitions and directional relationships are canonical and isolated", function()
@@ -379,11 +411,15 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     local player_health = combat_registry.get(combat, player.id).health
     local player_faction = factions.get_actor_faction(faction_service, player.id)
     local inventory_before = codec.serialize(inventory_api.snapshot(player.inventory))
-    local started, selected, changed, closed, started_payload, choice_payload = 0, 0, 0, 0
+    local started, selected, changed, closed, action_count, started_payload, choice_payload = 0, 0, 0, 0, 0
     events.on("dialogue_started", function(payload) started = started + 1; started_payload = payload end)
     events.on("dialogue_choice_selected", function(payload) selected = selected + 1; choice_payload = payload end)
     events.on("dialogue_node_changed", function() changed = changed + 1 end)
     events.on("dialogue_closed", function() closed = closed + 1 end)
+    events.on("world_action_executed", function(payload)
+        action_count = action_count + 1
+        equal(payload.id, "greyhaven.met_test_villager")
+    end)
 
     actions.register_defaults({ dialogue = dialogue_service })
     local began = interaction.use(world, player, events)
@@ -409,9 +445,13 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     local ok, reason = dialogue.choose(dialogue_service, "missing")
     assert(not ok); equal(reason, "invalid_choice"); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
     assert(dialogue.choose(dialogue_service, "ask_place")); equal(selected, 3); equal(changed, 3)
+    equal(action_count, 1); assert(state_api.get_flag(world.state, "greyhaven.met_test_villager"))
     equal(choice_payload.choice_id, "ask_place"); equal(choice_payload.node_id, "greeting")
     equal(dialogue.get_current(dialogue_service).node_id, "about_place")
-    assert(dialogue.choose_index(dialogue_service, 2)); assert(not dialogue.is_active(dialogue_service))
+    equal(#dialogue.get_current(dialogue_service).choices, 3)
+    equal(dialogue.get_current(dialogue_service).choices[2].id, "met_before")
+    assert(dialogue.choose_index(dialogue_service, 3)); assert(not dialogue.is_active(dialogue_service))
+    equal(action_count, 2)
     equal(selected, 4); equal(closed, 1)
 
     assert(dialogue.begin(dialogue_service, player.id, villager.id))
@@ -434,6 +474,7 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
 
     equal(factions.get_actor_faction(faction_service, player.id), player_faction)
     assert(not state_api.get_flag(world.state, "greyhaven.test_dialogue_flag"))
+    assert(state_api.get_flag(world.state, "greyhaven.met_test_villager"))
     equal(combat_registry.get(combat, player.id).health, player_health)
     equal(codec.serialize(inventory_api.snapshot(player.inventory)), inventory_before)
     assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
@@ -1520,11 +1561,14 @@ end)
 test("save v4 serializes empty and populated ownership snapshots safely", function()
     local world, empty_inventory, registry = world_item_fixture(3)
     state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", true)
+    world_actions.execute({ type = "set_flag", id = "greyhaven.met_test_villager", value = true },
+        { world_state = world.state })
     local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
     actor.equipment = equipment_api.create("equipment.hero", actor.id, registry)
     local empty = save_data.capture(actor, world, world.map.id)
     equal(empty.version, 4); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
     assert(empty.flags["greyhaven.test_dialogue_flag"])
+    assert(empty.flags["greyhaven.met_test_villager"])
     local old = state_api.copy(empty); old.version = 3
     local old_valid, old_reason = save_data.validate(old, world.map)
     assert(not old_valid); equal(old_reason, "unsupported_save_version")
@@ -1537,6 +1581,7 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
     local valid, reason = save_data.validate(decoded, world.map)
     assert(valid, reason); equal(decoded.inventory.items[1].id, "save.herb")
     assert(decoded.flags["greyhaven.test_dialogue_flag"])
+    assert(decoded.flags["greyhaven.met_test_villager"])
     equal(decoded.inventory.items[1].quantity, 8); equal(decoded.inventory.items[1].state.quality, "dried")
     equal(decoded.inventory.items[2].id, "save.key"); equal(decoded.inventory.items[2].state.lock, "cellar")
     decoded.inventory.items[1].state.quality = "changed"
@@ -1546,6 +1591,7 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
     equal(inventory_api.get_item(restored, "save.key").id, "save.key")
     local restored_state = state_api.new(decoded)
     assert(state_api.get_flag(restored_state, "greyhaven.test_dialogue_flag"))
+    assert(state_api.get_flag(restored_state, "greyhaven.met_test_villager"))
     local invalid_flags = state_api.copy(decoded); invalid_flags.flags["bad flag"] = true
     local flags_valid, flags_reason = save_data.validate(invalid_flags, world.map)
     assert(not flags_valid); equal(flags_reason, "invalid_world_flags")
@@ -1632,6 +1678,7 @@ test("fresh session after reset uses authored item state", function()
     equal(inventory_api.get_item(fresh_inventory, "test.starter.000001").quantity, 15)
     assert(equipment_api.is_slot_empty(fresh_equipment, "main_hand"))
     assert(not state_api.get_flag(fresh_world.state, "greyhaven.test_dialogue_flag"))
+    assert(not state_api.get_flag(fresh_world.state, "greyhaven.met_test_villager"))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

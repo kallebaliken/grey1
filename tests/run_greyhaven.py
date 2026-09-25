@@ -36,6 +36,7 @@ required = [
     "dialogue/dialogue_registry.lua",
     "dialogue/dialogue.lua",
     "conditions/conditions.lua",
+    "actions/world_actions.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",

@@ -35,7 +35,7 @@ Completed slices: validated item definitions and instances, containers, inventor
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, explicit data-driven NPC dialogue, persistent boolean world flags with generic conditions, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Quests, merchants, dynamic reputation, condition actions, autonomous AI, skills, and broader combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, explicit data-driven NPC dialogue, persistent boolean world flags with generic conditions, validated dialogue flag actions, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Quests, merchants, dynamic reputation, item/reward actions, autonomous AI, skills, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -47,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Add explicit validated dialogue actions for setting boolean world flags only, without quests, rewards, items, merchants, reputation, or arbitrary scripts.
+Choose the next narrow Greyhaven subsystem explicitly; do not expand flag actions into quests, rewards, items, merchants, reputation, or arbitrary scripts automatically.
