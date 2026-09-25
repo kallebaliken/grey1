@@ -6,6 +6,7 @@ local methods = {}
 methods.__index = methods
 local records = setmetatable({}, { __mode = "k" })
 local faction_registries = setmetatable({}, { __mode = "k" })
+local dialogue_registries = setmetatable({}, { __mode = "k" })
 
 local function copy(value, seen)
     if type(value) ~= "table" then return value end
@@ -21,7 +22,7 @@ local function positive_integer(value)
     return type(value) == "number" and value == value and value > 0 and value % 1 == 0
 end
 
-local function normalize(source, faction_registry)
+local function normalize(source, faction_registry, dialogue_registry)
     assert(type(source) == "table", "creature definition must be a table")
     local definition = copy(source)
     definition.id = ids.require_stable(definition.id, "creature definition id")
@@ -30,6 +31,11 @@ local function normalize(source, faction_registry)
         ids.require_stable(definition.faction, "creature faction id")
         assert(faction_registry and faction_registry:has(definition.faction),
             "unknown creature faction: " .. definition.faction)
+    end
+    if definition.dialogue ~= nil then
+        ids.require_stable(definition.dialogue, "creature dialogue id")
+        assert(dialogue_registry and dialogue_registry:has(definition.dialogue),
+            "unknown creature dialogue: " .. definition.dialogue)
     end
     assert(definition.display_name == nil or (type(definition.display_name) == "string"
         and definition.display_name ~= ""), "creature display name must be non-empty")
@@ -61,10 +67,11 @@ local function normalize(source, faction_registry)
     return definition
 end
 
-function M.new(definitions, faction_registry)
+function M.new(definitions, faction_registry, dialogue_registry)
     local registry = setmetatable({}, methods)
     records[registry] = {}
     faction_registries[registry] = faction_registry
+    dialogue_registries[registry] = dialogue_registry
     for key, definition in pairs(definitions or {}) do
         assert(type(key) == "string" and definition.id == key, "creature definition key/id mismatch")
         registry:register(definition)
@@ -73,7 +80,7 @@ function M.new(definitions, faction_registry)
 end
 
 function methods:register(definition)
-    local normalized = normalize(definition, faction_registries[self])
+    local normalized = normalize(definition, faction_registries[self], dialogue_registries[self])
     assert(not records[self][normalized.id], "duplicate creature definition: " .. normalized.id)
     records[self][normalized.id] = normalized
     return copy(normalized)

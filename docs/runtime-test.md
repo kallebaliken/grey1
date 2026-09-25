@@ -25,6 +25,8 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **L** | Development control: equip/unequip the first inventory weapon in `main_hand` |
 | **O** | Development control: equip/unequip the first compatible inventory armor in `torso` |
 | **P** | Explicitly invoke one test-rat attack against the player; the rat remains otherwise inert |
+| **1–4** | Select the corresponding choice while dialogue is active |
+| **Escape** | Close the active dialogue session |
 | **F1** | Toggle diagnostics |
 | **F5** | Save |
 | **F8** | Delete the development save and immediately rebuild the authored world |
@@ -117,6 +119,18 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 4. Wait and move around. Confirm the rat and villager remain inert: faction queries cause no attacks, chasing, dialogue, or movement.
 5. Use **K**, **J**, and **P** as before. Confirm explicit combat remains possible because faction data does not impose friendly-fire or targeting policy.
 6. Save/load or reset and confirm the same authored associations reconstruct without a save migration or runtime errors.
+
+## Explicit dialogue check
+
+1. Launch or reset Greyhaven, walk next to `npc_test_villager`, face the villager, and press **E**.
+2. Confirm the HUD dialogue panel shows `Test Villager`, “Morning, traveler.”, and numbered choices.
+3. Hold movement keys and press **K**, **E**, or development controls. Confirm player movement and unrelated actions are ignored while dialogue is active.
+4. Press **1** for “What is this place?” and confirm the panel advances to “Greyhaven. Quiet enough, most days.”
+5. Press **1** to return to the greeting, or **2** to say goodbye and close. Also verify **Escape** closes explicitly.
+6. Confirm movement and existing explicit combat controls resume after closing.
+7. Face `monster_test_rat` and press **E**. Confirm it reports no dialogue and opens no panel.
+8. Save or load while no dialogue is active; confirm sessions never persist and the next game begins with no conversation.
+9. Confirm the villager never initiates dialogue and no quests, items, health, factions, or world state change through choices.
 
 ## Expected prototype content
 

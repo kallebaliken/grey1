@@ -23,7 +23,7 @@ nodes {
 }
 nodes {
   position { x: 16.0 y: 580.0 }
-  size { x: 920.0 y: 290.0 }
+  size { x: 920.0 y: 310.0 }
   color { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }
   type: TYPE_TEXT
   text: ""
@@ -32,4 +32,26 @@ nodes {
   layer: "hud"
   pivot: PIVOT_NW
   line_break: true
+}
+nodes {
+  position { x: 480.0 y: 125.0 }
+  size { x: 760.0 y: 210.0 }
+  color { x: 0.06 y: 0.07 z: 0.09 w: 0.94 }
+  type: TYPE_BOX
+  id: "dialogue_panel"
+  layer: "hud"
+  enabled: 0
+}
+nodes {
+  position { x: 120.0 y: 215.0 }
+  size { x: 720.0 y: 180.0 }
+  color { x: 0.94 y: 0.92 z: 0.82 w: 1.0 }
+  type: TYPE_TEXT
+  text: ""
+  font: "default"
+  id: "dialogue_text"
+  layer: "hud"
+  pivot: PIVOT_NW
+  line_break: true
+  enabled: 0
 }

@@ -29,6 +29,9 @@ local faction_definitions = require "factions.faction_defs"
 local relationship_definitions = require "factions.relationship_defs"
 local faction_registry_api = require "factions.faction_registry"
 local factions = require "factions.factions"
+local dialogue_definitions = require "dialogue.dialogue_defs"
+local dialogue_registry_api = require "dialogue.dialogue_registry"
+local dialogue = require "dialogue.dialogue"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -90,6 +93,16 @@ local function render(self)
         armor_sources[#armor_sources + 1] = source.slot .. ":" .. source.item_type .. " [" .. source.item_id .. "]"
     end
     local last_attack = self.last_attack
+    local conversation = dialogue.get_current(self.dialogue)
+    local dialogue_text = ""
+    if conversation then
+        local lines = { conversation.speaker_name, "", conversation.text, "" }
+        for index, choice in ipairs(conversation.choices) do
+            lines[#lines + 1] = index .. ". " .. choice.text
+        end
+        lines[#lines + 1] = "Esc. Close"
+        dialogue_text = table.concat(lines, "\n")
+    end
     view_model.frame = { commands = commands,
         player_x = visual.x, player_y = visual.y,
         actor_id = self.player.id, actor_type = self.player.type,
@@ -108,6 +121,10 @@ local function render(self)
         villager_definition = villager_definition, villager_type = villager.type,
         player_faction = player_faction, rat_faction = rat_faction, villager_faction = villager_faction,
         rat_relationship = rat_relationship, villager_relationship = villager_relationship,
+        dialogue_active = conversation ~= nil, dialogue_text = dialogue_text,
+        dialogue_speaker = conversation and conversation.npc_actor_id or "none",
+        dialogue_definition = conversation and conversation.dialogue_id or "none",
+        dialogue_node = conversation and conversation.node_id or "none",
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -148,12 +165,16 @@ local function create_session(self, map, loaded)
     self.faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
     self.factions = factions.create(self.world, self.faction_registry)
     assert(factions.associate(self.factions, self.player.id, "player"))
-    self.creature_registry = creature_registry_api.new(creature_definitions, self.faction_registry)
+    self.dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    self.creature_registry = creature_registry_api.new(creature_definitions, self.faction_registry,
+        self.dialogue_registry)
     self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events,
         self.factions)
     for _, placement in ipairs(self.map.actor_placements or {}) do
         creatures.spawn(self.creatures, placement)
     end
+    self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events)
+    actions.register_defaults({ dialogue = self.dialogue })
     self.path_controller = movement_controller.create(self.world, events)
     self.last_attack = nil
     self.interior_group = roofs.interior_group(self.world, self.player.position)
@@ -179,7 +200,6 @@ end
 function init(self)
     msg.post(".", "acquire_input_focus")
     self.held, self.debug_visible, self.inspect_offset = {}, false, 0
-    actions.register_defaults()
     local map = map_loader.load("data.maps.prototype")
     create_session(self, map, save_manager.load(map))
     events.emit("world_loaded", { map_id = self.map.id })
@@ -190,7 +210,7 @@ function update(self, dt)
     local moving = attacks.update(self.attacks, dt)
     if movement.update(self.player, dt) then moving = true end
     if movement_controller.update(self.path_controller, dt) then moving = true end
-    if not movement.is_moving(self.player) then
+    if not dialogue.is_active(self.dialogue) and not movement.is_moving(self.player) then
         local dx = (self.held.right and 1 or 0) - (self.held.left and 1 or 0)
         local dy = (self.held.up and 1 or 0) - (self.held.down and 1 or 0)
         if dx ~= 0 then dy = 0 end
@@ -200,6 +220,21 @@ function update(self, dt)
 end
 
 function on_input(self, action_id, action)
+    if dialogue.is_active(self.dialogue) then
+        if action.pressed and action_id == hash("debug") then
+            self.debug_visible = not self.debug_visible; render(self); return true
+        end
+        local choices = { [hash("dialogue_1")] = 1, [hash("dialogue_2")] = 2,
+            [hash("dialogue_3")] = 3, [hash("dialogue_4")] = 4 }
+        if action.pressed and choices[action_id] then
+            local changed, reason = dialogue.choose_index(self.dialogue, choices[action_id])
+            self.notice = changed and "Dialogue choice selected" or ("Dialogue: " .. tostring(reason))
+            render(self); return true
+        elseif action.pressed and action_id == hash("dialogue_close") then
+            dialogue.close(self.dialogue, "cancelled"); self.notice = "Dialogue closed"; render(self); return true
+        end
+        return true
+    end
     local directions = { [hash("up")] = "up", [hash("down")] = "down", [hash("left")] = "left", [hash("right")] = "right" }
     local direction = directions[action_id]
     if direction then
@@ -208,6 +243,7 @@ function on_input(self, action_id, action)
         return true
     elseif action.pressed and action_id == hash("interact") then
         local changed, reason = interaction.use(self.world, self.player, events)
+        if dialogue.is_active(self.dialogue) then self.held = {} end
         self.notice = changed and "Interaction used" or reason; update_interior(self); render(self); return true
     elseif action.pressed and action_id == hash("debug") then
         self.debug_visible = not self.debug_visible; render(self); return true

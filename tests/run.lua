@@ -24,6 +24,9 @@ local relationship_definitions = require "factions.relationship_defs"
 local faction_registry_api = require "factions.faction_registry"
 local faction_relationships = require "factions.relationships"
 local factions = require "factions.factions"
+local dialogue_definitions = require "dialogue.dialogue_defs"
+local dialogue_registry_api = require "dialogue.dialogue_registry"
+local dialogue = require "dialogue.dialogue"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -111,11 +114,13 @@ end)
 
 test("creature definitions validate registration and isolate snapshots", function()
     local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
-    local registry = creature_registry_api.new(creature_definitions, faction_registry)
+    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    local registry = creature_registry_api.new(creature_definitions, faction_registry, dialogue_registry)
     assert(registry:has("rat") and registry:has("test_villager"))
     equal(#registry:get_all(), 2)
     local rat = registry:get("rat")
     equal(rat.actor_type, "monster"); equal(rat.combat.max_health, 20); equal(rat.attack.damage, 2)
+    equal(registry:get("test_villager").dialogue, "test_villager"); assert(rat.dialogue == nil)
     rat.combat.max_health = 999; rat.render.color[1] = 0
     equal(registry:get("rat").combat.max_health, 20); equal(registry:get("rat").render.color[1], 0.72)
     assert(not pcall(function() registry:register(creature_definitions.rat) end))
@@ -129,6 +134,32 @@ test("creature definitions validate registration and isolate snapshots", functio
         id = "invalid", actor_type = "npc", render = { color = { 2, 0, 0, 1 } } } }))
     assert(not pcall(creature_registry_api.new, { invalid = {
         id = "invalid", actor_type = "npc", faction = "missing" } }, faction_registry))
+    assert(not pcall(creature_registry_api.new, { invalid = {
+        id = "invalid", actor_type = "npc", dialogue = "missing" } }, faction_registry, dialogue_registry))
+end)
+
+test("dialogue definitions validate graphs and isolate snapshots", function()
+    local registry = dialogue_registry_api.new(dialogue_definitions)
+    local definition = registry:get("test_villager")
+    equal(definition.start, "greeting"); equal(definition.nodes.greeting.choices[1].id, "ask_place")
+    definition.nodes.greeting.text = "Changed"; definition.nodes.greeting.choices[1].text = "Changed"
+    equal(registry:get("test_villager").nodes.greeting.text, "Morning, traveler.")
+    assert(not pcall(function() registry:register(dialogue_definitions.test_villager) end))
+    local function invalid(nodes, start)
+        return dialogue_registry_api.new({ bad = { id = "bad", start = start or "start", nodes = nodes } })
+    end
+    assert(not pcall(invalid, { { id = "other", text = "Text", choices = {
+        { id = "close", text = "Close", close = true } } } }, "missing"))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "next", text = "Next", next = "missing" } } } }))
+    assert(not pcall(invalid, {
+        { id = "start", text = "One", choices = { { id = "close", text = "Close", close = true } } },
+        { id = "start", text = "Two", choices = { { id = "close", text = "Close", close = true } } },
+    }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "same", text = "One", close = true }, { id = "same", text = "Two", close = true } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "ambiguous", text = "Bad", next = "start", close = true } } } }))
 end)
 
 test("faction definitions and directional relationships are canonical and isolated", function()
@@ -201,11 +232,15 @@ end
 local function creature_services(world, definitions_source)
     local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
     local faction_service = factions.create(world, faction_registry)
-    local registry = creature_registry_api.new(definitions_source or creature_definitions, faction_registry)
+    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    local registry = creature_registry_api.new(definitions_source or creature_definitions, faction_registry,
+        dialogue_registry)
     local combat = combat_registry.create(world, events)
     local attack_service = attacks.create(world, combat, events)
-    return creatures.create(world, registry, combat, attack_service, events, faction_service),
-        registry, combat, attack_service, faction_service, faction_registry
+    local creature_service = creatures.create(world, registry, combat, attack_service, events, faction_service)
+    local dialogue_service = dialogue.create(world, dialogue_registry, creature_service, combat, events)
+    return creature_service, registry, combat, attack_service, faction_service, faction_registry,
+        dialogue_service, dialogue_registry
 end
 
 test("creature spawning composes optional Actor combat and attack state", function()
@@ -285,6 +320,72 @@ test("Actor faction queries remain informational and support unaffiliated Actors
     assert(factions.are_friendly(faction_service, player.id, ally.id))
     local explicit_friendly_attack = attacks.try_attack(attack_service, player.id, ally.id)
     assert(explicit_friendly_attack.success); equal(combat_registry.get(combat, ally.id).health, 9)
+end)
+
+test("explicit NPC dialogue sessions transition, replace, close, and have no gameplay side effects", function()
+    events.clear()
+    local world = path_world(4, 3)
+    local creature_service, _, combat, _, faction_service, _, dialogue_service = creature_services(world)
+    local player = actor_api.new("dialogue.player", "player", 0, 0, 7, "east")
+    world:place_actor(player); assert(combat_registry.add(combat, player.id, 20))
+    assert(factions.associate(faction_service, player.id, "player"))
+    local inventory_registry = item_registry_api.new(item_definitions)
+    player.inventory = inventory_api.create("dialogue.inventory", player.id, 1, inventory_registry)
+    inventory_api.add_item(player.inventory,
+        item_instance.new({ id = "dialogue.item", type = "healing_herb", quantity = 1 }, inventory_registry))
+    local villager = creatures.spawn(creature_service, { id = "dialogue.villager", creature = "test_villager",
+        x = 1, y = 0, z = 7, facing = "west" })
+    local rat = creatures.spawn(creature_service, { id = "dialogue.rat", creature = "rat",
+        x = 0, y = 1, z = 7, facing = "south" })
+    local player_position, villager_position = position.copy(player.position), position.copy(villager.position)
+    local player_health = combat_registry.get(combat, player.id).health
+    local player_faction = factions.get_actor_faction(faction_service, player.id)
+    local inventory_before = codec.serialize(inventory_api.snapshot(player.inventory))
+    local started, selected, changed, closed, started_payload, choice_payload = 0, 0, 0, 0
+    events.on("dialogue_started", function(payload) started = started + 1; started_payload = payload end)
+    events.on("dialogue_choice_selected", function(payload) selected = selected + 1; choice_payload = payload end)
+    events.on("dialogue_node_changed", function() changed = changed + 1 end)
+    events.on("dialogue_closed", function() closed = closed + 1 end)
+
+    actions.register_defaults({ dialogue = dialogue_service })
+    local began = interaction.use(world, player, events)
+    assert(began); assert(dialogue.is_active(dialogue_service)); equal(started, 1)
+    equal(started_payload.player_actor_id, player.id); equal(started_payload.npc_actor_id, villager.id)
+    equal(started_payload.dialogue_id, "test_villager"); equal(started_payload.node_id, "greeting")
+    local current = dialogue.get_current(dialogue_service)
+    equal(current.node_id, "greeting"); equal(current.speaker_name, "Test Villager")
+    equal(current.npc_actor_id, villager.id); equal(current.choices[1].id, "ask_place")
+    assert(player.dialogue == nil and villager.dialogue == nil)
+    local ok, reason = dialogue.choose(dialogue_service, "missing")
+    assert(not ok); equal(reason, "invalid_choice"); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
+    assert(dialogue.choose(dialogue_service, "ask_place")); equal(selected, 1); equal(changed, 1)
+    equal(choice_payload.choice_id, "ask_place"); equal(choice_payload.node_id, "greeting")
+    equal(dialogue.get_current(dialogue_service).node_id, "about_place")
+    assert(dialogue.choose_index(dialogue_service, 2)); assert(not dialogue.is_active(dialogue_service))
+    equal(selected, 2); equal(closed, 1)
+
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    equal(started, 3); equal(closed, 2)
+    assert(dialogue.close(dialogue_service, "test")); equal(closed, 3)
+    local no_session, no_session_reason = dialogue.choose(dialogue_service, "ask_place")
+    assert(not no_session); equal(no_session_reason, "no_active_dialogue")
+
+    player.facing = "north"
+    local no_dialogue, no_dialogue_reason = dialogue.begin(dialogue_service, player.id, rat.id)
+    assert(not no_dialogue); equal(no_dialogue_reason, "no_dialogue")
+    player.facing = "east"; villager.active = false
+    local inactive, inactive_reason = dialogue.begin(dialogue_service, player.id, villager.id)
+    assert(not inactive); equal(inactive_reason, "npc_unavailable")
+    villager.active = true; assert(combat_registry.add(combat, villager.id, 5))
+    assert(combat_registry.apply_damage(combat, villager.id, 5).died)
+    local dead, dead_reason = dialogue.begin(dialogue_service, player.id, villager.id)
+    assert(not dead); equal(dead_reason, "npc_dead")
+
+    equal(factions.get_actor_faction(faction_service, player.id), player_faction)
+    equal(combat_registry.get(combat, player.id).health, player_health)
+    equal(codec.serialize(inventory_api.snapshot(player.inventory)), inventory_before)
+    assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
 end)
 
 test("creature attacks remain explicit and retain existing death and occupancy policy", function()

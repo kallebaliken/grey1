@@ -3,6 +3,7 @@ return {
         id = "test_villager",
         actor_type = "npc",
         faction = "townsfolk",
+        dialogue = "test_villager",
         display_name = "Test Villager",
         render = { color = { 0.78, 0.48, 0.24, 1 }, size = 22 },
     },

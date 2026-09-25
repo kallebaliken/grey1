@@ -70,6 +70,8 @@ Canary `MonsterType`, `Monster`, NPC, and Creature configuration concepts map to
 
 Canary skull/hostility, party, and guild relationship concepts do not map directly. Greyhaven instead uses a small authored directional faction graph plus external Actor associations. PvP skulls, guild wars, party behavior, player-killing rules, crime, reputation, and automatic targeting are excluded.
 
+Canary NPC interaction concepts map only to immutable Greyhaven DialogueDefinitions, explicit adjacent Actor interaction, and a single temporary DialogueSession. Tibia NPC scripts/content, keyword handlers, shops, travel, quests, storage values, server callbacks, and NPC scheduling are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

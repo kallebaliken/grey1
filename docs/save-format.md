@@ -77,4 +77,6 @@ Creature definitions are immutable authored data and are never serialized. Stati
 
 Faction definitions and directional relationships are immutable authored data. Player and creature Actor associations reconstruct during session composition, so Save Format v4 stores neither faction definitions nor associations. Dynamic reputation and relationship persistence do not exist.
 
+Dialogue definitions are immutable authored data and active DialogueSessions are deliberately temporary. Save Format v4 stores neither definitions nor current speaker/node; loading or resetting always begins with no active conversation.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

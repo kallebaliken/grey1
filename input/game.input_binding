@@ -11,6 +11,11 @@ key_trigger { input: KEY_K action: "attack" }
 key_trigger { input: KEY_L action: "debug_toggle_weapon" }
 key_trigger { input: KEY_O action: "debug_toggle_armor" }
 key_trigger { input: KEY_P action: "debug_rat_attack" }
+key_trigger { input: KEY_1 action: "dialogue_1" }
+key_trigger { input: KEY_2 action: "dialogue_2" }
+key_trigger { input: KEY_3 action: "dialogue_3" }
+key_trigger { input: KEY_4 action: "dialogue_4" }
+key_trigger { input: KEY_ESC action: "dialogue_close" }
 key_trigger { input: KEY_F5 action: "save" }
 key_trigger { input: KEY_F8 action: "reset_save" }
 key_trigger { input: KEY_F9 action: "load" }

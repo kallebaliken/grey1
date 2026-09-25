@@ -37,7 +37,7 @@ function on_message(self, message_id, message)
         "Greyhaven | Move: WASD/arrows | E use | K attack | L weapon | O armor | P rat attack | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.player_faction,
         message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
@@ -45,8 +45,14 @@ function on_message(self, message_id, message)
         message.rat_definition, message.rat_type, message.rat_faction, message.rat_relationship,
         message.rat_health, tostring(message.rat_dead), message.last_attack,
         message.villager_definition, message.villager_type, message.villager_faction, message.villager_relationship,
+        message.dialogue_active and "active" or "none", message.dialogue_speaker,
+        message.dialogue_definition, message.dialogue_node,
         message.render_commands, #message.commands, NODE_CAPACITY,
         message.npc_path_status, message.npc_path_remaining, message.npc_path_next,
         message.tile_objects, message.target, message.inventory, message.equipment,
         message.chunk, message.roof_group))
+    local dialogue_panel, dialogue_text = gui.get_node("dialogue_panel"), gui.get_node("dialogue_text")
+    gui.set_enabled(dialogue_panel, message.dialogue_active)
+    gui.set_enabled(dialogue_text, message.dialogue_active)
+    gui.set_text(dialogue_text, message.dialogue_text)
 end

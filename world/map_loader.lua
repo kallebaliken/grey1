@@ -8,8 +8,11 @@ local creature_definitions = require "creatures.creature_defs"
 local faction_registry_api = require "factions.faction_registry"
 local faction_definitions = require "factions.faction_defs"
 local relationship_definitions = require "factions.relationship_defs"
+local dialogue_registry_api = require "dialogue.dialogue_registry"
+local dialogue_definitions = require "dialogue.dialogue_defs"
 local known_factions = faction_registry_api.new(faction_definitions, relationship_definitions)
-local known_creatures = creature_registry_api.new(creature_definitions, known_factions)
+local known_dialogue = dialogue_registry_api.new(dialogue_definitions)
+local known_creatures = creature_registry_api.new(creature_definitions, known_factions, known_dialogue)
 
 local M = {}
 

@@ -32,6 +32,9 @@ required = [
     "factions/relationships.lua",
     "factions/faction_registry.lua",
     "factions/factions.lua",
+    "dialogue/dialogue_defs.lua",
+    "dialogue/dialogue_registry.lua",
+    "dialogue/dialogue.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -64,6 +67,7 @@ assert 'script: "/main/world.gui_script"' in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
 assert "max_nodes: 1024" in gui
 assert 'name: "world"' in gui and 'name: "hud"' in gui
+assert 'id: "dialogue_panel"' in gui and 'id: "dialogue_text"' in gui
 gui_script = (ROOT / "main/world.gui_script").read_text()
 assert "gui.set_enabled(self.nodes[index], false)" in gui_script
 assert "vmath.vector3(x, y, 0)" in gui_script
@@ -74,10 +78,12 @@ assert 'input: KEY_K action: "attack"' in binding
 assert 'input: KEY_L action: "debug_toggle_weapon"' in binding
 assert 'input: KEY_O action: "debug_toggle_armor"' in binding
 assert 'input: KEY_P action: "debug_rat_attack"' in binding
+assert 'input: KEY_1 action: "dialogue_1"' in binding
+assert 'input: KEY_ESC action: "dialogue_close"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
-for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "save_manager.save", "movement.begin", "renderer.build"):
+for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 print("Greyhaven project wiring passed")
