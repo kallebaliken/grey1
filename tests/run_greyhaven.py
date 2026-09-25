@@ -49,6 +49,8 @@ required = [
     "render/viewport.lua",
     "simulation/pathfinding.lua",
     "simulation/movement_controller.lua",
+    "simulation/perception.lua",
+    "world/line_of_sight.lua",
     "world/world_items.lua",
     "simulation/item_transfers.lua",
     "data/maps/prototype.lua",
@@ -93,6 +95,7 @@ assert 'input: KEY_T action: "debug_toggle_dialogue_flag"' in binding
 assert 'input: KEY_Y action: "debug_quest_start"' in binding
 assert 'input: KEY_U action: "debug_quest_advance"' in binding
 assert 'input: KEY_I action: "debug_quest_complete"' in binding
+assert 'input: KEY_V action: "debug_rat_perception"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
@@ -106,6 +109,10 @@ assert 'condition.type == "quest_objective"' in conditions_source
 world_actions_source = (ROOT / "actions/world_actions.lua").read_text()
 for action_type in ("start_quest", "advance_quest", "complete_quest"):
     assert action_type in world_actions_source
-for contract in ("binding_registry_api.new", "event_bindings.create", "event_bindings.destroy"):
+for contract in ("binding_registry_api.new", "event_bindings.create", "event_bindings.destroy",
+                 "perception.create", "perception.get_awareness"):
     assert contract in manager, contract
+object_defs_source = (ROOT / "objects/object_defs.lua").read_text()
+assert "blocks_sight = true" in object_defs_source
+assert "blocks_sight_state" in object_defs_source
 print("Greyhaven project wiring passed")

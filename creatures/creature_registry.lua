@@ -51,6 +51,14 @@ local function normalize(source, faction_registry, dialogue_registry)
         assert(type(definition.attack.cooldown) == "number" and definition.attack.cooldown > 0,
             "creature attack cooldown must be positive")
     end
+    if definition.perception then
+        assert(type(definition.perception) == "table", "creature perception metadata must be a table")
+        for key in pairs(definition.perception) do
+            assert(key == "sight_range", "unknown creature perception field: " .. tostring(key))
+        end
+        assert(positive_integer(definition.perception.sight_range),
+            "creature perception sight_range must be a positive integer")
+    end
     if definition.render then
         assert(type(definition.render) == "table", "creature render metadata must be a table")
         if definition.render.color then

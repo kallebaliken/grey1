@@ -14,6 +14,7 @@ return {
         display_name = "Rat",
         combat = { max_health = 20 },
         attack = { damage = 2, range = 1, cooldown = 1 },
+        perception = { sight_range = 6 },
         render = { color = { 0.72, 0.20, 0.24, 1 }, size = 22 },
     },
 }

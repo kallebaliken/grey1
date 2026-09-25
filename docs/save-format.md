@@ -96,3 +96,5 @@ The top-level `quests` table contains mutable runtime state only: canonical ques
 Quest-condition results are derived from restored QuestState and are never serialized. Dialogue therefore reflects active/completed status and objective completion immediately after load without changing Save Format v5.
 
 Quest actions also require no schema change: Save Format v5 persists only their resulting QuestState. Action definitions, execution history, and transient failures are never serialized.
+
+Perception configuration remains immutable CreatureDefinition data and current awareness is derived from authoritative positions, combat state, factions, and object state. Neither configuration nor awareness snapshots are serialized, so Save Format v5 is unchanged; session composition restores perception associations after load/reset.

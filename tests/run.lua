@@ -4,6 +4,7 @@ local position = require "world.position"
 local chunks = require "world.chunks"
 local registry_api = require "world.object_registry"
 local world_api = require "world.world"
+local object_instance = require "world.object_instance"
 local map_loader = require "world.map_loader"
 local state_api = require "state.world_state"
 local actor_api = require "actors.actor"
@@ -19,6 +20,8 @@ local armor = require "combat.armor"
 local creature_definitions = require "creatures.creature_defs"
 local creature_registry_api = require "creatures.creature_registry"
 local creatures = require "creatures.creatures"
+local perception = require "simulation.perception"
+local line_of_sight = require "world.line_of_sight"
 local faction_definitions = require "factions.faction_defs"
 local relationship_definitions = require "factions.relationship_defs"
 local faction_registry_api = require "factions.faction_registry"
@@ -551,7 +554,9 @@ local function creature_services(world, definitions_source)
         dialogue_registry)
     local combat = combat_registry.create(world, events)
     local attack_service = attacks.create(world, combat, events)
-    local creature_service = creatures.create(world, registry, combat, attack_service, events, faction_service)
+    local perception_service = perception.create(world, combat, faction_service)
+    local creature_service = creatures.create(world, registry, combat, attack_service, events, faction_service,
+        perception_service)
     local dialogue_service = dialogue.create(world, dialogue_registry, creature_service, combat, events,
         quest_service, quest_registry)
     return creature_service, registry, combat, attack_service, faction_service, faction_registry,
@@ -586,12 +591,150 @@ test("creature spawning composes optional Actor combat and attack state", functi
     equal(creatures.get_definition_for_actor(service, rat_a.id).id, "rat")
     equal(factions.get_actor_faction(faction_service, rat_a.id), "vermin")
     equal(factions.get_actor_faction(faction_service, rat_b.id), "vermin")
+    equal(perception.get_config(service.perception, rat_a.id).sight_range, 6)
+    equal(perception.get_config(service.perception, rat_b.id).sight_range, 6)
+    local isolated_perception = perception.get_config(service.perception, rat_a.id)
+    isolated_perception.sight_range = 99
+    equal(perception.get_config(service.perception, rat_a.id).sight_range, 6)
     assert(rat_a.creature == nil and rat_a.combat == nil and rat_a.attack == nil)
 
     assert(not pcall(creatures.spawn, service, { id = "monster.unknown", creature = "missing",
         x = 4, y = 1, z = 7 }))
     assert(not pcall(creatures.spawn, service, { id = rat_a.id, creature = "rat",
         x = 4, y = 1, z = 7 }))
+end)
+
+test("creature perception metadata is validated and definition snapshots are isolated", function()
+    local valid = { watcher = { id = "watcher", actor_type = "npc",
+        perception = { sight_range = 4 } } }
+    local registry = creature_registry_api.new(valid)
+    local snapshot = registry:get("watcher")
+    equal(snapshot.perception.sight_range, 4)
+    snapshot.perception.sight_range = 99
+    equal(registry:get("watcher").perception.sight_range, 4)
+    for _, value in ipairs({ 0, -1, 1.5, "six" }) do
+        assert(not pcall(creature_registry_api.new, { bad = { id = "bad", actor_type = "npc",
+            perception = { sight_range = value } } }))
+    end
+    assert(not pcall(creature_registry_api.new, { bad = { id = "bad", actor_type = "npc",
+        perception = { sight_range = 2, hearing = 1 } } }))
+end)
+
+test("perception is current, deterministic, omnidirectional, and excludes inactive or dead Actors", function()
+    events.clear()
+    local world = path_world(10, 2, nil, nil, {
+        placement("perception.upper", "grass", 2, 0, 8),
+    })
+    local service, _, combat, _, faction_service = creature_services(world)
+    local rat = creatures.spawn(service, { id = "perception.rat", creature = "rat",
+        x = 2, y = 0, z = 7, facing = "north" })
+    local player = actor_api.new("perception.player", "player", 0, 0, 7, "west")
+    local middle = actor_api.new("perception.middle", "npc", 1, 0, 7, "east")
+    local far = actor_api.new("perception.far", "npc", 9, 0, 7, "west")
+    local upper = actor_api.new("perception.upper.actor", "npc", 2, 0, 8, "south")
+    world:place_actor(player); world:place_actor(middle); world:place_actor(far); world:place_actor(upper)
+    assert(combat_registry.add(combat, player.id, 10)); assert(combat_registry.add(combat, middle.id, 10))
+    assert(factions.associate(faction_service, player.id, "player"))
+
+    local visible, distance = perception.can_perceive(service.perception, rat.id, player.id)
+    assert(visible); equal(distance, 2)
+    rat.facing = "east"; assert(perception.can_perceive(service.perception, rat.id, player.id))
+    equal(perception.can_perceive(service.perception, rat.id, rat.id), false)
+    equal(perception.can_perceive(service.perception, rat.id, far.id), false)
+    equal(perception.can_perceive(service.perception, rat.id, upper.id), false)
+    local perceived = perception.get_perceived_actors(service.perception, rat.id)
+    equal(perceived[1].actor_id, middle.id); equal(perceived[2].actor_id, player.id)
+    equal(perceived[2].relationship, "hostile")
+    equal(combat_registry.get(combat, player.id).health, 10)
+    equal(factions.get_actor_faction(faction_service, player.id), "player")
+    middle.active = false; equal(perception.can_perceive(service.perception, rat.id, middle.id), false)
+    middle.active = true; assert(combat_registry.apply_damage(combat, middle.id, 10).died)
+    equal(perception.can_perceive(service.perception, rat.id, middle.id), false)
+    rat.active = false; equal(#perception.get_perceived_actors(service.perception, rat.id), 0)
+    rat.active = true; assert(combat_registry.apply_damage(combat, rat.id, 20).died)
+    equal(#perception.get_perceived_actors(service.perception, rat.id), 0)
+    assert(player.position.x == 0 and rat.position.x == 2)
+end)
+
+test("logical line of sight uses authored blockers, door state, and centre-line corner policy", function()
+    local function fixture(blocker, blocker_y)
+        local extra = blocker and { placement("los.blocker", blocker, 3, blocker_y or 1, 7) } or nil
+        local world = path_world(7, 3, nil, nil, extra)
+        local service = creature_services(world)
+        local rat = creatures.spawn(service, { id = "los.rat", creature = "rat",
+            x = 1, y = 1, z = 7, facing = "west" })
+        local target = actor_api.new("los.target", "player", 5, 1, 7, "east")
+        world:place_actor(target)
+        return world, service, rat, target
+    end
+
+    local wall_world, wall_service, wall_rat, wall_target = fixture("wall")
+    equal(perception.can_perceive(wall_service.perception, wall_rat.id, wall_target.id), false)
+    local door_world, door_service, door_rat, door_target = fixture("wood_door")
+    equal(perception.can_perceive(door_service.perception, door_rat.id, door_target.id), false)
+    door_world:set_object_state("los.blocker", { open = true })
+    assert(perception.can_perceive(door_service.perception, door_rat.id, door_target.id))
+
+    local table_world, table_service, table_rat, table_target = fixture("table")
+    assert(perception.can_perceive(table_service.perception, table_rat.id, table_target.id))
+    local actor_blocker = actor_api.new("los.actor.blocker", "npc", 3, 1, 7); table_world:place_actor(actor_blocker)
+    assert(perception.can_perceive(table_service.perception, table_rat.id, table_target.id))
+
+    local item_registry = item_registry_api.new(item_definitions)
+    local item_world = path_world(7, 3, nil, nil, nil, item_registry)
+    local item_service = creature_services(item_world)
+    local item_rat = creatures.spawn(item_service, { id = "item.los.rat", creature = "rat",
+        x = 1, y = 1, z = 7 })
+    local item_target = actor_api.new("item.los.target", "player", 5, 1, 7); item_world:place_actor(item_target)
+    world_items.place(item_world, item_instance.new({ id = "item.los.herb", type = "healing_herb",
+        quantity = 1 }, item_registry), { x = 3, y = 1, z = 7 }, "item.los.world")
+    assert(perception.can_perceive(item_service.perception, item_rat.id, item_target.id))
+
+    local barrier = {
+        placement("barrier.0", "table", 3, 0, 7), placement("barrier.1", "table", 3, 1, 7),
+        placement("barrier.2", "table", 3, 2, 7),
+    }
+    local barrier_world = path_world(7, 3, nil, nil, barrier)
+    local barrier_service = creature_services(barrier_world)
+    local barrier_rat = creatures.spawn(barrier_service, { id = "barrier.rat", creature = "rat",
+        x = 1, y = 1, z = 7 })
+    local barrier_target = actor_api.new("barrier.target", "player", 5, 1, 7); barrier_world:place_actor(barrier_target)
+    assert(perception.can_perceive(barrier_service.perception, barrier_rat.id, barrier_target.id))
+    assert(not pathfinding.find_path(barrier_world, barrier_rat.id, { x = 5, y = 0, z = 7 }).success)
+
+    local visual_world, visual_service, visual_rat, visual_target = fixture("wall_block", 0)
+    assert(perception.can_perceive(visual_service.perception, visual_rat.id, visual_target.id))
+    local points = line_of_sight.trace(0, 0, 2, 2)
+    equal(#points, 3); equal(points[2].x, 1); equal(points[2].y, 1)
+    local corner_world = path_world(3, 3, nil, nil, { placement("corner.side", "wall", 1, 0, 7) })
+    assert(line_of_sight.is_clear(corner_world, { x = 0, y = 0, z = 7 }, { x = 2, y = 2, z = 7 }))
+    corner_world:add_object(object_instance.new(placement("corner.centre", "wall", 1, 1, 7)))
+    assert(not line_of_sight.is_clear(corner_world, { x = 0, y = 0, z = 7 }, { x = 2, y = 2, z = 7 }))
+
+    local endpoint_world = path_world(3, 1, nil, nil, { placement("endpoint.wall", "wall", 2, 0, 7) })
+    local endpoint_service = creature_services(endpoint_world)
+    local endpoint_rat = creatures.spawn(endpoint_service, { id = "endpoint.rat", creature = "rat",
+        x = 0, y = 0, z = 7 })
+    local endpoint_target = actor_api.new("endpoint.target", "player", 2, 0, 7); endpoint_world:place_actor(endpoint_target)
+    assert(perception.can_perceive(endpoint_service.perception, endpoint_rat.id, endpoint_target.id))
+end)
+
+test("perception reconstructs from authored definitions without persisted awareness", function()
+    local function compose()
+        local world = path_world(8, 1)
+        local service = creature_services(world)
+        local rat = creatures.spawn(service, { id = "restore.rat", creature = "rat", x = 1, y = 0, z = 7 })
+        local player = actor_api.new("restore.player", "player", 6, 0, 7); world:place_actor(player)
+        return service, rat, player
+    end
+    local first, first_rat, first_player = compose()
+    assert(perception.can_perceive(first.perception, first_rat.id, first_player.id))
+    local derived = perception.get_awareness(first.perception, first_rat.id)
+    derived.perceived[1].actor_id = "mutated"
+    equal(perception.get_awareness(first.perception, first_rat.id).perceived[1].actor_id, first_player.id)
+    local restored, restored_rat, restored_player = compose()
+    equal(perception.get_config(restored.perception, restored_rat.id).sight_range, 6)
+    assert(perception.can_perceive(restored.perception, restored_rat.id, restored_player.id))
 end)
 
 test("Actor faction queries remain informational and support unaffiliated Actors", function()

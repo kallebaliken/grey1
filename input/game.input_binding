@@ -11,6 +11,7 @@ key_trigger { input: KEY_K action: "attack" }
 key_trigger { input: KEY_L action: "debug_toggle_weapon" }
 key_trigger { input: KEY_O action: "debug_toggle_armor" }
 key_trigger { input: KEY_P action: "debug_rat_attack" }
+key_trigger { input: KEY_V action: "debug_rat_perception" }
 key_trigger { input: KEY_T action: "debug_toggle_dialogue_flag" }
 key_trigger { input: KEY_Y action: "debug_quest_start" }
 key_trigger { input: KEY_U action: "debug_quest_advance" }

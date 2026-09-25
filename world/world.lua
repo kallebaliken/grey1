@@ -106,6 +106,19 @@ function methods:is_walkable(x, y, z, moving_actor_id, allow_occupied)
     return true
 end
 
+function methods:blocks_sight(x, y, z)
+    for _, entry in ipairs(self:get_objects(x, y, z)) do
+        local blocking = entry.definition.blocks_sight == true
+        if entry.definition.blocks_sight_state then
+            local state = entry.instance.item and state_api.copy(entry.instance.item.state)
+                or instance_api.state(entry.instance, self.state)
+            blocking = entry.definition.blocks_sight_state(state)
+        end
+        if blocking then return true end
+    end
+    return false
+end
+
 function methods:place_actor(actor, events)
     local target = assert(self:get_tile(actor.position.x, actor.position.y, actor.position.z), "actor requires a tile")
     assert(not target.actor_id or target.actor_id == actor.id, "tile occupied")

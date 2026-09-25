@@ -36,6 +36,8 @@ return {
 
 Every placement ID is a stable, unique string. `type` resolves a definition. `state` is the initial state; save/runtime state overrides matching fields without editing this table. `metadata` holds instance-specific facts such as explicit transition destinations, `interior_group`, `roof_group`, and reveal zones.
 
+Visibility is an explicit logical object-definition policy, separate from collision: `blocks_sight = true` marks an opaque footprint and `blocks_sight_state(state)` supports stateful opacity such as a closed/open door. Graphical extents never enlarge the logical footprint used by line of sight.
+
 Persistent boolean world flags are runtime/save state rather than map placements. Unset flags default false; the development reset therefore returns non-authored flags such as `greyhaven.test_dialogue_flag` to false.
 
 `item_placements` is optional immutable map input. Its outer ID identifies the world placement, while `item.id` is the stable logical item identity that survives pickup and drop. The embedded item record uses the same item-instance schema as inventories and containers; runtime transfers never rewrite this source table.

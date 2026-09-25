@@ -1,8 +1,8 @@
 # Creature definitions and authored spawning
 
-`creatures/creature_defs.lua` contains immutable authored kinds; `creatures/creature_registry.lua` validates and owns copies. A definition has a stable `id`, an `actor_type`, optional validated faction/dialogue references, an optional display name, optional `combat.max_health`, optional fixed `attack` metadata, and optional prototype `render` color/size. Attack metadata requires combat metadata. Callers receive copies from `get` and `get_all`, so they cannot mutate canonical definitions.
+`creatures/creature_defs.lua` contains immutable authored kinds; `creatures/creature_registry.lua` validates and owns copies. A definition has a stable `id`, an `actor_type`, optional validated faction/dialogue references, an optional display name, optional `combat.max_health`, optional fixed `attack` metadata, optional positive-integer `perception.sight_range`, and optional prototype `render` color/size. Attack metadata requires combat metadata. Callers receive copies from `get` and `get_all`, so they cannot mutate canonical definitions.
 
-`creatures/creatures.lua` is a pure-Lua composition service. Given a definition-backed map placement, it creates the generic Actor, places it through world occupancy, associates Actor instance ID to definition ID externally, and delegates optional health and attack setup to the existing combat registry and attack service. Definitions never become Actor fields. Multiple instances may share one definition while retaining independent positions, health, cooldowns, and death state.
+`creatures/creatures.lua` is a pure-Lua composition service. Given a definition-backed map placement, it creates the generic Actor, places it through world occupancy, associates Actor instance ID to definition ID externally, and delegates optional health, attack, and perception setup to existing services. Definitions never become Actor fields. Multiple instances may share one definition while retaining independent positions, health, cooldowns, death state, and current awareness.
 
 ```lua
 { id = "monster_test_rat", creature = "rat", x = 14, y = 10, z = 7, facing = "west" }

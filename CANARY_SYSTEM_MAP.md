@@ -84,6 +84,8 @@ Canary/Tibia quest storage mutations map to named, validated `start_quest`, `adv
 
 Canary creature-event concepts map only to whitelisted, immutable Greyhaven Event Bindings. The initial `actor_died` rule resolves public Actor/CreatureDefinition identity and invokes validated Actions; Lua callbacks, server scheduling, loot, rewards, respawning, and arbitrary event scripting are excluded.
 
+Canary awareness concepts map only to deterministic Greyhaven Perception queries over authoritative logical positions and explicit sight blockers. Target lists, think loops, aggro, chasing, spells, summons, and scheduling are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

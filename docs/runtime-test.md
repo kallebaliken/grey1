@@ -25,6 +25,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **L** | Development control: equip/unequip the first inventory weapon in `main_hand` |
 | **O** | Development control: equip/unequip the first compatible inventory armor in `torso` |
 | **P** | Explicitly invoke one test-rat attack against the player; the rat remains otherwise inert |
+| **V** | Inspect the current read-only `monster_test_rat` awareness snapshot |
 | **T** | Development control: toggle `greyhaven.test_dialogue_flag` while no dialogue is active |
 | **Y** | Development control: explicitly start `rat_problem` |
 | **U** | Development control: advance its `investigate` objective by one |
@@ -195,6 +196,17 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 9. Press **F8** and confirm the quest returns to `not_started`, `0/1`, with the offer visible again.
 10. Reset again and kill the rat before accepting the quest. Confirm the rat remains dead, the quest remains `not_started`, and the last binding reports failure cleanly.
 11. Confirm no loot, XP, money, items, factions, reputation, markers, respawning, or other rewards occur and no Defold runtime errors occur.
+
+## Creature perception check
+
+1. Press **F8**, enable **F1**, and confirm rat sight is 6 while `monster_test_rat` remains inert.
+2. Stand more than six Manhattan tiles from the rat and press **V**. Confirm the player is absent.
+3. Move within six tiles on Z7 and press **V**. Confirm the player appears with distance and hostile relationship.
+4. Walk around the rat while staying in range; confirm its facing does not affect the result.
+5. Move to the cottage basement on Z6 and confirm the Z7 rat no longer perceives the player; return to Z7 and query again.
+6. Confirm the rat never moves, attacks, starts a path, selects a target, or remembers a previously visible Actor.
+7. The compact prototype layout does not provide a practical rat/door alignment. The pure-Lua suite therefore verifies wall blocking, closed-door blocking, immediate visibility after opening, diagonal corner policy, endpoint handling, and logical-versus-graphical footprints in focused maps.
+8. Exercise the normal quest, dialogue, combat, door, roof, stair, and save/load controls and confirm no Defold runtime errors.
 
 ## Expected prototype content
 
