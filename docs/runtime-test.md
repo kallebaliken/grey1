@@ -174,13 +174,26 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 
 1. Press **F8**, face `npc_test_villager`, press **E**, and confirm “About that rat problem...” and the completed-quest response are hidden.
 2. Close dialogue, press **Y**, then talk to the villager again and confirm “About that rat problem...” appears.
-3. Select it and confirm the objective-complete response is initially hidden.
-4. Close dialogue, press **U**, reopen the active-quest branch, and confirm “I found the trail.” now appears.
-5. Close dialogue, press **I**, and talk again. Confirm the active branch is hidden and “The rat trouble is settled.” appears.
+3. Select it, confirm “I found signs near the stones.” is available and “That should be enough.” is hidden, then close with **Escape** without selecting either mutation choice.
+4. Press **U**, reopen the active-quest branch, confirm the report is hidden and “That should be enough.” appears, then close with **Escape**.
+5. Press **I** and talk again. Confirm the active branch is hidden and “The rat trouble is settled.” appears.
 6. Repeatedly open, inspect, and close the conversation. Confirm status and progress never change and no quest lifecycle events repeat.
 7. Press **F5**, restart/load or press **F9**, and confirm the completed branch remains available.
 8. Press **F8** and confirm dialogue returns immediately to the `not_started` choices.
-9. Confirm dialogue never starts, advances, or completes the quest and no Defold runtime errors occur.
+9. Confirm merely viewing and closing conditioned dialogue never starts, advances, or completes the quest and no Defold runtime errors occur.
+
+## Dialogue-driven quest-action check
+
+1. Press **F8**, enable **F1**, and confirm `rat_problem` is `not_started` at `0/1`.
+2. Talk to `npc_test_villager`, select “Do you need a hand?”, then choose “I can help.”
+3. Confirm F1 reports `active` at `0/1` without using **Y**.
+4. Select “About that rat problem...” and then “I found signs near the stones.”
+5. Confirm F1 reports `active` at `1/1`; the quest has not auto-completed.
+6. Reenter the active branch, select “That should be enough.”, and confirm F1 reports `completed` at `1/1` without using **U** or **I**.
+7. Reopen dialogue and confirm “The rat trouble is settled.” is available while the offer and active branch are hidden.
+8. Press **F5**, restart/load or press **F9**, and confirm completed state and dialogue availability persist.
+9. Press **F8** and confirm the quest returns to `not_started`, `0/1`, with the offer visible again.
+10. Confirm no XP, money, items, factions, reputation, combat progression, markers, or other rewards changed and no Defold runtime errors occurred.
 
 ## Expected prototype content
 

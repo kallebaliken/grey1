@@ -9,6 +9,8 @@ return {
                 } },
                 { id = "ask_rat", text = "What is going on with the rats?", next = "rat_problem",
                     conditions = { { type = "flag", id = "greyhaven.test_dialogue_flag", equals = true } } },
+                { id = "offer_rat_problem", text = "Do you need a hand?", next = "quest_offer",
+                    conditions = { { type = "quest_status", id = "rat_problem", equals = "not_started" } } },
                 { id = "active_rat_problem", text = "About that rat problem...", next = "quest_active",
                     conditions = { { type = "quest_status", id = "rat_problem", equals = "active" } } },
                 { id = "completed_rat_problem", text = "The rat trouble is settled.", next = "quest_completed",
@@ -27,10 +29,24 @@ return {
                     { type = "set_flag", id = "greyhaven.met_test_villager", value = true },
                 } },
             } },
+            { id = "quest_offer", text = "Take a look near the old stones and tell me what you find.", choices = {
+                { id = "accept_rat_problem", text = "I can help.", next = "greeting", actions = {
+                    { type = "start_quest", id = "rat_problem" },
+                } },
+                { id = "back", text = "Not just yet.", next = "greeting" },
+                { id = "leave", text = "Goodbye.", close = true },
+            } },
             { id = "quest_active", text = "Keep your eyes open near the old stones.", choices = {
-                { id = "investigated", text = "I found the trail.", next = "greeting", conditions = {
+                { id = "report_investigation", text = "I found signs near the stones.", next = "greeting",
+                    conditions = { { type = "quest_objective", quest_id = "rat_problem",
+                        objective_id = "investigate", complete = false } }, actions = {
+                    { type = "advance_quest", id = "rat_problem", objective_id = "investigate", amount = 1 },
+                } },
+                { id = "finish_rat_problem", text = "That should be enough.", next = "greeting", conditions = {
                     { type = "quest_objective", quest_id = "rat_problem",
                         objective_id = "investigate", complete = true },
+                }, actions = {
+                    { type = "complete_quest", id = "rat_problem" },
                 } },
                 { id = "back", text = "I will look around.", next = "greeting" },
                 { id = "leave", text = "Goodbye.", close = true },

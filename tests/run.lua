@@ -153,12 +153,14 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     definition.nodes.greeting.text = "Changed"; definition.nodes.greeting.choices[1].text = "Changed"
     definition.nodes.greeting.choices[1].actions[1].value = false
     definition.nodes.greeting.choices[2].conditions[1].equals = false
-    definition.nodes.greeting.choices[3].conditions[1].equals = quest_statuses.COMPLETED
+    definition.nodes.greeting.choices[4].conditions[1].equals = quest_statuses.COMPLETED
+    definition.nodes.quest_offer.choices[1].actions[1].id = "missing"
     equal(registry:get("test_villager").nodes.greeting.text, "Morning, traveler.")
     assert(registry:get("test_villager").nodes.greeting.choices[1].actions[1].value)
     assert(registry:get("test_villager").nodes.greeting.choices[2].conditions[1].equals)
-    equal(registry:get("test_villager").nodes.greeting.choices[3].conditions[1].equals,
+    equal(registry:get("test_villager").nodes.greeting.choices[4].conditions[1].equals,
         quest_statuses.ACTIVE)
+    equal(registry:get("test_villager").nodes.quest_offer.choices[1].actions[1].id, "rat_problem")
     assert(not pcall(function() registry:register(dialogue_definitions.test_villager) end))
     local function invalid(nodes, start)
         return dialogue_registry_api.new({ bad = { id = "bad", start = start or "start", nodes = nodes } },
@@ -185,6 +187,9 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
         { id = "action", text = "Bad", close = true,
             actions = { { type = "set_flag", id = "greyhaven.flag", value = "true" } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "action", text = "Bad", close = true,
+            actions = { { type = "start_quest", id = "missing" } } } } } }))
     assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
         { id = "quest", text = "Bad", close = true,
             conditions = { { type = "quest_status", id = "missing", equals = quest_statuses.ACTIVE } } } } } }))
@@ -250,6 +255,72 @@ test("world flag actions validate complete batches and execute in authored order
     equal(#results, 2); assert(not results[1].previous); assert(results[1].value)
     assert(results[2].previous); assert(not results[2].value)
     assert(not state_api.get_flag(state, "greyhaven.action.flag"))
+end)
+
+test("generic world actions validate and delegate quest mutations with structured failures", function()
+    events.clear()
+    local state = state_api.new()
+    local registry = quest_registry_api.new(quest_definitions)
+    local quest_service = quests.create(registry, events)
+    local context = { world_state = state, quests = quest_service, quest_registry = registry }
+    local start = { type = "start_quest", id = "rat_problem" }
+    local advance = { type = "advance_quest", id = "rat_problem",
+        objective_id = "investigate", amount = 1 }
+    local complete = { type = "complete_quest", id = "rat_problem" }
+    assert(world_actions.validate(start, registry)); assert(world_actions.validate(advance, registry))
+    assert(world_actions.validate(complete, registry))
+    assert(not pcall(world_actions.validate, { type = "start_quest", id = "missing" }, registry))
+    assert(not pcall(world_actions.validate, { type = "advance_quest", id = "rat_problem",
+        objective_id = "missing", amount = 1 }, registry))
+    for _, amount in ipairs({ 0, -1, 1.5 }) do
+        assert(not pcall(world_actions.validate, { type = "advance_quest", id = "rat_problem",
+            objective_id = "investigate", amount = amount }, registry))
+    end
+
+    local invalid_batch = {
+        { type = "set_flag", id = "greyhaven.prevalidated", value = true },
+        start,
+        { type = "advance_quest", id = "rat_problem", objective_id = "investigate", amount = 0 },
+    }
+    assert(not pcall(world_actions.execute_all, invalid_batch, context))
+    assert(not state_api.has_flag(state, "greyhaven.prevalidated"))
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.NOT_STARTED)
+
+    local inactive_result, inactive_failure = world_actions.execute(advance, context)
+    assert(inactive_result == nil); equal(inactive_failure.reason, "not_started")
+    equal(inactive_failure.action_index, 1)
+    local completion_result, completion_failure = world_actions.execute(complete, context)
+    assert(completion_result == nil); equal(completion_failure.reason, "not_started")
+
+    local order = {}
+    events.on("quest_started", function() order[#order + 1] = "quest_started" end)
+    events.on("world_action_executed", function(payload) order[#order + 1] = "world:" .. payload.type end)
+    local mixed = world_actions.execute_all({
+        { type = "set_flag", id = "greyhaven.mixed", value = true }, start,
+    }, context, events)
+    equal(#mixed, 2); assert(state_api.get_flag(state, "greyhaven.mixed"))
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.ACTIVE)
+    equal(order[1], "world:set_flag"); equal(order[2], "quest_started"); equal(order[3], "world:start_quest")
+    local premature, premature_failure = world_actions.execute(complete, context)
+    assert(premature == nil); equal(premature_failure.reason, "objectives_incomplete")
+
+    local stopped, failure = world_actions.execute_all({
+        { type = "set_flag", id = "greyhaven.committed", value = true },
+        start,
+        { type = "set_flag", id = "greyhaven.must_not_run", value = true },
+    }, context, events)
+    assert(stopped == nil); equal(failure.reason, "already_active"); equal(failure.action_index, 2)
+    equal(#failure.results, 1); assert(state_api.get_flag(state, "greyhaven.committed"))
+    assert(not state_api.has_flag(state, "greyhaven.must_not_run"))
+
+    local advanced = world_actions.execute(advance, context, events)
+    equal(advanced.progress, 1); equal(advanced.target, 1)
+    local repeated, repeated_failure = world_actions.execute(advance, context)
+    assert(repeated == nil); equal(repeated_failure.reason, "objective_completed")
+    local completed = world_actions.execute(complete, context, events)
+    equal(completed.status, quest_statuses.COMPLETED)
+    local completed_again, completed_failure = world_actions.execute(complete, context)
+    assert(completed_again == nil); equal(completed_failure.reason, "already_completed")
 end)
 
 test("quest definitions validate and registry snapshots are isolated", function()
@@ -599,17 +670,17 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     equal(started_payload.dialogue_id, "test_villager"); equal(started_payload.node_id, "greeting")
     local current = dialogue.get_current(dialogue_service)
     equal(current.node_id, "greeting"); equal(current.speaker_name, "Test Villager")
-    equal(current.npc_actor_id, villager.id); equal(current.choices[1].id, "ask_place"); equal(#current.choices, 2)
+    equal(current.npc_actor_id, villager.id); equal(current.choices[1].id, "ask_place"); equal(#current.choices, 3)
     local hidden, hidden_reason = dialogue.choose(dialogue_service, "ask_rat")
     assert(not hidden); equal(hidden_reason, "invalid_choice")
     state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", true)
     local revealed = dialogue.get_current(dialogue_service)
-    equal(#revealed.choices, 3); equal(revealed.choices[2].id, "ask_rat")
+    equal(#revealed.choices, 4); equal(revealed.choices[2].id, "ask_rat")
     assert(dialogue.choose(dialogue_service, "ask_rat")); equal(dialogue.get_current(dialogue_service).node_id, "rat_problem")
     assert(dialogue.choose(dialogue_service, "back")); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
     state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", false)
-    equal(#dialogue.get_current(dialogue_service).choices, 2)
-    local stale_index, stale_reason = dialogue.choose_index(dialogue_service, 3)
+    equal(#dialogue.get_current(dialogue_service).choices, 3)
+    local stale_index, stale_reason = dialogue.choose_index(dialogue_service, 4)
     assert(not stale_index); equal(stale_reason, "invalid_choice")
     local isolated_dialogue_registry = dialogue_registry_api.new(dialogue_definitions,
         quest_registry_api.new(quest_definitions))
@@ -653,7 +724,7 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
 end)
 
-test("dialogue filters quest-aware choices through generic read-only conditions", function()
+test("dialogue composes generic quest conditions and actions into the authored quest loop", function()
     events.clear()
     local world = path_world(3, 2)
     local creature_service, _, combat, _, _, _, dialogue_service, dialogue_registry,
@@ -668,34 +739,49 @@ test("dialogue filters quest-aware choices through generic read-only conditions"
         end
         return false
     end
+    local event_order = {}
+    events.on("quest_started", function() event_order[#event_order + 1] = "quest_started" end)
+    events.on("quest_objective_progressed", function() event_order[#event_order + 1] = "quest_progressed" end)
+    events.on("quest_objective_completed", function() event_order[#event_order + 1] = "objective_completed" end)
+    events.on("quest_completed", function() event_order[#event_order + 1] = "quest_completed" end)
+    events.on("world_action_executed", function(payload)
+        event_order[#event_order + 1] = "world:" .. payload.type
+    end)
 
     assert(dialogue.begin(dialogue_service, player.id, villager.id))
-    assert(not has_choice("active_rat_problem")); assert(not has_choice("completed_rat_problem"))
-    assert(dialogue.close(dialogue_service, "test"))
-
-    assert(quests.start(quest_service, "rat_problem"))
+    assert(has_choice("offer_rat_problem")); assert(not has_choice("active_rat_problem"))
+    assert(not has_choice("completed_rat_problem"))
+    assert(dialogue.choose(dialogue_service, "offer_rat_problem"))
+    equal(dialogue.get_current(dialogue_service).node_id, "quest_offer")
+    assert(dialogue.choose(dialogue_service, "accept_rat_problem"))
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.ACTIVE)
+    equal(event_order[1], "quest_started"); equal(event_order[2], "world:start_quest")
     local active_snapshot = codec.serialize(quests.get_snapshot(quest_service))
-    assert(dialogue.begin(dialogue_service, player.id, villager.id))
     assert(has_choice("active_rat_problem")); assert(not has_choice("completed_rat_problem"))
     for _ = 1, 3 do dialogue.get_current(dialogue_service) end
     equal(codec.serialize(quests.get_snapshot(quest_service)), active_snapshot)
     assert(dialogue.choose(dialogue_service, "active_rat_problem"))
     equal(dialogue.get_current(dialogue_service).node_id, "quest_active")
-    assert(not has_choice("investigated")); assert(dialogue.close(dialogue_service, "test"))
-    equal(codec.serialize(quests.get_snapshot(quest_service)), active_snapshot)
-
-    assert(quests.advance_objective(quest_service, "rat_problem", "investigate", 1))
-    assert(dialogue.begin(dialogue_service, player.id, villager.id))
-    assert(dialogue.choose(dialogue_service, "active_rat_problem")); assert(has_choice("investigated"))
-    assert(dialogue.close(dialogue_service, "test")); assert(quests.complete(quest_service, "rat_problem"))
+    assert(has_choice("report_investigation")); assert(not has_choice("finish_rat_problem"))
+    assert(dialogue.choose(dialogue_service, "report_investigation"))
+    equal(quests.get_objective_progress(quest_service, "rat_problem", "investigate"), 1)
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.ACTIVE)
+    equal(event_order[3], "quest_progressed"); equal(event_order[4], "objective_completed")
+    equal(event_order[5], "world:advance_quest")
+    assert(dialogue.choose(dialogue_service, "active_rat_problem"))
+    assert(not has_choice("report_investigation")); assert(has_choice("finish_rat_problem"))
+    assert(dialogue.choose(dialogue_service, "finish_rat_problem"))
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.COMPLETED)
+    equal(event_order[6], "quest_completed"); equal(event_order[7], "world:complete_quest")
+    equal(#event_order, 7)
 
     local completed_snapshot = codec.serialize(quests.get_snapshot(quest_service))
-    assert(dialogue.begin(dialogue_service, player.id, villager.id))
     assert(not has_choice("active_rat_problem")); assert(has_choice("completed_rat_problem"))
     equal(codec.serialize(quests.get_snapshot(quest_service)), completed_snapshot)
+    equal(#event_order, 7)
     local definition = dialogue_registry:get("test_villager")
-    definition.nodes.greeting.choices[3].conditions[1].equals = quest_statuses.NOT_STARTED
-    equal(dialogue_registry:get("test_villager").nodes.greeting.choices[3].conditions[1].equals,
+    definition.nodes.greeting.choices[4].conditions[1].equals = quest_statuses.NOT_STARTED
+    equal(dialogue_registry:get("test_villager").nodes.greeting.choices[4].conditions[1].equals,
         quest_statuses.ACTIVE)
 
     local restored_quests = quests.create(quest_registry, nil, quests.get_snapshot(quest_service))
@@ -716,12 +802,19 @@ test("dialogue filters quest-aware choices through generic read-only conditions"
     for _, choice in ipairs(dialogue.get_current(reset_dialogue).choices) do
         assert(choice.id ~= "active_rat_problem" and choice.id ~= "completed_rat_problem")
     end
+    local reset_offer = false
+    for _, choice in ipairs(dialogue.get_current(reset_dialogue).choices) do
+        if choice.id == "offer_rat_problem" then reset_offer = true end
+    end
+    assert(reset_offer)
 end)
 
 test("creature attacks remain explicit and retain existing death and occupancy policy", function()
     events.clear()
     local world = path_world(3, 2)
-    local service, _, combat, attack_service = creature_services(world)
+    local service, _, combat, attack_service, _, _, _, _, quest_service = creature_services(world)
+    assert(quests.start(quest_service, "rat_problem"))
+    local quest_before_combat = codec.serialize(quests.get_snapshot(quest_service))
     local rat = creatures.spawn(service, { id = "monster.explicit.rat", creature = "rat",
         x = 1, y = 0, z = 7, facing = "west" })
     local player = actor_api.new("creature.target", "player", 0, 0, 7, "east")
@@ -730,6 +823,7 @@ test("creature attacks remain explicit and retain existing death and occupancy p
     local attack = attacks.try_attack(attack_service, rat.id, player.id)
     assert(attack.success); equal(attack.damage, 2); equal(combat_registry.get(combat, player.id).health, 8)
     assert(combat_registry.apply_damage(combat, rat.id, 20).died)
+    equal(codec.serialize(quests.get_snapshot(quest_service)), quest_before_combat)
     assert(world:get_actor(rat.id) ~= nil); equal(world:get_actor_at(1, 0, 7).id, rat.id)
     assert(not world:is_walkable(1, 0, 7, player.id))
 end)

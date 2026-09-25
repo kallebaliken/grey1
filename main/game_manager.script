@@ -243,7 +243,8 @@ function on_input(self, action_id, action)
             [hash("dialogue_3")] = 3, [hash("dialogue_4")] = 4 }
         if action.pressed and choices[action_id] then
             local changed, reason = dialogue.choose_index(self.dialogue, choices[action_id])
-            self.notice = changed and "Dialogue choice selected" or ("Dialogue: " .. tostring(reason))
+            local failure = type(reason) == "table" and reason.reason or reason
+            self.notice = changed and "Dialogue choice selected" or ("Dialogue: " .. tostring(failure))
             render(self); return true
         elseif action.pressed and action_id == hash("dialogue_close") then
             dialogue.close(self.dialogue, "cancelled"); self.notice = "Dialogue closed"; render(self); return true

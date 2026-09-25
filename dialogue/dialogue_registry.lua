@@ -51,7 +51,7 @@ local function normalize(source, quest_registry)
             if source_choice.actions ~= nil then
                 assert(type(source_choice.actions) == "table" and #source_choice.actions > 0,
                     "dialogue choice actions must not be empty")
-                world_actions.validate_all(source_choice.actions)
+                world_actions.validate_all(source_choice.actions, quest_registry)
                 choice.actions = copy(source_choice.actions)
             end
             node.choices[#node.choices + 1], choices[choice_id] = choice, true

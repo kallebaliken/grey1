@@ -35,7 +35,7 @@ Completed slices: validated item definitions and instances, containers, inventor
 
 Compose player/NPC/monster actors from health, movement, inventory, faction, and condition data. Implement A* over `world.is_walkable`, then minimal data-driven damage, cooldown, armor, conditions, and death.
 
-Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, explicit data-driven NPC dialogue, persistent boolean world flags with generic conditions, validated dialogue flag actions, minimal persisted quest state with read-only generic conditions, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Quest actions/rewards, merchants, dynamic reputation, autonomous progression/AI, skills, and broader combat remain out of scope.
+Completed slices: shared Actor identity/type/position/facing, canonical directions, registry/occupancy, generic movement/transitions/rendering, data-driven creature definitions/composition, authored directional faction relationships, explicit data-driven NPC dialogue, persistent boolean world flags with generic conditions/actions, minimal persisted quest state with generic read-only conditions and explicit actions, bounded deterministic A*, supplied-route execution, composed integer health/damage/death state, explicit cardinal melee attacks, main-hand weapon damage, and deterministic equipped-armor mitigation. Quest rewards, merchants, dynamic reputation, autonomous/event-driven progression, AI, skills, and broader combat remain out of scope.
 
 ### 6 — Narrative and persistence
 
@@ -47,4 +47,4 @@ Delete server sources, database/network deployment, and imported datapacks in re
 
 ## Next acceptance slice
 
-Choose the next narrow Greyhaven subsystem explicitly; do not expand read-only quest conditions into quest actions, rewards, event-driven progression, items, merchants, reputation, markers, or arbitrary scripts automatically.
+Choose the next narrow Greyhaven subsystem explicitly; do not expand explicit quest actions into rewards, combat/event-driven progression, items, merchants, reputation, markers, or arbitrary scripts automatically.

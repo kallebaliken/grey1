@@ -80,6 +80,8 @@ Canary quest/storage progression concepts map only to immutable Greyhaven QuestD
 
 Canary/Tibia quest storage checks map to structured read-only Greyhaven `quest_status` and `quest_objective` conditions evaluated through public QuestState APIs. Numeric storage keys, quest-specific script branches, automatic progression, and dialogue mutation are not retained.
 
+Canary/Tibia quest storage mutations map to named, validated `start_quest`, `advance_quest`, and `complete_quest` actions that delegate to Greyhaven QuestState. Numeric storage scripts, rewards, combat bindings, automatic progression, and arbitrary callbacks are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

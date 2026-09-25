@@ -101,9 +101,11 @@ function M.choose(service, choice_id)
     if not choice then return false, "invalid_choice" end
     -- Authored actions were validated at registration. Revalidate the complete
     -- batch before mutation so a malformed runtime copy cannot partially apply.
-    local ok, results = pcall(world_actions.execute_all, choice.actions or {},
-        { world_state = service.world.state }, service.events)
+    local ok, results, failure = pcall(world_actions.execute_all, choice.actions or {},
+        { world_state = service.world.state, quests = service.quests,
+            quest_registry = service.quest_registry }, service.events)
     if not ok then return false, "action_failed" end
+    if not results then return false, failure end
     local previous_node_id = session.node_id
     if choice.close then
         runtime(service).session = nil

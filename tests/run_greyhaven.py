@@ -100,4 +100,7 @@ for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_pat
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()
 assert 'condition.type == "quest_status"' in conditions_source
 assert 'condition.type == "quest_objective"' in conditions_source
+world_actions_source = (ROOT / "actions/world_actions.lua").read_text()
+for action_type in ("start_quest", "advance_quest", "complete_quest"):
+    assert action_type in world_actions_source
 print("Greyhaven project wiring passed")
