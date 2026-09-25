@@ -62,6 +62,7 @@ local render_definition = require "render.render_definition"
 local sprite_reconciler = require "render.sprite_reconciler"
 local command_diagnostics = require "render.command_diagnostics"
 local viewport_api = require "render.viewport"
+local camera_api = require "world.camera"
 local events = require "core.events"
 
 local count = 0
@@ -219,6 +220,46 @@ test("position equality and coordinate conversion", function()
     assert(position.equals(position.new(2, 3, 7), position.new(2, 3, 7)))
     local sx, sy = position.world_to_screen(position.new(4, 5, 7), position.new(2, 2, 7), 32)
     equal(sx, 64); equal(sy, 96); assert(position.equals(position.screen_to_world(sx, sy, position.new(2, 2, 7), 32, 7), position.new(4, 5, 7)))
+end)
+
+test("camera zoom is integer, pixel-perfect, and presentation-only", function()
+    local default_camera = camera_api.new(960, 640)
+    equal(default_camera.zoom, 2)
+    local one = camera_api.new(960, 640, 1)
+    local two = camera_api.new(960, 640, 2)
+    local three = camera_api.new(960, 640, 3)
+    camera_api.follow(one, 5, 8); camera_api.follow(two, 5, 8); camera_api.follow(three, 5, 8)
+    local x1, y1 = camera_api.project(one, 6, 9, 32)
+    local x2, y2 = camera_api.project(two, 6, 9, 32)
+    local x3, y3 = camera_api.project(three, 6, 9, 32)
+    equal(x1, 512); equal(y1, 352)
+    equal(x2, 544); equal(y2, 384)
+    equal(x3, 576); equal(y3, 416)
+    equal(camera_api.scale_pixels(two, 32), 64)
+    local visible_width, visible_height = camera_api.visible_tiles(two, 32)
+    equal(visible_width, 15); equal(visible_height, 10)
+    local one_width, one_height = camera_api.visible_tiles(one, 32)
+    equal(one_width, 30); equal(one_height, 20)
+    local zoomed_viewport = viewport_api.new(0, 0, visible_width, visible_height, 0)
+    assert(viewport_api.intersects(zoomed_viewport, 8, 0))
+    assert(not viewport_api.intersects(zoomed_viewport, 9, 0))
+    assert(not pcall(camera_api.new, 960, 640, 1.5))
+    assert(not pcall(camera_api.new, 960, 640, 4))
+end)
+
+test("camera zoom scales interpolated presentation without changing Actor state", function()
+    local map = { id = "zoom", version = 1, tile_size = 32, width = 4, height = 4, placements = {
+        placement("zoom.ground.1", "grass", 2, 3, 7), placement("zoom.ground.2", "grass", 3, 3, 7),
+    } }
+    local world = world_api.new(map, registry_api.new(definitions), state_api.new())
+    local actor = actor_api.new("zoom.actor", "player", 2, 3, 7)
+    world:place_actor(actor); movement.reset(actor); movement.configure(actor, { speed = 1 })
+    assert(movement.begin(world, actor, 1, 0)); movement.update(actor, 0.5)
+    local visual = movement.visual_position(actor)
+    equal(visual.x, 2.5); equal(actor.position.x, 3)
+    local camera = camera_api.new(960, 640, 2); camera_api.follow(camera, 2, 3)
+    local screen_x = camera_api.project(camera, visual.x, visual.y, 32)
+    equal(screen_x, 512); equal(actor.position.x, 3); equal(actor.position.y, 3)
 end)
 
 test("actor identity, types, directions, and registry are canonical", function()

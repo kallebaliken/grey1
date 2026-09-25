@@ -97,6 +97,9 @@ project = (ROOT / "game.project").read_text()
 assert "main_collection = /main/main.collectionc" in project
 assert "game_binding = /input/game.input_bindingc" in project
 assert "[collection]" in project and "max_instances = 4096" in project
+assert "default_texture_min_filter = nearest" in project
+assert "default_texture_mag_filter = nearest" in project
+assert "camera_zoom = 2" in project
 collection = (ROOT / "main/main.collection").read_text()
 assert 'component: \\"/main/game_manager.script\\"' in collection
 assert 'component: \\"/main/world.gui\\"' in collection
@@ -108,6 +111,7 @@ assert 'name: "hud"' in gui
 assert 'id: "dialogue_panel"' in gui and 'id: "dialogue_text"' in gui
 gui_script = (ROOT / "main/world.gui_script").read_text()
 assert "gui.new_box_node" not in gui_script
+assert "gui.set_scale" not in gui_script
 assert "world_sprite_renderer" in collection
 assert "world_piece_factory" in collection
 assert "command.order" not in gui_script
@@ -129,6 +133,7 @@ assert "require(module_name)" not in map_loader
 assert 'quest_registry_api.new(quest_definitions)' in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
 assert 'sys.get_config_int("collection.max_instances", 1024)' in manager
+assert "camera_api.visible_tiles" in manager
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()

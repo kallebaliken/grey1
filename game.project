@@ -18,3 +18,10 @@ shared_state = 1
 
 [collection]
 max_instances = 4096
+
+[graphics]
+default_texture_min_filter = nearest
+default_texture_mag_filter = nearest
+
+[greyhaven]
+camera_zoom = 2

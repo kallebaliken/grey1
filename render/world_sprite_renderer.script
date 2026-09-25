@@ -29,9 +29,10 @@ local function create_reconciler(self)
         end,
         update = function(instance_id, command, index, count, animation_changed)
             local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
-            x = x + (command.offset_x or 0)
-            y = y + (command.offset_y or 0)
+            x = x + camera_api.scale_pixels(self.camera, command.offset_x or 0)
+            y = y + camera_api.scale_pixels(self.camera, command.offset_y or 0)
             go.set_position(vmath.vector3(x, y, depth(index, count)), instance_id)
+            go.set_scale(vmath.vector3(self.camera.zoom, self.camera.zoom, 1), instance_id)
             if animation_changed then
                 sprite.play_flipbook(sprite_url(instance_id), hash(command.animation or "fallback_01"))
             end
@@ -56,7 +57,8 @@ local function synchronize(self, frame)
 end
 
 function init(self)
-    self.camera = camera_api.new(960, 640)
+    self.camera = camera_api.new(960, 640,
+        sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM))
     self.collection_capacity = sys.get_config_int("collection.max_instances", 1024)
     self.sprite_budget = math.max(0, self.collection_capacity - INSTANCE_RESERVE)
     print(string.format("Greyhaven sprite capacity: collection=%d sprite_budget=%d reserve=%d",

@@ -43,9 +43,12 @@ local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 local command_diagnostics = require "render.command_diagnostics"
 local sprite_diagnostics = require "render.sprite_diagnostics"
+local camera_api = require "world.camera"
 
-local VIEW_WIDTH_TILES = 960 / 32
-local VIEW_HEIGHT_TILES = 640 / 32
+local LOGICAL_TILE_SIZE = 32
+local CAMERA_ZOOM = sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM)
+local CAMERA = camera_api.new(960, 640, CAMERA_ZOOM)
+local VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES = camera_api.visible_tiles(CAMERA, LOGICAL_TILE_SIZE)
 local VIEW_MARGIN_TILES = 2
 local SPRITE_CAPACITY = sys.get_config_int("collection.max_instances", 1024)
 local TEST_DIALOGUE_FLAG = "greyhaven.test_dialogue_flag"
@@ -151,6 +154,8 @@ local function render(self)
         sprite_reused = sprite_stats.reused, sprite_removed = sprite_stats.removed,
         sprite_failures = sprite_stats.failures, sprite_deferred = sprite_stats.deferred or 0,
         sprite_capacity = SPRITE_CAPACITY,
+        camera_zoom = CAMERA.zoom, visible_tiles_width = VIEW_WIDTH_TILES,
+        visible_tiles_height = VIEW_HEIGHT_TILES,
         npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",
         player_health = string.format("%d/%d", player_combat.health, player_combat.max_health),
         rat_health = string.format("%d/%d", rat_combat.health, rat_combat.max_health), rat_dead = rat_combat.dead,

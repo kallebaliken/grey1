@@ -225,6 +225,16 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 13. Perform a clean rebuild (project settings are not applied by hot reload), then move between exterior, cottage, and basement viewports. Confirm stale pieces are removed, active instances remain below the runtime-reported 4096 capacity, and factory failures remain zero. A one-frame nonzero `deferred` count is allowed during a capacity-bound viewport replacement; it must recover on the following frame.
 14. Confirm the console contains no `Gameobject buffer is full`, `/game#sprite`, or `play_animation` dispatch errors.
 
+## Pixel-perfect camera zoom check
+
+1. Clean-build and launch with `greyhaven.camera_zoom = 2` in `game.project`.
+2. Confirm each 32×32 source tile occupies 64×64 displayed pixels and remains crisp rather than linearly blurred.
+3. Confirm the player stays centered and crosses 64 screen pixels per logical tile with unchanged movement duration and smooth interpolation.
+4. Confirm ground, items, doors, walls, roofs, and multi-piece 32-pixel offsets remain aligned.
+5. Enable F1 and confirm `Camera zoom: 2x` and approximately `15x10` visible logical tiles.
+6. Confirm HUD, F1 text, and dialogue retain their original screen-space size.
+7. Confirm no new allocation, atlas, sprite, or runtime errors appear.
+
 ## Expected prototype content
 
 The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, the inert test rat, a healing-herb stack, an iron key, and original sword/armor test placements.

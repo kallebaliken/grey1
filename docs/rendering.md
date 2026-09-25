@@ -28,7 +28,7 @@ render = { pieces = {
 } }
 ```
 
-Offsets are presentation pixels relative to the logical tile centre. One logical tile is always 32×32 pixels at default scale. Missing render metadata resolves to `fallback_01` rather than crashing. Optional ordered `variants` are supported by the data model, but current content selects authored variants deterministically and does not randomize terrain.
+Offsets are source-art pixels relative to the logical tile centre. One logical tile is always 32×32 units in gameplay. The presentation camera defaults to the integer `camera_zoom = 2` configured in `game.project`, so a tile and a 32-pixel piece offset each occupy 64 displayed pixels. Zoom may be configured to 1, 2, or 3 without changing maps, footprints, movement duration, or save data. Missing render metadata resolves to `fallback_01` rather than crashing. Optional ordered `variants` are supported by the data model, but current content selects authored variants deterministically and does not randomize terrain.
 
 Door animation selection reads the existing authoritative `open` state. Roof visibility, floor selection, viewport culling, Actor interpolation, item ownership, and gameplay footprints remain in their existing systems.
 
@@ -40,7 +40,7 @@ The prototype exterior currently peaks at **332 visible sprite pieces**: 284 gro
 
 Allocation reconciliation is mark-and-sweep. Unchanged command IDs reuse the same successful factory handle, changed animations are sent only when necessary, and pieces absent from the next frame are deleted. A 32-instance reserve protects the collection's authored objects. If a viewport replacement would temporarily exceed the remaining sprite budget while deferred deletions are pending, new pieces are deferred until the next frame rather than calling the factory into exhaustion. A failed `factory.create()` result is never stored or addressed as a sprite; it is counted, logged once per failure streak, skipped, and retried on the next frame.
 
-The adapter projects current camera-relative coordinates without changing logical coordinates. Pure-Lua ordering first separates ground, details, bottom items, the shared Y-sorted Actor/top-object band, effects, and roofs. Within the world band, each piece's logical anchor plus graphical pixel offset supplies its sort point; higher Y draws first so pieces lower on screen overlap naturally, and stable IDs break remaining ties. The adapter maps that final order into `[-0.8, 0.8]`, keeping semantic layer numbers and logical Z levels out of Defold depth values.
+The adapter projects current camera-relative coordinates without changing logical coordinates, scales sprite Game Objects and authored graphical offsets by the same integer zoom, and leaves GUI nodes untouched. Viewport dimensions are divided by `32 * zoom`, while the existing two-tile graphical margin remains. Default minification and magnification filters are nearest-neighbour so enlarged pixel art stays crisp. Pure-Lua ordering first separates ground, details, bottom items, the shared Y-sorted Actor/top-object band, effects, and roofs. Within the world band, each piece's logical anchor plus graphical pixel offset supplies its sort point; higher Y draws first so pieces lower on screen overlap naturally, and stable IDs break remaining ties. The adapter maps that final order into `[-0.8, 0.8]`, keeping semantic layer numbers and logical Z levels out of Defold depth values.
 
 ## Replacing grass
 
@@ -50,4 +50,4 @@ The adapter projects current camera-relative coordinates without changing logica
 
 To add `grass_02` or `grass_03`, add the PNG to `assets/world.atlas`, register its ID in `render/world_animations.lua`, then list its animation ID in the definition's future `render.variants` data. Variant selection should remain authored/deterministic when that feature is connected; map collision and gameplay data require no changes.
 
-This milestone intentionally excludes animation, lighting, shaders, tile blending, autotiling, camera zoom, and production batching.
+This milestone intentionally excludes animation, lighting, shaders, tile blending, autotiling, fractional/dynamic camera zoom, and production batching.
