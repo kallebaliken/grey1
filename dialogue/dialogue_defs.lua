@@ -37,11 +37,6 @@ return {
                 { id = "leave", text = "Goodbye.", close = true },
             } },
             { id = "quest_active", text = "Keep your eyes open near the old stones.", choices = {
-                { id = "report_investigation", text = "I found signs near the stones.", next = "greeting",
-                    conditions = { { type = "quest_objective", quest_id = "rat_problem",
-                        objective_id = "investigate", complete = false } }, actions = {
-                    { type = "advance_quest", id = "rat_problem", objective_id = "investigate", amount = 1 },
-                } },
                 { id = "finish_rat_problem", text = "That should be enough.", next = "greeting", conditions = {
                     { type = "quest_objective", quest_id = "rat_problem",
                         objective_id = "investigate", complete = true },

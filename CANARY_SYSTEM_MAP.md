@@ -82,6 +82,8 @@ Canary/Tibia quest storage checks map to structured read-only Greyhaven `quest_s
 
 Canary/Tibia quest storage mutations map to named, validated `start_quest`, `advance_quest`, and `complete_quest` actions that delegate to Greyhaven QuestState. Numeric storage scripts, rewards, combat bindings, automatic progression, and arbitrary callbacks are excluded.
 
+Canary creature-event concepts map only to whitelisted, immutable Greyhaven Event Bindings. The initial `actor_died` rule resolves public Actor/CreatureDefinition identity and invokes validated Actions; Lua callbacks, server scheduling, loot, rewards, respawning, and arbitrary event scripting are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

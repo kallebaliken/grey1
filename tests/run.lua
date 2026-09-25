@@ -33,6 +33,9 @@ local quest_definitions = require "quests.quest_defs"
 local quest_registry_api = require "quests.quest_registry"
 local quest_statuses = require "quests.quest_statuses"
 local quests = require "quests.quests"
+local binding_definitions = require "event_bindings.binding_defs"
+local binding_registry_api = require "event_bindings.binding_registry"
+local event_bindings = require "event_bindings.event_bindings"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -724,15 +727,88 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
 end)
 
+test("event binding registry validates and isolates authored actor-death rules", function()
+    local creature_registry = creature_registry_api.new(creature_definitions)
+    local quest_registry = quest_registry_api.new(quest_definitions)
+    local registry = binding_registry_api.new(binding_definitions, creature_registry, quest_registry)
+    local definition = assert(registry:get("rat_problem.rat_died"))
+    equal(definition.event, "actor_died")
+    definition.match.actor_definition = "changed"
+    equal(registry:get("rat_problem.rat_died").match.actor_definition, "rat")
+    equal(#registry:get_for_event("actor_died"), 1)
+
+    local function rejected(source)
+        return not pcall(function()
+            binding_registry_api.new({ [source.id or "bad"] = source }, creature_registry, quest_registry)
+        end)
+    end
+    assert(rejected({ id = "bad.event", event = "world_action_executed",
+        match = { actor_id = "rat" }, actions = definition.actions }))
+    assert(rejected({ id = "bad.match", event = "actor_died",
+        match = { unsupported = "rat" }, actions = definition.actions }))
+    assert(rejected({ id = "bad.creature", event = "actor_died",
+        match = { actor_definition = "unknown" }, actions = definition.actions }))
+    assert(rejected({ id = "bad.actions", event = "actor_died",
+        match = { actor_id = "rat" }, actions = { { type = "unknown" } } }))
+    local duplicate = binding_registry_api.new(nil, creature_registry, quest_registry)
+    duplicate:register(definition)
+    assert(not pcall(function() duplicate:register(definition) end))
+end)
+
+test("actor-death bindings match identity metadata and report action failures", function()
+    events.clear()
+    local world = path_world(5, 2)
+    local creature_service, creature_registry, combat, _, _, _, _, _, quest_service,
+        quest_registry = creature_services(world)
+    local rat = creatures.spawn(creature_service, { id = "binding.rat", creature = "rat",
+        x = 1, y = 0, z = 7, facing = "west" })
+    local npc = creatures.spawn(creature_service, { id = "binding.npc", creature = "test_villager",
+        x = 2, y = 0, z = 7, facing = "west" })
+    local definitions = {
+        ["a.actor_id"] = { id = "a.actor_id", event = "actor_died",
+            match = { actor_id = rat.id }, actions = { { type = "set_flag", id = "binding.actor", value = true } } },
+        ["b.actor_type"] = { id = "b.actor_type", event = "actor_died",
+            match = { actor_type = "monster" }, actions = { { type = "set_flag", id = "binding.type", value = true } } },
+        ["c.definition"] = { id = "c.definition", event = "actor_died",
+            match = { actor_definition = "rat" }, actions = { { type = "advance_quest", id = "rat_problem",
+                objective_id = "investigate", amount = 1 } } },
+        ["z.nonmatch"] = { id = "z.nonmatch", event = "actor_died",
+            match = { actor_id = npc.id }, actions = { { type = "set_flag", id = "binding.npc", value = true } } },
+    }
+    local registry = binding_registry_api.new(definitions, creature_registry, quest_registry)
+    local service = event_bindings.create(registry, events, world, creature_service,
+        { world_state = world.state, quests = quest_service, quest_registry = quest_registry })
+
+    assert(combat_registry.apply_damage(combat, rat.id, 20).died)
+    local results = event_bindings.get_last_results(service)
+    equal(#results, 3); equal(results[1].binding_id, "a.actor_id")
+    equal(results[2].binding_id, "b.actor_type"); equal(results[3].binding_id, "c.definition")
+    assert(results[1].success and results[2].success and not results[3].success)
+    assert(state_api.get_flag(world.state, "binding.actor")); assert(state_api.get_flag(world.state, "binding.type"))
+    assert(not state_api.get_flag(world.state, "binding.npc"))
+    equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.NOT_STARTED)
+    assert(combat_registry.get(combat, rat.id).dead)
+    assert(not combat_registry.apply_damage(combat, rat.id, 1).success)
+    equal(#event_bindings.get_last_results(service), 3)
+    event_bindings.destroy(service)
+end)
+
 test("dialogue composes generic quest conditions and actions into the authored quest loop", function()
     events.clear()
-    local world = path_world(3, 2)
+    local world = path_world(4, 2)
     local creature_service, _, combat, _, _, _, dialogue_service, dialogue_registry,
         quest_service, quest_registry = creature_services(world)
     local player = actor_api.new("dialogue.quest.player", "player", 0, 0, 7, "east")
     world:place_actor(player); assert(combat_registry.add(combat, player.id, 20))
     local villager = creatures.spawn(creature_service, { id = "dialogue.quest.villager",
         creature = "test_villager", x = 1, y = 0, z = 7, facing = "west" })
+    local rat = creatures.spawn(creature_service, { id = "dialogue.quest.rat",
+        creature = "rat", x = 2, y = 0, z = 7, facing = "west" })
+    local second_rat = creatures.spawn(creature_service, { id = "dialogue.quest.rat.second",
+        creature = "rat", x = 3, y = 0, z = 7, facing = "west" })
+    local binding_registry = binding_registry_api.new(binding_definitions, creature_service.registry, quest_registry)
+    local binding_service = event_bindings.create(binding_registry, events, world, creature_service,
+        { world_state = world.state, quests = quest_service, quest_registry = quest_registry })
     local function has_choice(choice_id)
         for _, choice in ipairs(dialogue.get_current(dialogue_service).choices) do
             if choice.id == choice_id then return true end
@@ -762,12 +838,23 @@ test("dialogue composes generic quest conditions and actions into the authored q
     equal(codec.serialize(quests.get_snapshot(quest_service)), active_snapshot)
     assert(dialogue.choose(dialogue_service, "active_rat_problem"))
     equal(dialogue.get_current(dialogue_service).node_id, "quest_active")
-    assert(has_choice("report_investigation")); assert(not has_choice("finish_rat_problem"))
-    assert(dialogue.choose(dialogue_service, "report_investigation"))
+    assert(not has_choice("finish_rat_problem")); assert(dialogue.close(dialogue_service, "test"))
+    assert(combat_registry.apply_damage(combat, rat.id, 20).died)
     equal(quests.get_objective_progress(quest_service, "rat_problem", "investigate"), 1)
     equal(quests.get_status(quest_service, "rat_problem"), quest_statuses.ACTIVE)
     equal(event_order[3], "quest_progressed"); equal(event_order[4], "objective_completed")
     equal(event_order[5], "world:advance_quest")
+    local first_results = event_bindings.get_last_results(binding_service)
+    equal(first_results[1].binding_id, "rat_problem.rat_died"); assert(first_results[1].success)
+    assert(not combat_registry.apply_damage(combat, rat.id, 1).success)
+    equal(#event_order, 5)
+    assert(combat_registry.apply_damage(combat, second_rat.id, 20).died)
+    equal(quests.get_objective_progress(quest_service, "rat_problem", "investigate"), 1)
+    local second_results = event_bindings.get_last_results(binding_service)
+    equal(second_results[1].binding_id, "rat_problem.rat_died")
+    assert(not second_results[1].success)
+    equal(#event_order, 5)
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
     assert(dialogue.choose(dialogue_service, "active_rat_problem"))
     assert(not has_choice("report_investigation")); assert(has_choice("finish_rat_problem"))
     assert(dialogue.choose(dialogue_service, "finish_rat_problem"))
@@ -807,6 +894,7 @@ test("dialogue composes generic quest conditions and actions into the authored q
         if choice.id == "offer_rat_problem" then reset_offer = true end
     end
     assert(reset_offer)
+    event_bindings.destroy(binding_service)
 end)
 
 test("creature attacks remain explicit and retain existing death and occupancy policy", function()

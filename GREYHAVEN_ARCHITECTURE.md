@@ -47,6 +47,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Quest definitions remain immutable registry data while a private runtime service owns `active`/`completed` status and bounded objective counters. Start, progress, and completion are explicit, event-producing operations with no rewards, world mutations, dialogue coupling, or automatic discovery.
 - The canonical Condition evaluator validates quest references against QuestDefinitions and reads status/objective completion through public QuestState APIs. Mixed flag/quest `all`, `any`, and `not` groups remain side-effect free; dialogue only consumes filtered results and never mutates quests.
 - The generic Action executor validates quest identities against QuestDefinitions and delegates explicit start/advance/complete mutations to QuestState. Mixed lists are fully prevalidated, stop at runtime failures with prior successes committed, and let Dialogue author a complete quest loop without runtime quest branches or combat bindings.
+- Immutable Event Binding definitions subscribe only to `actor_died`, match the dead Actor through public identity/type/CreatureDefinition APIs, and invoke the canonical Action executor in stable binding-ID order. Failures never roll back the source death, action-generated events cannot recurse into bindings, and only resulting QuestState/WorldState is persisted.
 
 ## Scale boundary
 

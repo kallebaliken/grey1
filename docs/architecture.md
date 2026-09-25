@@ -28,7 +28,9 @@ Quest definitions and mutable QuestState are separate pure-Lua boundaries. The r
 
 The single Condition evaluator also supports validated `quest_status` and `quest_objective` queries. It receives QuestDefinition registry and QuestState dependencies explicitly, delegates runtime semantics to public QuestState APIs, and remains read-only. Dialogue filters choices through that generic interface without learning quest rules.
 
-The generic world-action executor supports explicit quest start, objective advance, and quest completion beside boolean flag writes. It prevalidates complete mixed lists against QuestDefinitions, delegates mutations to QuestState, and stops on runtime failure without rolling back prior successes. Dialogue supplies authored conditions/actions but contains no quest-specific execution branch; combat emits no quest progress.
+The generic world-action executor supports explicit quest start, objective advance, and quest completion beside boolean flag writes. It prevalidates complete mixed lists against QuestDefinitions, delegates mutations to QuestState, and stops on runtime failure without rolling back prior successes. Dialogue supplies authored conditions/actions but contains no quest-specific execution branch.
+
+The Event Binding registry maps only whitelisted `actor_died` facts to validated generic Action lists. It matches the dead Actor by stable ID, canonical type, and/or public CreatureDefinition association, then executes matching bindings in stable ID order. Runtime action failures are diagnostic reactions and never roll back combat. Action-emitted events are not bindable, preventing recursive action loops.
 
 The manager publishes an engine-neutral frame into adapter-local `main.view_model`, then posts a payload-free redraw message. This avoids Defold message payload limits and keeps render data out of authoritative state. Render command generation is bounded to the camera viewport plus a two-tile margin; graphical extents, rather than collision footprints, decide whether an object overlaps that viewport.
 

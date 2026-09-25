@@ -35,6 +35,9 @@ local dialogue = require "dialogue.dialogue"
 local quest_definitions = require "quests.quest_defs"
 local quest_registry_api = require "quests.quest_registry"
 local quests = require "quests.quests"
+local binding_definitions = require "event_bindings.binding_defs"
+local binding_registry_api = require "event_bindings.binding_registry"
+local event_bindings = require "event_bindings.event_bindings"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -102,6 +105,8 @@ local function render(self)
     local quest_definition = self.quest_registry:get("rat_problem")
     local quest_status = quests.get_status(self.quests, "rat_problem")
     local quest_progress = quests.get_objective_progress(self.quests, "rat_problem", "investigate") or 0
+    local binding_results = event_bindings.get_last_results(self.event_bindings)
+    local last_binding = binding_results[#binding_results]
     local dialogue_text = ""
     if conversation then
         local lines = { conversation.speaker_name, "", conversation.text, "" }
@@ -137,6 +142,9 @@ local function render(self)
         met_villager_flag = state_api.get_flag(self.state, MET_VILLAGER_FLAG),
         quest_title = quest_definition.title, quest_status = quest_status,
         quest_progress = quest_progress, quest_target = quest_definition.objectives[1].target,
+        last_binding = last_binding and (last_binding.binding_id .. " = "
+            .. (last_binding.success and "success" or (last_binding.failure and last_binding.failure.reason or "failed")))
+            or "none",
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -147,6 +155,7 @@ local function render(self)
 end
 
 local function create_session(self, map, loaded)
+    if self.event_bindings then event_bindings.destroy(self.event_bindings); self.event_bindings = nil end
     self.map = map
     self.state = state_api.new(loaded)
     self.item_registry = item_registry_api.new(item_definitions)
@@ -187,6 +196,10 @@ local function create_session(self, map, loaded)
     for _, placement in ipairs(self.map.actor_placements or {}) do
         creatures.spawn(self.creatures, placement)
     end
+    self.binding_registry = binding_registry_api.new(binding_definitions, self.creature_registry,
+        self.quest_registry)
+    self.event_bindings = event_bindings.create(self.binding_registry, events, self.world, self.creatures,
+        { world_state = self.state, quests = self.quests, quest_registry = self.quest_registry })
     self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events,
         self.quests, self.quest_registry)
     actions.register_defaults({ dialogue = self.dialogue })

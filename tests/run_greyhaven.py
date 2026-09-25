@@ -41,6 +41,9 @@ required = [
     "quests/quest_defs.lua",
     "quests/quest_registry.lua",
     "quests/quests.lua",
+    "event_bindings/binding_defs.lua",
+    "event_bindings/binding_registry.lua",
+    "event_bindings/event_bindings.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -103,4 +106,6 @@ assert 'condition.type == "quest_objective"' in conditions_source
 world_actions_source = (ROOT / "actions/world_actions.lua").read_text()
 for action_type in ("start_quest", "advance_quest", "complete_quest"):
     assert action_type in world_actions_source
+for contract in ("binding_registry_api.new", "event_bindings.create", "event_bindings.destroy"):
+    assert contract in manager, contract
 print("Greyhaven project wiring passed")
