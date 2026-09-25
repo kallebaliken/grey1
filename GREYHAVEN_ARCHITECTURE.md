@@ -26,7 +26,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Runtime mutation is stored only under `world_state.objects[object_id]`; static placements are not edited.
 - Current-Z objects and relevant roofs at Z+1 render. Interaction and collision occur only at the actor's actual Z.
 - Roof hiding uses matching `interior_group`/`roof_group` world metadata plus object-authored reveal zones.
-- Saves contain player position/facing, object deltas, flags, inventory ownership, static-item overrides, dynamic world items, map identity, and schema version—never unchanged static geometry.
+- Saves contain player position/facing, object deltas, flags, quest runtime state, inventory ownership, static-item overrides, dynamic world items, map identity, and schema version—never unchanged static geometry or immutable quest definitions.
 - Item definitions and item instances are distinct. Definitions are copied behind a registry boundary; instances own quantity and state, and non-stackable items always have quantity one.
 - Containers hold copied item instances in deterministic slot order and expose copied snapshots. Existing stack IDs survive merges; overflow keeps the incoming ID and is returned rather than discarded when no slot is available.
 - An inventory is an ownership wrapper around one generic container, not a second storage implementation. Ownership is represented by a stable ID rather than an actor reference, and all storage behavior delegates to the container.
@@ -44,6 +44,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Faction definitions, directional authored relationships, and Actor associations live outside Actor state. Queries default valid unconfigured pairs to neutral and never trigger targeting, movement, combat, dialogue, or other behavior.
 - Dialogue definitions are immutable validated graphs; one external runtime session advances only through explicit adjacent Actor interaction and choice input. Dialogue conditions are read-only, while optional choice actions delegate only stable boolean flag writes to the generic world-action executor. Dialogue never mutates Actors, combat, inventory, or factions.
 - WorldState owns persistent boolean flags; the generic recursive condition evaluator reads them without side effects. Dialogue hides choices whose validated conditions fail, and an explicitly selected choice may set flags only through a fully prevalidated authored action list.
+- Quest definitions remain immutable registry data while a private runtime service owns `active`/`completed` status and bounded objective counters. Start, progress, and completion are explicit, event-producing operations with no rewards, world mutations, dialogue coupling, or automatic discovery.
 
 ## Scale boundary
 

@@ -29,6 +29,10 @@ local dialogue_registry_api = require "dialogue.dialogue_registry"
 local dialogue = require "dialogue.dialogue"
 local conditions = require "conditions.conditions"
 local world_actions = require "actions.world_actions"
+local quest_definitions = require "quests.quest_defs"
+local quest_registry_api = require "quests.quest_registry"
+local quest_statuses = require "quests.quest_statuses"
+local quests = require "quests.quests"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -230,6 +234,93 @@ test("world flag actions validate complete batches and execute in authored order
     equal(#results, 2); assert(not results[1].previous); assert(results[1].value)
     assert(results[2].previous); assert(not results[2].value)
     assert(not state_api.get_flag(state, "greyhaven.action.flag"))
+end)
+
+test("quest definitions validate and registry snapshots are isolated", function()
+    local registry = quest_registry_api.new(quest_definitions)
+    assert(registry:has("rat_problem")); equal(#registry:get_all(), 1)
+    local definition = registry:get("rat_problem")
+    equal(definition.title, "A Small Rat Problem"); equal(definition.objectives[1].target, 1)
+    definition.title = "Changed"; definition.objectives[1].target = 99
+    equal(registry:get("rat_problem").title, "A Small Rat Problem")
+    equal(registry:get("rat_problem").objectives[1].target, 1)
+    assert(not pcall(function() registry:register(quest_definitions.rat_problem) end))
+    local function invalid(definition_source)
+        return quest_registry_api.new({ bad = definition_source })
+    end
+    assert(not pcall(invalid, { id = "bad id", title = "Bad", objectives = {
+        { id = "one", description = "One", target = 1 } } }))
+    assert(not pcall(invalid, { id = "bad", title = "", objectives = {
+        { id = "one", description = "One", target = 1 } } }))
+    assert(not pcall(invalid, { id = "bad", title = "Bad", objectives = {
+        { id = "one", description = "", target = 1 } } }))
+    assert(not pcall(invalid, { id = "bad", title = "Bad", objectives = {
+        { id = "one", description = "One", target = 0 } } }))
+    assert(not pcall(invalid, { id = "bad", title = "Bad", objectives = {
+        { id = "one", description = "One", target = 1 },
+        { id = "one", description = "Again", target = 2 } } }))
+end)
+
+test("quest runtime explicitly starts, progresses, completes, emits once, and isolates state", function()
+    events.clear()
+    local registry = quest_registry_api.new(quest_definitions)
+    local started, progressed, objective_completed, completed = 0, 0, 0, 0
+    local progress_payload
+    events.on("quest_started", function() started = started + 1 end)
+    events.on("quest_objective_progressed", function(payload)
+        progressed = progressed + 1; progress_payload = payload
+    end)
+    events.on("quest_objective_completed", function() objective_completed = objective_completed + 1 end)
+    events.on("quest_completed", function() completed = completed + 1 end)
+    local service = quests.create(registry, events)
+    equal(quests.get_status(service, "rat_problem"), quest_statuses.NOT_STARTED)
+    assert(next(quests.get_snapshot(service)) == nil)
+    assert(quests.get_status(service, "missing") == nil)
+    local before_progress, before_reason = quests.get_objective_progress(service, "rat_problem", "investigate")
+    assert(before_progress == nil); equal(before_reason, "not_started")
+    local early_complete, early_reason = quests.complete(service, "rat_problem")
+    assert(not early_complete); equal(early_reason, "not_started"); equal(completed, 0)
+    assert(quests.start(service, "rat_problem")); equal(started, 1)
+    local restarted, restart_reason = quests.start(service, "rat_problem")
+    assert(not restarted); equal(restart_reason, "already_active"); equal(started, 1)
+    equal(quests.get_objective_progress(service, "rat_problem", "investigate"), 0)
+    local incomplete, incomplete_reason = quests.complete(service, "rat_problem")
+    assert(not incomplete); equal(incomplete_reason, "objectives_incomplete")
+    local invalid, invalid_reason = quests.advance_objective(service, "rat_problem", "investigate", -1)
+    assert(not invalid); equal(invalid_reason, "invalid_amount"); equal(progressed, 0)
+    local unknown, unknown_reason = quests.advance_objective(service, "rat_problem", "missing", 1)
+    assert(not unknown); equal(unknown_reason, "unknown_objective"); equal(progressed, 0)
+    assert(quests.advance_objective(service, "rat_problem", "investigate", 5))
+    equal(progress_payload.previous, 0); equal(progress_payload.progress, 1); equal(progress_payload.target, 1)
+    equal(progressed, 1); equal(objective_completed, 1)
+    assert(quests.is_objective_complete(service, "rat_problem", "investigate"))
+    local over, over_reason = quests.advance_objective(service, "rat_problem", "investigate", 1)
+    assert(not over); equal(over_reason, "objective_completed")
+    equal(progressed, 1); equal(objective_completed, 1)
+    assert(quests.complete(service, "rat_problem")); equal(completed, 1)
+    equal(quests.get_status(service, "rat_problem"), quest_statuses.COMPLETED)
+    local twice, twice_reason = quests.complete(service, "rat_problem")
+    assert(not twice); equal(twice_reason, "already_completed"); equal(completed, 1)
+    local snapshot = quests.get_snapshot(service); snapshot.rat_problem.status = quest_statuses.ACTIVE
+    equal(quests.get_status(service, "rat_problem"), quest_statuses.COMPLETED)
+    assert(not pcall(quests.create, registry, nil, { missing = {
+        status = quest_statuses.ACTIVE, objectives = { investigate = 0 } } }))
+    assert(not pcall(quests.create, registry, nil, { rat_problem = {
+        status = quest_statuses.COMPLETED, objectives = { investigate = 0 } } }))
+
+    local multi_registry = quest_registry_api.new({ multi = { id = "multi", title = "Multiple", objectives = {
+        { id = "first", description = "First", target = 2 },
+        { id = "second", description = "Second", target = 1 },
+    } } })
+    local multi = quests.create(multi_registry)
+    assert(quests.start(multi, "multi"))
+    assert(quests.advance_objective(multi, "multi", "first", 1))
+    equal(quests.get_objective_progress(multi, "multi", "first"), 1)
+    assert(quests.advance_objective(multi, "multi", "first", 10))
+    equal(quests.get_objective_progress(multi, "multi", "first"), 2)
+    local not_all, not_all_reason = quests.complete(multi, "multi")
+    assert(not not_all); equal(not_all_reason, "objectives_incomplete")
+    assert(quests.advance_objective(multi, "multi", "second", 1)); assert(quests.complete(multi, "multi"))
 end)
 
 test("faction definitions and directional relationships are canonical and isolated", function()
@@ -788,7 +879,7 @@ test("combat capabilities stop dead movement, interaction, and supplied routes",
     assert(movement.begin(world, living, 1, 0))
 end)
 
-test("save v4 preserves player combat state and a fresh registry resets health", function()
+test("save v5 preserves player combat state and a fresh registry resets health", function()
     local world, inventory, registry = world_item_fixture(2)
     local actor = actor_api.new("player", "player", 1, 1, 7); actor.inventory = inventory
     actor.equipment = equipment_api.create("equipment.combat.save", actor.id, registry); world:place_actor(actor)
@@ -1558,18 +1649,22 @@ test("world item placement and pickup reject invalid content", function()
     assert(world_items.get(world, "world.sealed")); assert(not inventory_api.has_item_type(inventory, "sealed_stone"))
 end)
 
-test("save v4 serializes empty and populated ownership snapshots safely", function()
+test("save v5 serializes empty and populated ownership snapshots safely", function()
     local world, empty_inventory, registry = world_item_fixture(3)
     state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", true)
     world_actions.execute({ type = "set_flag", id = "greyhaven.met_test_villager", value = true },
         { world_state = world.state })
     local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
     actor.equipment = equipment_api.create("equipment.hero", actor.id, registry)
-    local empty = save_data.capture(actor, world, world.map.id)
-    equal(empty.version, 4); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
+    local quest_registry = quest_registry_api.new(quest_definitions)
+    local quest_service = quests.create(quest_registry)
+    assert(quests.start(quest_service, "rat_problem"))
+    local empty = save_data.capture(actor, world, world.map.id, nil, quests.get_snapshot(quest_service))
+    equal(empty.version, 5); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
     assert(empty.flags["greyhaven.test_dialogue_flag"])
     assert(empty.flags["greyhaven.met_test_villager"])
-    local old = state_api.copy(empty); old.version = 3
+    equal(empty.quests.rat_problem.status, quest_statuses.ACTIVE)
+    local old = state_api.copy(empty); old.version = 4
     local old_valid, old_reason = save_data.validate(old, world.map)
     assert(not old_valid); equal(old_reason, "unsupported_save_version")
 
@@ -1577,11 +1672,14 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
         quantity = 8, state = { quality = "dried" } }, registry))
     inventory_api.add_item(actor.inventory, item_instance.new({ id = "save.key", type = "old_iron_key",
         state = { lock = "cellar" } }, registry))
-    local decoded = codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id)))
+    assert(quests.advance_objective(quest_service, "rat_problem", "investigate", 1))
+    local decoded = codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id, nil,
+        quests.get_snapshot(quest_service))))
     local valid, reason = save_data.validate(decoded, world.map)
     assert(valid, reason); equal(decoded.inventory.items[1].id, "save.herb")
     assert(decoded.flags["greyhaven.test_dialogue_flag"])
     assert(decoded.flags["greyhaven.met_test_villager"])
+    equal(decoded.quests.rat_problem.objectives.investigate, 1)
     equal(decoded.inventory.items[1].quantity, 8); equal(decoded.inventory.items[1].state.quality, "dried")
     equal(decoded.inventory.items[2].id, "save.key"); equal(decoded.inventory.items[2].state.lock, "cellar")
     decoded.inventory.items[1].state.quality = "changed"
@@ -1592,12 +1690,22 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
     local restored_state = state_api.new(decoded)
     assert(state_api.get_flag(restored_state, "greyhaven.test_dialogue_flag"))
     assert(state_api.get_flag(restored_state, "greyhaven.met_test_villager"))
+    local restored_quests = quests.create(quest_registry, nil, save_data.restore_quests(decoded))
+    equal(quests.get_status(restored_quests, "rat_problem"), quest_statuses.ACTIVE)
+    equal(quests.get_objective_progress(restored_quests, "rat_problem", "investigate"), 1)
+    assert(quests.complete(quest_service, "rat_problem"))
+    local completed_save = save_data.capture(actor, world, world.map.id, nil, quests.get_snapshot(quest_service))
+    local completed_quests = quests.create(quest_registry, nil, save_data.restore_quests(completed_save))
+    equal(quests.get_status(completed_quests, "rat_problem"), quest_statuses.COMPLETED)
     local invalid_flags = state_api.copy(decoded); invalid_flags.flags["bad flag"] = true
     local flags_valid, flags_reason = save_data.validate(invalid_flags, world.map)
     assert(not flags_valid); equal(flags_reason, "invalid_world_flags")
+    local invalid_quests = state_api.copy(decoded); invalid_quests.quests.rat_problem.status = "failed"
+    local quests_valid, quests_reason = save_data.validate(invalid_quests, world.map)
+    assert(not quests_valid); equal(quests_reason, "invalid_quest_state")
 end)
 
-test("save v4 restores exclusive inventory, equipment, and world ownership", function()
+test("save v5 restores exclusive inventory, equipment, and world ownership", function()
     events.clear()
     local map = map_loader.load("data.maps.prototype")
     local registry = item_registry_api.new(item_definitions)
@@ -1679,6 +1787,8 @@ test("fresh session after reset uses authored item state", function()
     assert(equipment_api.is_slot_empty(fresh_equipment, "main_hand"))
     assert(not state_api.get_flag(fresh_world.state, "greyhaven.test_dialogue_flag"))
     assert(not state_api.get_flag(fresh_world.state, "greyhaven.met_test_villager"))
+    local fresh_quests = quests.create(quest_registry_api.new(quest_definitions))
+    equal(quests.get_status(fresh_quests, "rat_problem"), quest_statuses.NOT_STARTED)
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

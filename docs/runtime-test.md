@@ -26,6 +26,9 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **O** | Development control: equip/unequip the first compatible inventory armor in `torso` |
 | **P** | Explicitly invoke one test-rat attack against the player; the rat remains otherwise inert |
 | **T** | Development control: toggle `greyhaven.test_dialogue_flag` while no dialogue is active |
+| **Y** | Development control: explicitly start `rat_problem` |
+| **U** | Development control: advance its `investigate` objective by one |
+| **I** | Development control: explicitly complete it after all objectives are complete |
 | **1–4** | Select the corresponding choice while dialogue is active |
 | **Escape** | Close the active dialogue session |
 | **F1** | Toggle diagnostics |
@@ -34,7 +37,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
 
-F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, render-command count, active dynamic GUI nodes, path status, tile context, inventory, and equipment. There is no equipment or combat GUI; **L**, **O**, and **P** are development-only.
+F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-command count, active dynamic GUI nodes, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
 
 Diagnostics identify the player faction as `player`, `npc_test_villager` as definition `test_villager` / type `npc` / faction `townsfolk`, and `monster_test_rat` as definition `rat` / type `monster` / faction `vermin`. Villager-to-player is friendly and rat-to-player is hostile. These associations live outside the generic Actor.
 
@@ -68,7 +71,7 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 4. Press **J** until it reaches `0/20`, `dead: true`. The rat remains visible and occupies its tile.
 5. Press **J** again. Confirm the status reports `actor_dead`, health remains zero, and no repeated death error occurs.
 6. The test rat has no autonomous or debug path command. Automated tests verify that a dead Actor's supplied route blocks; no Actor chooses a new route.
-7. Save/load after player damage when a future player-damage control exists; Save Format v4 already persists player health. Rat damage intentionally resets because static Actor combat persistence is deferred.
+7. Save/load after player damage when a future player-damage control exists; Save Format v5 already persists player health. Rat damage intentionally resets because static Actor combat persistence is deferred.
 8. Press **F8** and confirm both authored health values are full with dead flags cleared. Confirm no Defold runtime errors occurred.
 
 ## Explicit attack check
@@ -153,6 +156,19 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 6. Reopen dialogue and confirm conditioned content reflects the restored flag.
 7. Press **F8** and confirm the flag returns to false and the conditioned response is absent until the authored action runs again.
 8. Confirm no Defold runtime errors and no items, quests, health, movement, factions, or AI were changed.
+
+## Minimal quest-state check
+
+1. Press **F8**, enable **F1**, and confirm `A Small Rat Problem` is `not_started` with `investigate` shown as `0/1`.
+2. Press **U** or **I** first and confirm the rejected update leaves the quest unchanged.
+3. Press **Y** and confirm status becomes `active` and one `quest_started` transition is reported.
+4. Press **Y** again and confirm the active quest is not reset.
+5. Press **I** and confirm completion is rejected while the objective is incomplete.
+6. Press **U** and confirm `investigate` becomes `1/1`; press **U** again and confirm it stays clamped with no repeated completion.
+7. Press **I** and confirm status becomes `completed`; press **I** again and confirm no repeated completion.
+8. Press **F5**, restart/load or press **F9**, and confirm completed status and `1/1` progress survive.
+9. Press **F8** and confirm the quest returns to `not_started` and `0/1`.
+10. Confirm no rewards, items, XP, money, flags, dialogue, Actors, factions, combat, or world objects changed and no Defold runtime errors occurred.
 
 ## Expected prototype content
 

@@ -48,9 +48,9 @@ Armor behavior is also definition data. The prototype authors `test.armor.01` as
 
 `player_attack` explicitly composes the player. Non-player attack capability comes from optional creature-definition `attack` metadata and still uses the same fixed-damage service. Cooldown runtime is session-only and is not map or save mutation.
 
-`player_inventory` is the authored new-game inventory. Save v4 replaces it with the saved inventory snapshot on load; reset returns to this authored value. It is content input, not a live runtime container.
+`player_inventory` is the authored new-game inventory. Save v5 replaces it with the saved inventory snapshot on load; reset returns to this authored value. It is content input, not a live runtime container.
 
-`player_equipment` is the authored new-game equipment snapshot. Its slot keys must come from `items/equipment_slots.lua`, and each item must satisfy its definition's equipment policy. Save v4 restores equipment separately from inventory so ownership stays exclusive.
+`player_equipment` is the authored new-game equipment snapshot. Its slot keys must come from `items/equipment_slots.lua`, and each item must satisfy its definition's equipment policy. Save v5 restores equipment separately from inventory so ownership stays exclusive.
 
 Coordinates are integer tiles and `tile_size` is 32. Storage maps them into 32×32 chunks; chunking is an implementation detail and does not leak into authored placement coordinates. Lower and higher Z values are both valid. Only the current gameplay level is interactive.
 

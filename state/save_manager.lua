@@ -3,8 +3,8 @@ local M = {}
 local FILE_NAME = "engine_test"
 
 function M.path() return sys.get_save_file("greyhaven", FILE_NAME) end
-function M.save(player, world, map_id, player_combat)
-    local snapshot = save_data.capture(player, world, map_id, player_combat)
+function M.save(player, world, map_id, player_combat, quest_snapshot)
+    local snapshot = save_data.capture(player, world, map_id, player_combat, quest_snapshot)
     local valid = save_data.validate(snapshot, world.map)
     return valid and sys.save(M.path(), snapshot) or false
 end

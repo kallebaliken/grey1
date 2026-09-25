@@ -8,4 +8,4 @@ The test-villager's ordinary “What is this place?” response sets `greyhaven.
 
 WorldState stores facts, Conditions read facts, Actions mutate facts, and Dialogue chooses where authored conditions/actions apply. Future quests may reuse those boundaries; item rewards, quest actions, arbitrary callbacks, AI, and conditional scripts remain deliberately absent.
 
-Only resulting flag state is persistent. Action history and active dialogue sessions are not saved. Save Format v4 already stores WorldState flags, and reset creates fresh state where unset flags—including `greyhaven.met_test_villager`—read as false.
+Only resulting flag state is persistent. Action history and active dialogue sessions are not saved. Save Format v5 already stores WorldState flags, and reset creates fresh state where unset flags—including `greyhaven.met_test_villager`—read as false.

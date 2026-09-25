@@ -6,7 +6,8 @@ local position = require "world.position"
 local direction = require "world.direction"
 local state_api = require "state.world_state"
 local world_items = require "world.world_items"
-local M = { VERSION = 4 }
+local quest_statuses = require "quests.quest_statuses"
+local M = { VERSION = 5 }
 
 local function equal(left, right, seen)
     if type(left) ~= type(right) then return false end
@@ -41,7 +42,7 @@ local function reserve(used, id)
     return true
 end
 
-function M.capture(player, world, map_id, player_combat)
+function M.capture(player, world, map_id, player_combat, quest_snapshot)
     assert(player.inventory, "player inventory is required for save capture")
     assert(player.equipment, "player equipment is required for save capture")
     local placements = static_placements(world.map)
@@ -74,6 +75,7 @@ function M.capture(player, world, map_id, player_combat)
         y = player.position.y, z = player.position.z, facing = player.facing },
         combat = { player = state_api.copy(player_combat) },
         objects = state_api.copy(world.state.objects), flags = state_api.copy(world.state.flags),
+        quests = state_api.copy(quest_snapshot or {}),
         inventory = inventory_api.snapshot(player.inventory), equipment = equipment_api.snapshot(player.equipment),
         world_items = item_state }
 end
@@ -90,6 +92,17 @@ function M.validate(data, expected_map)
     if type(data.objects) ~= "table" or type(data.flags) ~= "table" then return false, "invalid_world_state" end
     for flag_id, value in pairs(data.flags) do
         if not valid_id(flag_id) or type(value) ~= "boolean" then return false, "invalid_world_flags" end
+    end
+    if type(data.quests) ~= "table" then return false, "invalid_quest_state" end
+    for quest_id, quest in pairs(data.quests) do
+        if not valid_id(quest_id) or type(quest) ~= "table"
+            or (quest.status ~= quest_statuses.ACTIVE and quest.status ~= quest_statuses.COMPLETED)
+            or type(quest.objectives) ~= "table" then return false, "invalid_quest_state" end
+        for objective_id, progress in pairs(quest.objectives) do
+            if not valid_id(objective_id) or type(progress) ~= "number" or progress < 0 or progress % 1 ~= 0 then
+                return false, "invalid_quest_state"
+            end
+        end
     end
     local player_combat = data.combat and data.combat.player
     if type(player_combat) ~= "table" or not valid_id(player_combat.actor_id)
@@ -160,6 +173,10 @@ end
 
 function M.restore_player_combat(data)
     return state_api.copy(data.combat.player)
+end
+
+function M.restore_quests(data)
+    return state_api.copy(data.quests)
 end
 
 function M.apply_static_item_overrides(world, data)

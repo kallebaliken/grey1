@@ -32,6 +32,9 @@ local factions = require "factions.factions"
 local dialogue_definitions = require "dialogue.dialogue_defs"
 local dialogue_registry_api = require "dialogue.dialogue_registry"
 local dialogue = require "dialogue.dialogue"
+local quest_definitions = require "quests.quest_defs"
+local quest_registry_api = require "quests.quest_registry"
+local quests = require "quests.quests"
 local view_model = require "main.view_model"
 local viewport_api = require "render.viewport"
 
@@ -96,6 +99,9 @@ local function render(self)
     end
     local last_attack = self.last_attack
     local conversation = dialogue.get_current(self.dialogue)
+    local quest_definition = self.quest_registry:get("rat_problem")
+    local quest_status = quests.get_status(self.quests, "rat_problem")
+    local quest_progress = quests.get_objective_progress(self.quests, "rat_problem", "investigate") or 0
     local dialogue_text = ""
     if conversation then
         local lines = { conversation.speaker_name, "", conversation.text, "" }
@@ -129,6 +135,8 @@ local function render(self)
         dialogue_node = conversation and conversation.node_id or "none",
         test_dialogue_flag = state_api.get_flag(self.state, TEST_DIALOGUE_FLAG),
         met_villager_flag = state_api.get_flag(self.state, MET_VILLAGER_FLAG),
+        quest_title = quest_definition.title, quest_status = quest_status,
+        quest_progress = quest_progress, quest_target = quest_definition.objectives[1].target,
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -178,6 +186,8 @@ local function create_session(self, map, loaded)
         creatures.spawn(self.creatures, placement)
     end
     self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events)
+    self.quest_registry = quest_registry_api.new(quest_definitions)
+    self.quests = quests.create(self.quest_registry, events, loaded and save_data.restore_quests(loaded) or nil)
     actions.register_defaults({ dialogue = self.dialogue })
     self.path_controller = movement_controller.create(self.world, events)
     self.last_attack = nil
@@ -325,6 +335,18 @@ function on_input(self, action_id, action)
         state_api.set_flag(self.state, TEST_DIALOGUE_FLAG, value)
         self.notice = "Dialogue flag: " .. tostring(value)
         render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_start") then
+        local changed, reason = quests.start(self.quests, "rat_problem")
+        self.notice = changed and "Quest started" or ("Quest start: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_advance") then
+        local changed, reason = quests.advance_objective(self.quests, "rat_problem", "investigate", 1)
+        self.notice = changed and "Quest objective advanced" or ("Quest advance: " .. tostring(reason))
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_quest_complete") then
+        local changed, reason = quests.complete(self.quests, "rat_problem")
+        self.notice = changed and "Quest completed" or ("Quest complete: " .. tostring(reason))
+        render(self); return true
     elseif action.pressed and action_id == hash("drop_item") then
         local first = inventory_api.get_items(self.player.inventory)[1]
         if not first then self.notice = "Drop: inventory empty"
@@ -336,7 +358,8 @@ function on_input(self, action_id, action)
         render(self); return true
     elseif action.pressed and action_id == hash("save") then
         self.notice = save_manager.save(self.player, self.world, self.map.id,
-            combat_registry.get(self.combat, self.player.id)) and "Game saved" or "Save failed"; render(self); return true
+            combat_registry.get(self.combat, self.player.id), quests.get_snapshot(self.quests))
+            and "Game saved" or "Save failed"; render(self); return true
     elseif action.pressed and action_id == hash("load") then load_game(self); render(self); return true
     elseif action.pressed and action_id == hash("reset_save") then
         save_manager.reset(); create_session(self, map_loader.load("data.maps.prototype"), nil)

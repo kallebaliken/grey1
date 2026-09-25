@@ -1,6 +1,6 @@
 # Persistent world flags and conditions
 
-`state/world_state.lua` remains the single mutable world-fact store. Boolean flags use stable IDs, unset flags read as `false`, `set_flag` accepts only booleans, and `has_flag` distinguishes an unset flag from an explicitly stored `false`. The existing Save Format v4 `flags` table persists these values; reset constructs fresh authored state with every unset flag false.
+`state/world_state.lua` remains the single mutable world-fact store. Boolean flags use stable IDs, unset flags read as `false`, `set_flag` accepts only booleans, and `has_flag` distinguishes an unset flag from an explicitly stored `false`. The existing Save Format v5 `flags` table persists these values; reset constructs fresh authored state with every unset flag false.
 
 `conditions/conditions.lua` is a pure read-only evaluator. Supported schemas are:
 
@@ -22,7 +22,7 @@ The architectural boundary is:
 - Dialogue may use conditions to determine available content.
 - Actions may mutate facts, but never from condition evaluation.
 - Future Actions may change World State.
-- Future Quests may compose conditions and actions.
+- QuestState is currently explicit and independent; future quest integration may query conditions or invoke actions through separate authored policies.
 - Future AI may query conditions but remains separate.
 
 Only boolean flag conditions exist. Item, inventory, faction, health, Actor, script, and arbitrary Lua conditions remain deferred.

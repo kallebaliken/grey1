@@ -15,7 +15,7 @@ Canary Creature health/death
 
 A dead Actor remains registered, rendered, identifiable, and occupying its tile. It cannot begin movement or ordinary interaction. The shared capability policy defaults to allowing Actors without combat state, preserving existing fixtures and incremental migration. A supplied path stops as `blocked` when its next shared-movement step is rejected after death; there is no replanning.
 
-The player starts with 100 health and Save Format v4 persists the player's current/max health and dead flag. The authored `monster_test_rat` starts with 20 health after every session construction or F8 reset. Static NPC/monster combat persistence is deferred until Actor persistence has a general delta model.
+The player starts with 100 health and Save Format v5 persists the player's current/max health and dead flag. The authored `monster_test_rat` starts with 20 health after every session construction or F8 reset. Static NPC/monster combat persistence is deferred until Actor persistence has a general delta model.
 
 Weapons, armor, formulas, critical hits, ranged attacks, projectiles, mana, spells, conditions, healing, regeneration, death animation, corpses, loot, XP, respawn, combat AI, and target selection are explicitly absent.
 
