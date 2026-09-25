@@ -120,7 +120,8 @@ end)
 
 test("creature definitions validate registration and isolate snapshots", function()
     local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
-    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions,
+        quest_registry_api.new(quest_definitions))
     local registry = creature_registry_api.new(creature_definitions, faction_registry, dialogue_registry)
     assert(registry:has("rat") and registry:has("test_villager"))
     equal(#registry:get_all(), 2)
@@ -145,18 +146,23 @@ test("creature definitions validate registration and isolate snapshots", functio
 end)
 
 test("dialogue definitions validate graphs and isolate snapshots", function()
-    local registry = dialogue_registry_api.new(dialogue_definitions)
+    local quest_registry = quest_registry_api.new(quest_definitions)
+    local registry = dialogue_registry_api.new(dialogue_definitions, quest_registry)
     local definition = registry:get("test_villager")
     equal(definition.start, "greeting"); equal(definition.nodes.greeting.choices[1].id, "ask_place")
     definition.nodes.greeting.text = "Changed"; definition.nodes.greeting.choices[1].text = "Changed"
     definition.nodes.greeting.choices[1].actions[1].value = false
     definition.nodes.greeting.choices[2].conditions[1].equals = false
+    definition.nodes.greeting.choices[3].conditions[1].equals = quest_statuses.COMPLETED
     equal(registry:get("test_villager").nodes.greeting.text, "Morning, traveler.")
     assert(registry:get("test_villager").nodes.greeting.choices[1].actions[1].value)
     assert(registry:get("test_villager").nodes.greeting.choices[2].conditions[1].equals)
+    equal(registry:get("test_villager").nodes.greeting.choices[3].conditions[1].equals,
+        quest_statuses.ACTIVE)
     assert(not pcall(function() registry:register(dialogue_definitions.test_villager) end))
     local function invalid(nodes, start)
-        return dialogue_registry_api.new({ bad = { id = "bad", start = start or "start", nodes = nodes } })
+        return dialogue_registry_api.new({ bad = { id = "bad", start = start or "start", nodes = nodes } },
+            quest_registry)
     end
     assert(not pcall(invalid, { { id = "other", text = "Text", choices = {
         { id = "close", text = "Close", close = true } } } }, "missing"))
@@ -179,6 +185,16 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
         { id = "action", text = "Bad", close = true,
             actions = { { type = "set_flag", id = "greyhaven.flag", value = "true" } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "quest", text = "Bad", close = true,
+            conditions = { { type = "quest_status", id = "missing", equals = quest_statuses.ACTIVE } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "quest", text = "Bad", close = true,
+            conditions = { { type = "quest_status", id = "rat_problem", equals = "failed" } } } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "quest", text = "Bad", close = true, conditions = { {
+            type = "quest_objective", quest_id = "rat_problem", objective_id = "missing", complete = true,
+        } } } } } }))
 end)
 
 test("world flags and recursive conditions are deterministic and side-effect free", function()
@@ -323,6 +339,67 @@ test("quest runtime explicitly starts, progresses, completes, emits once, and is
     assert(quests.advance_objective(multi, "multi", "second", 1)); assert(quests.complete(multi, "multi"))
 end)
 
+test("generic conditions query quest status and objectives without side effects", function()
+    events.clear()
+    local registry = quest_registry_api.new(quest_definitions)
+    local service = quests.create(registry, events)
+    local state = state_api.new()
+    state_api.set_flag(state, "greyhaven.condition.flag", true)
+    local context = { world_state = state, quests = service, quest_registry = registry }
+    local not_started = { type = "quest_status", id = "rat_problem", equals = quest_statuses.NOT_STARTED }
+    local active = { type = "quest_status", id = "rat_problem", equals = quest_statuses.ACTIVE }
+    local completed = { type = "quest_status", id = "rat_problem", equals = quest_statuses.COMPLETED }
+    local incomplete_objective = { type = "quest_objective", quest_id = "rat_problem",
+        objective_id = "investigate", complete = false }
+    local complete_objective = { type = "quest_objective", quest_id = "rat_problem",
+        objective_id = "investigate", complete = true }
+    assert(conditions.validate(not_started, registry)); assert(conditions.validate(complete_objective, registry))
+    assert(conditions.evaluate(not_started, context)); assert(not conditions.evaluate(active, context))
+    assert(conditions.evaluate(incomplete_objective, context)); assert(not conditions.evaluate(complete_objective, context))
+    assert(not pcall(conditions.validate,
+        { type = "quest_status", id = "rat_problem", equals = "failed" }, registry))
+    assert(not pcall(conditions.validate,
+        { type = "quest_status", id = "missing", equals = quest_statuses.ACTIVE }, registry))
+    assert(not pcall(conditions.validate, { type = "quest_objective", quest_id = "rat_problem",
+        objective_id = "missing", complete = true }, registry))
+    assert(not pcall(conditions.validate, { type = "quest_objective", quest_id = "rat_problem",
+        objective_id = "investigate", complete = 1 }, registry))
+
+    local flag_true = { type = "flag", id = "greyhaven.condition.flag", equals = true }
+    assert(not conditions.evaluate({ all = { flag_true, active } }, context))
+    assert(conditions.evaluate({ any = { flag_true, active } }, context))
+    assert(conditions.evaluate({ ["not"] = active }, context))
+
+    local quest_events = 0
+    events.on("quest_started", function() quest_events = quest_events + 1 end)
+    events.on("quest_objective_progressed", function() quest_events = quest_events + 1 end)
+    events.on("quest_objective_completed", function() quest_events = quest_events + 1 end)
+    events.on("quest_completed", function() quest_events = quest_events + 1 end)
+    local before = codec.serialize(quests.get_snapshot(service))
+    for _ = 1, 3 do
+        assert(conditions.evaluate(not_started, context)); assert(conditions.evaluate(incomplete_objective, context))
+    end
+    equal(codec.serialize(quests.get_snapshot(service)), before); equal(quest_events, 0)
+
+    assert(quests.start(service, "rat_problem")); equal(quest_events, 1)
+    assert(conditions.evaluate(active, context)); assert(not conditions.evaluate(not_started, context))
+    assert(conditions.evaluate(incomplete_objective, context))
+    assert(conditions.evaluate({ all = { flag_true, active } }, context))
+    assert(quests.advance_objective(service, "rat_problem", "investigate", 1)); equal(quest_events, 3)
+    local progress = quests.get_objective_progress(service, "rat_problem", "investigate")
+    for _ = 1, 3 do assert(conditions.evaluate(complete_objective, context)) end
+    equal(quests.get_objective_progress(service, "rat_problem", "investigate"), progress); equal(quest_events, 3)
+    assert(quests.complete(service, "rat_problem")); equal(quest_events, 4)
+    assert(conditions.evaluate(completed, context)); assert(conditions.evaluate(complete_objective, context))
+
+    local restored = quests.create(registry, nil, quests.get_snapshot(service))
+    local restored_context = { world_state = state, quests = restored, quest_registry = registry }
+    assert(conditions.evaluate(completed, restored_context))
+    local reset = quests.create(registry)
+    local reset_context = { world_state = state, quests = reset, quest_registry = registry }
+    assert(conditions.evaluate(not_started, reset_context)); assert(conditions.evaluate(incomplete_objective, reset_context))
+end)
+
 test("faction definitions and directional relationships are canonical and isolated", function()
     local registry = faction_registry_api.new(faction_definitions, relationship_definitions)
     assert(registry:has("player") and registry:has("townsfolk") and registry:has("vermin"))
@@ -393,15 +470,18 @@ end
 local function creature_services(world, definitions_source)
     local faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
     local faction_service = factions.create(world, faction_registry)
-    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    local quest_registry = quest_registry_api.new(quest_definitions)
+    local quest_service = quests.create(quest_registry, events)
+    local dialogue_registry = dialogue_registry_api.new(dialogue_definitions, quest_registry)
     local registry = creature_registry_api.new(definitions_source or creature_definitions, faction_registry,
         dialogue_registry)
     local combat = combat_registry.create(world, events)
     local attack_service = attacks.create(world, combat, events)
     local creature_service = creatures.create(world, registry, combat, attack_service, events, faction_service)
-    local dialogue_service = dialogue.create(world, dialogue_registry, creature_service, combat, events)
+    local dialogue_service = dialogue.create(world, dialogue_registry, creature_service, combat, events,
+        quest_service, quest_registry)
     return creature_service, registry, combat, attack_service, faction_service, faction_registry,
-        dialogue_service, dialogue_registry
+        dialogue_service, dialogue_registry, quest_service, quest_registry
 end
 
 test("creature spawning composes optional Actor combat and attack state", function()
@@ -531,7 +611,9 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     equal(#dialogue.get_current(dialogue_service).choices, 2)
     local stale_index, stale_reason = dialogue.choose_index(dialogue_service, 3)
     assert(not stale_index); equal(stale_reason, "invalid_choice")
-    equal(dialogue_registry_api.new(dialogue_definitions):get("test_villager").nodes.greeting.choices[2].id, "ask_rat")
+    local isolated_dialogue_registry = dialogue_registry_api.new(dialogue_definitions,
+        quest_registry_api.new(quest_definitions))
+    equal(isolated_dialogue_registry:get("test_villager").nodes.greeting.choices[2].id, "ask_rat")
     assert(player.dialogue == nil and villager.dialogue == nil)
     local ok, reason = dialogue.choose(dialogue_service, "missing")
     assert(not ok); equal(reason, "invalid_choice"); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
@@ -569,6 +651,71 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     equal(combat_registry.get(combat, player.id).health, player_health)
     equal(codec.serialize(inventory_api.snapshot(player.inventory)), inventory_before)
     assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
+end)
+
+test("dialogue filters quest-aware choices through generic read-only conditions", function()
+    events.clear()
+    local world = path_world(3, 2)
+    local creature_service, _, combat, _, _, _, dialogue_service, dialogue_registry,
+        quest_service, quest_registry = creature_services(world)
+    local player = actor_api.new("dialogue.quest.player", "player", 0, 0, 7, "east")
+    world:place_actor(player); assert(combat_registry.add(combat, player.id, 20))
+    local villager = creatures.spawn(creature_service, { id = "dialogue.quest.villager",
+        creature = "test_villager", x = 1, y = 0, z = 7, facing = "west" })
+    local function has_choice(choice_id)
+        for _, choice in ipairs(dialogue.get_current(dialogue_service).choices) do
+            if choice.id == choice_id then return true end
+        end
+        return false
+    end
+
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    assert(not has_choice("active_rat_problem")); assert(not has_choice("completed_rat_problem"))
+    assert(dialogue.close(dialogue_service, "test"))
+
+    assert(quests.start(quest_service, "rat_problem"))
+    local active_snapshot = codec.serialize(quests.get_snapshot(quest_service))
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    assert(has_choice("active_rat_problem")); assert(not has_choice("completed_rat_problem"))
+    for _ = 1, 3 do dialogue.get_current(dialogue_service) end
+    equal(codec.serialize(quests.get_snapshot(quest_service)), active_snapshot)
+    assert(dialogue.choose(dialogue_service, "active_rat_problem"))
+    equal(dialogue.get_current(dialogue_service).node_id, "quest_active")
+    assert(not has_choice("investigated")); assert(dialogue.close(dialogue_service, "test"))
+    equal(codec.serialize(quests.get_snapshot(quest_service)), active_snapshot)
+
+    assert(quests.advance_objective(quest_service, "rat_problem", "investigate", 1))
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    assert(dialogue.choose(dialogue_service, "active_rat_problem")); assert(has_choice("investigated"))
+    assert(dialogue.close(dialogue_service, "test")); assert(quests.complete(quest_service, "rat_problem"))
+
+    local completed_snapshot = codec.serialize(quests.get_snapshot(quest_service))
+    assert(dialogue.begin(dialogue_service, player.id, villager.id))
+    assert(not has_choice("active_rat_problem")); assert(has_choice("completed_rat_problem"))
+    equal(codec.serialize(quests.get_snapshot(quest_service)), completed_snapshot)
+    local definition = dialogue_registry:get("test_villager")
+    definition.nodes.greeting.choices[3].conditions[1].equals = quest_statuses.NOT_STARTED
+    equal(dialogue_registry:get("test_villager").nodes.greeting.choices[3].conditions[1].equals,
+        quest_statuses.ACTIVE)
+
+    local restored_quests = quests.create(quest_registry, nil, quests.get_snapshot(quest_service))
+    local restored_dialogue = dialogue.create(world, dialogue_registry, creature_service, combat, events,
+        restored_quests, quest_registry)
+    assert(dialogue.begin(restored_dialogue, player.id, villager.id))
+    local restored_choices = dialogue.get_current(restored_dialogue).choices
+    local restored_completed = false
+    for _, choice in ipairs(restored_choices) do
+        if choice.id == "completed_rat_problem" then restored_completed = true end
+    end
+    assert(restored_completed)
+
+    local reset_quests = quests.create(quest_registry)
+    local reset_dialogue = dialogue.create(world, dialogue_registry, creature_service, combat, events,
+        reset_quests, quest_registry)
+    assert(dialogue.begin(reset_dialogue, player.id, villager.id))
+    for _, choice in ipairs(dialogue.get_current(reset_dialogue).choices) do
+        assert(choice.id ~= "active_rat_problem" and choice.id ~= "completed_rat_problem")
+    end
 end)
 
 test("creature attacks remain explicit and retain existing death and occupancy policy", function()
@@ -1693,6 +1840,12 @@ test("save v5 serializes empty and populated ownership snapshots safely", functi
     local restored_quests = quests.create(quest_registry, nil, save_data.restore_quests(decoded))
     equal(quests.get_status(restored_quests, "rat_problem"), quest_statuses.ACTIVE)
     equal(quests.get_objective_progress(restored_quests, "rat_problem", "investigate"), 1)
+    local restored_condition_context = { world_state = restored_state, quests = restored_quests,
+        quest_registry = quest_registry }
+    assert(conditions.evaluate({ type = "quest_status", id = "rat_problem",
+        equals = quest_statuses.ACTIVE }, restored_condition_context))
+    assert(conditions.evaluate({ type = "quest_objective", quest_id = "rat_problem",
+        objective_id = "investigate", complete = true }, restored_condition_context))
     assert(quests.complete(quest_service, "rat_problem"))
     local completed_save = save_data.capture(actor, world, world.map.id, nil, quests.get_snapshot(quest_service))
     local completed_quests = quests.create(quest_registry, nil, save_data.restore_quests(completed_save))

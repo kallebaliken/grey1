@@ -170,6 +170,18 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 9. Press **F8** and confirm the quest returns to `not_started` and `0/1`.
 10. Confirm no rewards, items, XP, money, flags, dialogue, Actors, factions, combat, or world objects changed and no Defold runtime errors occurred.
 
+## Read-only quest-condition check
+
+1. Press **F8**, face `npc_test_villager`, press **E**, and confirm “About that rat problem...” and the completed-quest response are hidden.
+2. Close dialogue, press **Y**, then talk to the villager again and confirm “About that rat problem...” appears.
+3. Select it and confirm the objective-complete response is initially hidden.
+4. Close dialogue, press **U**, reopen the active-quest branch, and confirm “I found the trail.” now appears.
+5. Close dialogue, press **I**, and talk again. Confirm the active branch is hidden and “The rat trouble is settled.” appears.
+6. Repeatedly open, inspect, and close the conversation. Confirm status and progress never change and no quest lifecycle events repeat.
+7. Press **F5**, restart/load or press **F9**, and confirm the completed branch remains available.
+8. Press **F8** and confirm dialogue returns immediately to the `not_started` choices.
+9. Confirm dialogue never starts, advances, or completes the quest and no Defold runtime errors occur.
+
 ## Expected prototype content
 
 The map contains Z7 outdoor ground and cottage, the Z8 cottage roof, a Z6 basement, blocking walls/furniture, a door, chest placeholder, paired stairs, the inert shared-Actor NPC, the inert test rat, a healing-herb stack, an iron key, and original sword/armor test placements.

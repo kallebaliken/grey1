@@ -177,7 +177,9 @@ local function create_session(self, map, loaded)
     self.faction_registry = faction_registry_api.new(faction_definitions, relationship_definitions)
     self.factions = factions.create(self.world, self.faction_registry)
     assert(factions.associate(self.factions, self.player.id, "player"))
-    self.dialogue_registry = dialogue_registry_api.new(dialogue_definitions)
+    self.quest_registry = quest_registry_api.new(quest_definitions)
+    self.quests = quests.create(self.quest_registry, events, loaded and save_data.restore_quests(loaded) or nil)
+    self.dialogue_registry = dialogue_registry_api.new(dialogue_definitions, self.quest_registry)
     self.creature_registry = creature_registry_api.new(creature_definitions, self.faction_registry,
         self.dialogue_registry)
     self.creatures = creatures.create(self.world, self.creature_registry, self.combat, self.attacks, events,
@@ -185,9 +187,8 @@ local function create_session(self, map, loaded)
     for _, placement in ipairs(self.map.actor_placements or {}) do
         creatures.spawn(self.creatures, placement)
     end
-    self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events)
-    self.quest_registry = quest_registry_api.new(quest_definitions)
-    self.quests = quests.create(self.quest_registry, events, loaded and save_data.restore_quests(loaded) or nil)
+    self.dialogue = dialogue.create(self.world, self.dialogue_registry, self.creatures, self.combat, events,
+        self.quests, self.quest_registry)
     actions.register_defaults({ dialogue = self.dialogue })
     self.path_controller = movement_controller.create(self.world, events)
     self.last_attack = nil

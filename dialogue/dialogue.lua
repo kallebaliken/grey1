@@ -16,12 +16,12 @@ local function copy(value, seen)
     return result
 end
 
-function M.create(world, registry, creature_service, combat, events)
+function M.create(world, registry, creature_service, combat, events, quest_service, quest_registry)
     assert(type(world) == "table" and type(world.get_actor) == "function", "dialogue requires a world")
     assert(type(registry) == "table" and type(registry.get) == "function", "dialogue requires a registry")
     assert(type(creature_service) == "table", "dialogue requires creature associations")
     local service = { world = world, registry = registry, creatures = creature_service,
-        combat = combat, events = events }
+        combat = combat, events = events, quests = quest_service, quest_registry = quest_registry }
     runtimes[service] = { session = nil }
     return service
 end
@@ -82,7 +82,8 @@ function M.get_current(service)
     for _, choice in ipairs(node.choices) do
         local visible = true
         for _, condition in ipairs(choice.conditions or {}) do
-            if not conditions.evaluate(condition, { world_state = service.world.state }) then visible = false; break end
+            if not conditions.evaluate(condition, { world_state = service.world.state,
+                quests = service.quests, quest_registry = service.quest_registry }) then visible = false; break end
         end
         if visible then available[#available + 1] = copy(choice) end
     end

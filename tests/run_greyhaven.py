@@ -93,7 +93,11 @@ assert 'input: KEY_I action: "debug_quest_complete"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
+assert 'quest_registry_api.new(quest_definitions)' in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
+conditions_source = (ROOT / "conditions/conditions.lua").read_text()
+assert 'condition.type == "quest_status"' in conditions_source
+assert 'condition.type == "quest_objective"' in conditions_source
 print("Greyhaven project wiring passed")

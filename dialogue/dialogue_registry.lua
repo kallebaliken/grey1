@@ -16,7 +16,7 @@ local function copy(value, seen)
     return result
 end
 
-local function normalize(source)
+local function normalize(source, quest_registry)
     assert(type(source) == "table", "dialogue definition must be a table")
     local definition = { id = ids.require_stable(source.id, "dialogue id"),
         start = ids.require_stable(source.start, "dialogue start node"), nodes = {}, node_order = {} }
@@ -46,7 +46,7 @@ local function normalize(source)
                 assert(type(source_choice.conditions) == "table" and #source_choice.conditions > 0,
                     "dialogue choice conditions must not be empty")
                 choice.conditions = copy(source_choice.conditions)
-                for _, condition in ipairs(choice.conditions) do conditions.validate(condition) end
+                for _, condition in ipairs(choice.conditions) do conditions.validate(condition, quest_registry) end
             end
             if source_choice.actions ~= nil then
                 assert(type(source_choice.actions) == "table" and #source_choice.actions > 0,
@@ -69,9 +69,9 @@ local function normalize(source)
     return definition
 end
 
-function M.new(definitions)
+function M.new(definitions, quest_registry)
     local registry = setmetatable({}, methods)
-    records[registry] = {}
+    records[registry] = { definitions = {}, quest_registry = quest_registry }
     for key, definition in pairs(definitions or {}) do
         assert(type(key) == "string" and type(definition) == "table" and definition.id == key,
             "dialogue definition key/id mismatch")
@@ -81,20 +81,21 @@ function M.new(definitions)
 end
 
 function methods:register(definition)
-    local normalized = normalize(definition)
-    assert(not records[self][normalized.id], "duplicate dialogue definition: " .. normalized.id)
-    records[self][normalized.id] = normalized
+    local record = records[self]
+    local normalized = normalize(definition, record.quest_registry)
+    assert(not record.definitions[normalized.id], "duplicate dialogue definition: " .. normalized.id)
+    record.definitions[normalized.id] = normalized
     return copy(normalized)
 end
 
-function methods:has(id) return records[self][id] ~= nil end
+function methods:has(id) return records[self].definitions[id] ~= nil end
 function methods:get(id)
-    local definition = records[self][id]
+    local definition = records[self].definitions[id]
     return definition and copy(definition) or nil
 end
 function methods:get_all()
     local result = {}
-    for _, definition in pairs(records[self]) do result[#result + 1] = copy(definition) end
+    for _, definition in pairs(records[self].definitions) do result[#result + 1] = copy(definition) end
     table.sort(result, function(left, right) return left.id < right.id end)
     return result
 end

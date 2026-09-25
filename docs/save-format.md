@@ -92,3 +92,5 @@ Validated `set_flag` actions write through that same WorldState API. Saves persi
 ## Quest state
 
 The top-level `quests` table contains mutable runtime state only: canonical quest IDs map to `active` or `completed` status plus integer objective counters. `not_started` quests are absent. Immutable titles, descriptions, objective descriptions, and targets remain in the quest registry. Generic save validation rejects malformed IDs, statuses, and counters; the QuestState restore boundary additionally validates authored quest/objective existence, target bounds, and completed-state consistency. F8 reconstructs an empty quest service, so every quest returns `not_started`.
+
+Quest-condition results are derived from restored QuestState and are never serialized. Dialogue therefore reflects active/completed status and objective completion immediately after load without changing Save Format v5.

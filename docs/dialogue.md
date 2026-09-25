@@ -2,7 +2,7 @@
 
 `dialogue/dialogue_defs.lua` contains immutable authored conversation graphs. Each definition has a stable ID, a valid start node, non-empty node text, and unique explicit choices. A choice does exactly one thing: transition to another validated node or close the conversation. The registry copies definitions on input/output and rejects missing nodes, duplicate node/choice IDs, empty text, and ambiguous choice behavior.
 
-`dialogue/dialogue.lua` owns one active player conversation outside Actor state. A session records stable player/NPC Actor IDs, dialogue ID, and current node. Beginning a new valid conversation closes and replaces the old session. Definitions never mutate. Choices may read validated boolean world-flag conditions; failing choices are hidden and cannot be selected. Choices may also execute only prevalidated `set_flag` world actions through the generic action executor. They still have no arbitrary scripts, item transfers, health changes, movement, faction changes, or reputation effects.
+`dialogue/dialogue.lua` owns one active player conversation outside Actor state. A session records stable player/NPC Actor IDs, dialogue ID, and current node. Beginning a new valid conversation closes and replaces the old session. Definitions never mutate. Choices may read validated world-flag and quest conditions through the single generic evaluator; failing choices are hidden and cannot be selected. Dialogue itself has no quest-specific inspection or mutation logic. Choices may also execute only prevalidated `set_flag` world actions through the generic action executor.
 
 Creature definitions optionally reference a validated dialogue ID. `test_villager` uses `test_villager`; the rat has no dialogue. The speaker name comes from the creature definition display name. The normal interaction system targets the adjacent facing Actor, and its registered generic Actor handler explicitly begins dialogue. NPCs never initiate sessions.
 
@@ -14,9 +14,9 @@ The architecture boundary is:
 - Faction describes authored relationships.
 - Dialogue Definition describes what may be said.
 - Dialogue Session tracks the current explicit conversation.
-- Conditions decide which choices are available by reading WorldState.
+- Conditions decide which choices are available by reading WorldState and QuestState.
 - Future Actions may perform quests, items, or reputation changes.
 
-Conditions are read-only and faction data does not alter dialogue. Choice actions run in authored order before the node/close transition and dialogue lifecycle events; node viewing never runs actions. Active sessions are temporary runtime state and are never saved; loading starts with no conversation, while resulting WorldState flags persist.
+Conditions are read-only and faction data does not alter dialogue. The villager demonstrates mutually exclusive active/completed quest branches and an objective-complete follow-up, but conversation never starts, progresses, or completes the quest. Choice actions run in authored order before the node/close transition and dialogue lifecycle events; node viewing never runs actions. Active sessions are temporary runtime state and are never saved, while restored QuestState immediately determines available choices.
 
 Canary NPC interaction is only a conceptual reference. Greyhaven does not port Tibia NPC scripts, keyword handlers, shops, travel, quests, storage values, callbacks, or scheduling.
