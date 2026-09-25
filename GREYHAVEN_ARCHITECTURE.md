@@ -42,7 +42,8 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - Target mitigation sums validated armor metadata from public equipped-item snapshots and applies `max(1, raw - defense)` before the one CombatState mutation path. Armor sources and totals are derived, deterministic, and unsaved.
 - Creature definitions are immutable registry data, separate from generic Actor instances. A pure composition service maps stable Actor IDs to definition IDs externally and delegates optional health/attack setup to existing services; definitions grant capabilities but never make decisions.
 - Faction definitions, directional authored relationships, and Actor associations live outside Actor state. Queries default valid unconfigured pairs to neutral and never trigger targeting, movement, combat, dialogue, or other behavior.
-- Dialogue definitions are immutable validated graphs; one external runtime session advances only through explicit adjacent Actor interaction and choice input. Dialogue has no conditions/actions and never mutates Actors, combat, inventory, factions, or world state.
+- Dialogue definitions are immutable validated graphs; one external runtime session advances only through explicit adjacent Actor interaction and choice input. Dialogue conditions are read-only, actions do not exist, and dialogue never mutates Actors, combat, inventory, factions, or world state.
+- WorldState owns persistent boolean flags; the generic recursive condition evaluator reads them without side effects. Dialogue hides choices whose validated conditions fail, but no dialogue action can set flags.
 
 ## Scale boundary
 

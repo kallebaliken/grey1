@@ -79,4 +79,6 @@ Faction definitions and directional relationships are immutable authored data. P
 
 Dialogue definitions are immutable authored data and active DialogueSessions are deliberately temporary. Save Format v4 stores neither definitions nor current speaker/node; loading or resetting always begins with no active conversation.
 
+The existing top-level `flags` table stores stable boolean WorldState facts. Unset flags read false, saved true/false values restore through `state.world_state.new`, and validation rejects unstable IDs or non-boolean values. Condition results are derived and never serialized, so this extension requires no version bump.
+
 `state/save_data.lua` owns pure snapshot, validation, and restoration transforms. `state/save_manager.lua` remains the only Defold `sys.save`/`sys.load` adapter. `state/save_codec.lua` supplies deterministic text round-trip coverage for pure-Lua tests and is not used to read arbitrary runtime files.

@@ -34,10 +34,10 @@ function on_message(self, message_id, message)
     end
     for index = #message.commands + 1, #self.nodes do gui.set_enabled(self.nodes[index], false) end
     gui.set_text(gui.get_node("status"), string.format(
-        "Greyhaven | Move: WASD/arrows | E use | K attack | L weapon | O armor | P rat attack | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
+        "Greyhaven | Move: WASD/arrows | E use | K attack | L weapon | O armor | P rat attack | T flag | F1 debug | F5 save | F8 reset | F9 load | %s", message.notice))
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflag greyhaven.test_dialogue_flag: %s\nrender commands: %d  active nodes: %d  node capacity: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.player_faction,
         message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
@@ -47,6 +47,7 @@ function on_message(self, message_id, message)
         message.villager_definition, message.villager_type, message.villager_faction, message.villager_relationship,
         message.dialogue_active and "active" or "none", message.dialogue_speaker,
         message.dialogue_definition, message.dialogue_node,
+        tostring(message.test_dialogue_flag),
         message.render_commands, #message.commands, NODE_CAPACITY,
         message.npc_path_status, message.npc_path_remaining, message.npc_path_next,
         message.tile_objects, message.target, message.inventory, message.equipment,

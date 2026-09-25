@@ -38,6 +38,7 @@ local viewport_api = require "render.viewport"
 local VIEW_WIDTH_TILES = 960 / 32
 local VIEW_HEIGHT_TILES = 640 / 32
 local VIEW_MARGIN_TILES = 2
+local TEST_DIALOGUE_FLAG = "greyhaven.test_dialogue_flag"
 
 local function describe_tile(world, position)
     local names = {}
@@ -125,6 +126,7 @@ local function render(self)
         dialogue_speaker = conversation and conversation.npc_actor_id or "none",
         dialogue_definition = conversation and conversation.dialogue_id or "none",
         dialogue_node = conversation and conversation.node_id or "none",
+        test_dialogue_flag = state_api.get_flag(self.state, TEST_DIALOGUE_FLAG),
         player_attack = player_damage.damage, player_attack_source = player_damage.source,
         player_weapon = player_damage.item_type and (player_damage.item_type .. " [" .. player_damage.item_id .. "]") or "none",
         player_attack_cooldown = player_attack.cooldown_remaining, player_armor = player_armor.armor,
@@ -315,6 +317,11 @@ function on_input(self, action_id, action)
         if result.success then self.last_attack = result end
         self.notice = result.success and string.format("Rat attack: raw %d, armor %d, damage %d",
             result.raw_damage, result.armor, result.damage) or ("Rat attack: " .. result.reason)
+        render(self); return true
+    elseif action.pressed and action_id == hash("debug_toggle_dialogue_flag") then
+        local value = not state_api.get_flag(self.state, TEST_DIALOGUE_FLAG)
+        state_api.set_flag(self.state, TEST_DIALOGUE_FLAG, value)
+        self.notice = "Dialogue flag: " .. tostring(value)
         render(self); return true
     elseif action.pressed and action_id == hash("drop_item") then
         local first = inventory_api.get_items(self.player.inventory)[1]

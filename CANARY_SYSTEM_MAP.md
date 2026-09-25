@@ -72,6 +72,8 @@ Canary skull/hostility, party, and guild relationship concepts do not map direct
 
 Canary NPC interaction concepts map only to immutable Greyhaven DialogueDefinitions, explicit adjacent Actor interaction, and a single temporary DialogueSession. Tibia NPC scripts/content, keyword handlers, shops, travel, quests, storage values, server callbacks, and NPC scheduling are excluded.
 
+Canary storage-value and script-condition concepts map only to stable boolean Greyhaven WorldState flags plus a generic read-only condition evaluator. Numeric storage conventions, arbitrary Lua callbacks, quest actions, item/faction/health conditions, and server scripts are excluded.
+
 ## Infrastructure
 
 | Canary area | Decision | Greyhaven treatment |

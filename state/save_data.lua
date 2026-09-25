@@ -88,6 +88,9 @@ function M.validate(data, expected_map)
         return false, "invalid_player"
     end
     if type(data.objects) ~= "table" or type(data.flags) ~= "table" then return false, "invalid_world_state" end
+    for flag_id, value in pairs(data.flags) do
+        if not valid_id(flag_id) or type(value) ~= "boolean" then return false, "invalid_world_flags" end
+    end
     local player_combat = data.combat and data.combat.player
     if type(player_combat) ~= "table" or not valid_id(player_combat.actor_id)
         or type(player_combat.max_health) ~= "number" or player_combat.max_health <= 0 or player_combat.max_health % 1 ~= 0

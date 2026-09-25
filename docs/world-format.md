@@ -36,6 +36,8 @@ return {
 
 Every placement ID is a stable, unique string. `type` resolves a definition. `state` is the initial state; save/runtime state overrides matching fields without editing this table. `metadata` holds instance-specific facts such as explicit transition destinations, `interior_group`, `roof_group`, and reveal zones.
 
+Persistent boolean world flags are runtime/save state rather than map placements. Unset flags default false; the development reset therefore returns non-authored flags such as `greyhaven.test_dialogue_flag` to false.
+
 `item_placements` is optional immutable map input. Its outer ID identifies the world placement, while `item.id` is the stable logical item identity that survives pickup and drop. The embedded item record uses the same item-instance schema as inventories and containers; runtime transfers never rewrite this source table.
 
 Weapon behavior is item-definition data, not placement data. The prototype authors `test.sword.01` as an ordinary `worn_iron_sword` world item; pickup and equipment retain that item identity while attacks resolve damage from its definition.

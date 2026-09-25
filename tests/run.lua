@@ -27,6 +27,7 @@ local factions = require "factions.factions"
 local dialogue_definitions = require "dialogue.dialogue_defs"
 local dialogue_registry_api = require "dialogue.dialogue_registry"
 local dialogue = require "dialogue.dialogue"
+local conditions = require "conditions.conditions"
 local pathfinding = require "simulation.pathfinding"
 local transitions = require "simulation.transitions"
 local interaction = require "simulation.interaction"
@@ -143,7 +144,9 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
     local definition = registry:get("test_villager")
     equal(definition.start, "greeting"); equal(definition.nodes.greeting.choices[1].id, "ask_place")
     definition.nodes.greeting.text = "Changed"; definition.nodes.greeting.choices[1].text = "Changed"
+    definition.nodes.greeting.choices[2].conditions[1].equals = false
     equal(registry:get("test_villager").nodes.greeting.text, "Morning, traveler.")
+    assert(registry:get("test_villager").nodes.greeting.choices[2].conditions[1].equals)
     assert(not pcall(function() registry:register(dialogue_definitions.test_villager) end))
     local function invalid(nodes, start)
         return dialogue_registry_api.new({ bad = { id = "bad", start = start or "start", nodes = nodes } })
@@ -160,6 +163,41 @@ test("dialogue definitions validate graphs and isolate snapshots", function()
         { id = "same", text = "One", close = true }, { id = "same", text = "Two", close = true } } } }))
     assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
         { id = "ambiguous", text = "Bad", next = "start", close = true } } } }))
+    assert(not pcall(invalid, { { id = "start", text = "Text", choices = {
+        { id = "condition", text = "Bad", close = true,
+            conditions = { { type = "flag", id = "bad flag", equals = true } } } } } }))
+end)
+
+test("world flags and recursive conditions are deterministic and side-effect free", function()
+    local state = state_api.new()
+    assert(not state_api.get_flag(state, "greyhaven.flag.alpha"))
+    assert(not state_api.has_flag(state, "greyhaven.flag.alpha"))
+    assert(state_api.set_flag(state, "greyhaven.flag.alpha", true)); assert(state_api.has_flag(state, "greyhaven.flag.alpha"))
+    assert(state_api.get_flag(state, "greyhaven.flag.alpha"))
+    assert(not state_api.set_flag(state, "greyhaven.flag.alpha", false))
+    assert(not state_api.get_flag(state, "greyhaven.flag.alpha")); assert(state_api.has_flag(state, "greyhaven.flag.alpha"))
+    assert(not pcall(state_api.get_flag, state, "bad flag"))
+    assert(not pcall(state_api.set_flag, state, "greyhaven.flag.bad", "yes"))
+
+    state_api.set_flag(state, "greyhaven.flag.alpha", true)
+    local alpha_true = { type = "flag", id = "greyhaven.flag.alpha", equals = true }
+    local beta_false = { type = "flag", id = "greyhaven.flag.beta", equals = false }
+    local beta_true = { type = "flag", id = "greyhaven.flag.beta", equals = true }
+    local context = { world_state = state }
+    assert(conditions.evaluate(alpha_true, context)); assert(conditions.evaluate(beta_false, context))
+    assert(not conditions.evaluate(beta_true, context))
+    assert(conditions.evaluate({ all = { alpha_true, beta_false } }, context))
+    assert(not conditions.evaluate({ all = { alpha_true, beta_true } }, context))
+    assert(conditions.evaluate({ any = { beta_true, alpha_true } }, context))
+    assert(not conditions.evaluate({ any = { beta_true, { ["not"] = alpha_true } } }, context))
+    assert(conditions.evaluate({ ["not"] = beta_true }, context))
+    local before = codec.serialize(state)
+    for _ = 1, 3 do assert(conditions.evaluate(alpha_true, context)) end
+    equal(codec.serialize(state), before)
+    assert(not pcall(conditions.evaluate, { type = "flag", id = "bad flag", equals = true }, context))
+    assert(not pcall(conditions.evaluate, { type = "flag", id = "greyhaven.flag.alpha" }, context))
+    assert(not pcall(conditions.evaluate, { all = {} }, context))
+    assert(not pcall(conditions.evaluate, { all = { alpha_true }, any = { beta_true } }, context))
 end)
 
 test("faction definitions and directional relationships are canonical and isolated", function()
@@ -354,15 +392,27 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     equal(started_payload.dialogue_id, "test_villager"); equal(started_payload.node_id, "greeting")
     local current = dialogue.get_current(dialogue_service)
     equal(current.node_id, "greeting"); equal(current.speaker_name, "Test Villager")
-    equal(current.npc_actor_id, villager.id); equal(current.choices[1].id, "ask_place")
+    equal(current.npc_actor_id, villager.id); equal(current.choices[1].id, "ask_place"); equal(#current.choices, 2)
+    local hidden, hidden_reason = dialogue.choose(dialogue_service, "ask_rat")
+    assert(not hidden); equal(hidden_reason, "invalid_choice")
+    state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", true)
+    local revealed = dialogue.get_current(dialogue_service)
+    equal(#revealed.choices, 3); equal(revealed.choices[2].id, "ask_rat")
+    assert(dialogue.choose(dialogue_service, "ask_rat")); equal(dialogue.get_current(dialogue_service).node_id, "rat_problem")
+    assert(dialogue.choose(dialogue_service, "back")); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
+    state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", false)
+    equal(#dialogue.get_current(dialogue_service).choices, 2)
+    local stale_index, stale_reason = dialogue.choose_index(dialogue_service, 3)
+    assert(not stale_index); equal(stale_reason, "invalid_choice")
+    equal(dialogue_registry_api.new(dialogue_definitions):get("test_villager").nodes.greeting.choices[2].id, "ask_rat")
     assert(player.dialogue == nil and villager.dialogue == nil)
     local ok, reason = dialogue.choose(dialogue_service, "missing")
     assert(not ok); equal(reason, "invalid_choice"); equal(dialogue.get_current(dialogue_service).node_id, "greeting")
-    assert(dialogue.choose(dialogue_service, "ask_place")); equal(selected, 1); equal(changed, 1)
+    assert(dialogue.choose(dialogue_service, "ask_place")); equal(selected, 3); equal(changed, 3)
     equal(choice_payload.choice_id, "ask_place"); equal(choice_payload.node_id, "greeting")
     equal(dialogue.get_current(dialogue_service).node_id, "about_place")
     assert(dialogue.choose_index(dialogue_service, 2)); assert(not dialogue.is_active(dialogue_service))
-    equal(selected, 2); equal(closed, 1)
+    equal(selected, 4); equal(closed, 1)
 
     assert(dialogue.begin(dialogue_service, player.id, villager.id))
     assert(dialogue.begin(dialogue_service, player.id, villager.id))
@@ -383,6 +433,7 @@ test("explicit NPC dialogue sessions transition, replace, close, and have no gam
     assert(not dead); equal(dead_reason, "npc_dead")
 
     equal(factions.get_actor_faction(faction_service, player.id), player_faction)
+    assert(not state_api.get_flag(world.state, "greyhaven.test_dialogue_flag"))
     equal(combat_registry.get(combat, player.id).health, player_health)
     equal(codec.serialize(inventory_api.snapshot(player.inventory)), inventory_before)
     assert(position.equals(player.position, player_position)); assert(position.equals(villager.position, villager_position))
@@ -1468,10 +1519,12 @@ end)
 
 test("save v4 serializes empty and populated ownership snapshots safely", function()
     local world, empty_inventory, registry = world_item_fixture(3)
+    state_api.set_flag(world.state, "greyhaven.test_dialogue_flag", true)
     local actor = actor_api.new("hero", "player", 1, 1, 7); actor.inventory = empty_inventory
     actor.equipment = equipment_api.create("equipment.hero", actor.id, registry)
     local empty = save_data.capture(actor, world, world.map.id)
     equal(empty.version, 4); equal(#empty.inventory.items, 0); assert(next(empty.equipment.slots) == nil)
+    assert(empty.flags["greyhaven.test_dialogue_flag"])
     local old = state_api.copy(empty); old.version = 3
     local old_valid, old_reason = save_data.validate(old, world.map)
     assert(not old_valid); equal(old_reason, "unsupported_save_version")
@@ -1483,6 +1536,7 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
     local decoded = codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id)))
     local valid, reason = save_data.validate(decoded, world.map)
     assert(valid, reason); equal(decoded.inventory.items[1].id, "save.herb")
+    assert(decoded.flags["greyhaven.test_dialogue_flag"])
     equal(decoded.inventory.items[1].quantity, 8); equal(decoded.inventory.items[1].state.quality, "dried")
     equal(decoded.inventory.items[2].id, "save.key"); equal(decoded.inventory.items[2].state.lock, "cellar")
     decoded.inventory.items[1].state.quality = "changed"
@@ -1490,6 +1544,11 @@ test("save v4 serializes empty and populated ownership snapshots safely", functi
     local restored = save_data.restore_inventory(codec.deserialize(codec.serialize(save_data.capture(actor, world, world.map.id))), registry)
     equal(inventory_api.get_item(restored, "save.herb").id, "save.herb")
     equal(inventory_api.get_item(restored, "save.key").id, "save.key")
+    local restored_state = state_api.new(decoded)
+    assert(state_api.get_flag(restored_state, "greyhaven.test_dialogue_flag"))
+    local invalid_flags = state_api.copy(decoded); invalid_flags.flags["bad flag"] = true
+    local flags_valid, flags_reason = save_data.validate(invalid_flags, world.map)
+    assert(not flags_valid); equal(flags_reason, "invalid_world_flags")
 end)
 
 test("save v4 restores exclusive inventory, equipment, and world ownership", function()
@@ -1572,6 +1631,7 @@ test("fresh session after reset uses authored item state", function()
     equal(world_items.get(fresh_world, "world.test.key.01").item.id, "test.key.01")
     equal(inventory_api.get_item(fresh_inventory, "test.starter.000001").quantity, 15)
     assert(equipment_api.is_slot_empty(fresh_equipment, "main_hand"))
+    assert(not state_api.get_flag(fresh_world.state, "greyhaven.test_dialogue_flag"))
 end)
 
 print(string.format("%d Greyhaven Lua tests passed", count))

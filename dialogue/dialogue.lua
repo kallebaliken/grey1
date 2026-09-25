@@ -2,6 +2,7 @@ local capabilities = require "actors.capabilities"
 local combat_registry = require "combat.registry"
 local creatures = require "creatures.creatures"
 local movement = require "simulation.movement"
+local conditions = require "conditions.conditions"
 local M = {}
 
 local runtimes = setmetatable({}, { __mode = "k" })
@@ -76,18 +77,25 @@ function M.get_current(service)
     local definition = assert(service.registry:get(session.dialogue_id))
     local node = assert(definition.nodes[session.node_id])
     local creature = creatures.get_definition_for_actor(service.creatures, session.npc_actor_id)
+    local available = {}
+    for _, choice in ipairs(node.choices) do
+        local visible = true
+        for _, condition in ipairs(choice.conditions or {}) do
+            if not conditions.evaluate(condition, { world_state = service.world.state }) then visible = false; break end
+        end
+        if visible then available[#available + 1] = copy(choice) end
+    end
     return { player_actor_id = session.player_actor_id, npc_actor_id = session.npc_actor_id,
         dialogue_id = session.dialogue_id, node_id = session.node_id,
-        speaker_name = creature.display_name or creature.id, text = node.text, choices = copy(node.choices) }
+        speaker_name = creature.display_name or creature.id, text = node.text, choices = available }
 end
 
 function M.choose(service, choice_id)
     local session = runtime(service).session
     if not session then return false, "no_active_dialogue" end
-    local definition = assert(service.registry:get(session.dialogue_id))
-    local node = assert(definition.nodes[session.node_id])
+    local current = M.get_current(service)
     local choice
-    for _, candidate in ipairs(node.choices) do if candidate.id == choice_id then choice = candidate; break end end
+    for _, candidate in ipairs(current.choices) do if candidate.id == choice_id then choice = candidate; break end end
     if not choice then return false, "invalid_choice" end
     emit(service, "dialogue_choice_selected", session, { choice_id = choice.id })
     if choice.close then return M.close(service, "choice") end

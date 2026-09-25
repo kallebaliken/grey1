@@ -25,6 +25,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **L** | Development control: equip/unequip the first inventory weapon in `main_hand` |
 | **O** | Development control: equip/unequip the first compatible inventory armor in `torso` |
 | **P** | Explicitly invoke one test-rat attack against the player; the rat remains otherwise inert |
+| **T** | Development control: toggle `greyhaven.test_dialogue_flag` while no dialogue is active |
 | **1–4** | Select the corresponding choice while dialogue is active |
 | **Escape** | Close the active dialogue session |
 | **F1** | Toggle diagnostics |
@@ -131,6 +132,16 @@ The colored GUI boxes are temporary prototype/debug world presentation. Renderin
 7. Face `monster_test_rat` and press **E**. Confirm it reports no dialogue and opens no panel.
 8. Save or load while no dialogue is active; confirm sessions never persist and the next game begins with no conversation.
 9. Confirm the villager never initiates dialogue and no quests, items, health, factions, or world state change through choices.
+
+## Persistent condition check
+
+1. Press **F8**, enable **F1**, and confirm `greyhaven.test_dialogue_flag` is false.
+2. Talk to `npc_test_villager`; confirm “What is going on with the rats?” is absent, then close the dialogue.
+3. Press **T** and confirm the flag becomes true in F1.
+4. Talk to the villager again; confirm the rat question is now visible. Select it and verify the normal `rat_problem` text transition.
+5. Close dialogue and press **F5**, then restart/load or press **F9**. Confirm the flag remains true and the gated choice remains available.
+6. Press **F8** and confirm the flag returns to false and the gated choice disappears again.
+7. Confirm evaluating or selecting choices does not change the flag, health, inventory, faction, Actor position, or any other world state, and no Defold errors occur.
 
 ## Expected prototype content
 

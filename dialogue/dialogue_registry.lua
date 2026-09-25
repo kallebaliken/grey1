@@ -1,4 +1,5 @@
 local ids = require "core.ids"
+local conditions = require "conditions.conditions"
 local M = {}
 
 local methods = {}
@@ -40,6 +41,12 @@ local function normalize(source)
             local choice = { id = choice_id, text = source_choice.text }
             if has_next then choice.next = ids.require_stable(source_choice.next, "dialogue next node")
             else choice.close = true end
+            if source_choice.conditions ~= nil then
+                assert(type(source_choice.conditions) == "table" and #source_choice.conditions > 0,
+                    "dialogue choice conditions must not be empty")
+                choice.conditions = copy(source_choice.conditions)
+                for _, condition in ipairs(choice.conditions) do conditions.validate(condition) end
+            end
             node.choices[#node.choices + 1], choices[choice_id] = choice, true
         end
         definition.nodes[node_id] = node

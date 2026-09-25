@@ -35,6 +35,7 @@ required = [
     "dialogue/dialogue_defs.lua",
     "dialogue/dialogue_registry.lua",
     "dialogue/dialogue.lua",
+    "conditions/conditions.lua",
     "world/direction.lua",
     "render/actor_renderer.lua",
     "render/viewport.lua",
@@ -80,10 +81,11 @@ assert 'input: KEY_O action: "debug_toggle_armor"' in binding
 assert 'input: KEY_P action: "debug_rat_attack"' in binding
 assert 'input: KEY_1 action: "dialogue_1"' in binding
 assert 'input: KEY_ESC action: "dialogue_close"' in binding
+assert 'input: KEY_T action: "debug_toggle_dialogue_flag"' in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
 manager = (ROOT / "main/game_manager.script").read_text()
-for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "save_manager.save", "movement.begin", "renderer.build"):
+for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 print("Greyhaven project wiring passed")
