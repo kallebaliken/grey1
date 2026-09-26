@@ -314,6 +314,29 @@ The Inventory panel is read-only; drag/drop, item use, slot reordering, nested c
 14. Open dialogue; verify hover continues, matched clicks remain consumed, the diagnostic marks them dialogue-blocked, and the existing dialogue keyboard policy remains authoritative.
 15. Confirm there are no Defold, GUI, input, or missing-module errors.
 
+## Click equipped item to unequip check
+
+1. Pick up the worn iron sword.
+2. Equip the sword with the existing **L** development control.
+3. Verify it appears in `main_hand`.
+4. Click the visible sword slot.
+5. Verify the sword disappears from Equipment.
+6. Verify the exact same sword instance appears in Inventory.
+7. Verify attack damage falls back to unarmed damage.
+8. Pick up and equip patched leather armor with **O**.
+9. Click `torso`.
+10. Verify the exact armor instance appears in Inventory.
+11. Verify its mitigation is removed.
+12. Click an empty Equipment slot and verify ownership and UI remain unchanged.
+13. Repeat after resizing to 1920×1080, a wide pillarboxed size, and a tall letterboxed size.
+14. Verify the visible hit target remains correct and clicks in unused bars remain ignored.
+15. Fill Inventory, click occupied Equipment, and verify `Inventory is full.` with both owners unchanged.
+16. Open dialogue.
+17. Verify Equipment hover continues but click-to-unequip is blocked.
+18. Save and load after mouse unequip.
+19. Verify the resulting Inventory ownership persists and Inventory clicks remain diagnostic-only.
+20. Confirm there are no Defold, GUI, ownership, combat, or save/load errors.
+
 ## Unified responsive client check
 
 1. Launch near 1280×800 and verify the complete world, sidebar, and bottom panel are visible as one boxed client.

@@ -16,4 +16,6 @@ Targets contain presentation/gameplay identities rather than GUI node IDs. Equip
 
 A matched left click produces a `{ type = "ui_click", target = ... }` intent and is consumed before any future world-pointer handling. During dialogue it is still identified and consumed, but marked `blocked`; dialogue remains the authoritative gameplay input lock. The dispatcher does not call Equipment, Inventory, transfer, movement, interaction, or combat mutation APIs.
 
-Hover only changes the authored slot node's color. F1 reports physical and virtual pointer coordinates, region, hover target, last clicked target, and whether dialogue blocked that intent. Click controllers, equipment/inventory mutation, drag/drop, right click, tooltips, and world mouse targeting remain deferred.
+`ui/equipment_controller.lua` is the separate mutation boundary for Equipment targets. An occupied slot delegates to `items.equipment.unequip`, preserving the exact item instance as it moves to Inventory. Empty slots return `empty_slot`, a full Inventory returns `inventory_full` without changing ownership, and dialogue-blocked intents return `input_locked`. Inventory targets remain diagnostic-only.
+
+Hover only changes the authored slot node's color. F1 reports physical and virtual pointer coordinates, region, hover target, last clicked target, and whether dialogue blocked that intent. Inventory-to-equipment clicks, drag/drop, right click, tooltips, and world mouse targeting remain deferred.

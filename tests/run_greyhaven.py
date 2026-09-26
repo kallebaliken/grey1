@@ -58,6 +58,7 @@ required = [
     "render/layout.lua",
     "ui/client_layout.lua",
     "ui/input_dispatch.lua",
+    "ui/equipment_controller.lua",
     "render/greyhaven.render",
     "render/greyhaven.render_script",
     "render/world_render_piece.go",
@@ -177,6 +178,7 @@ for contract in ("VIRTUAL_HEIGHT = 800", "WORLD = { x = 0, y = 160, width = 960,
     assert contract in layout_source, contract
 assert "classify_virtual_point" in layout_source
 dispatcher_source = (ROOT / "ui/input_dispatch.lua").read_text()
+controller_source = (ROOT / "ui/equipment_controller.lua").read_text()
 assert 'layout.physical_to_virtual(transform, physical_x, physical_y)' in dispatcher_source
 assert 'layout.classify_virtual_point(x, y)' in dispatcher_source
 assert 'target_type = "equipment_slot"' in dispatcher_source
@@ -201,6 +203,9 @@ assert 'input_dispatch.resolve_physical(layout.physical_transform' in manager
 assert "local mouse_motion = action_id == nil" in manager
 assert "equipment_api.equip" not in dispatcher_source and "equipment_api.unequip" not in dispatcher_source
 assert "item_transfers" not in dispatcher_source
+assert 'equipment_api.unequip(context.equipment, context.inventory' in controller_source
+assert "equipment_api.unequip" not in dispatcher_source
+assert "equipment_controller.handle_intent(intent" in manager
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()
