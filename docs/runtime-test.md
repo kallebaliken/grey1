@@ -337,6 +337,37 @@ The Inventory panel is read-only; drag/drop, item use, slot reordering, nested c
 19. Verify the resulting Inventory ownership persists and Inventory clicks remain diagnostic-only.
 20. Confirm there are no Defold, GUI, ownership, combat, or save/load errors.
 
+## Click compatible Inventory item to equip check
+
+1. Start or reset the prototype.
+2. Pick up the worn iron sword.
+3. Verify the sword appears in Inventory.
+4. Click the sword icon.
+5. Verify the sword disappears from Inventory.
+6. Verify the exact same sword appears in `main_hand`.
+7. Verify weapon damage is active.
+8. Click the `main_hand` sword.
+9. Verify the exact sword returns to Inventory and unarmed damage is restored.
+10. Click the sword again.
+11. Verify the same instance equips again with no duplicate.
+12. Pick up patched leather armor.
+13. Click the armor icon.
+14. Verify it equips to `torso`.
+15. Verify armor mitigation is active through the existing resolver.
+16. Pick up and click a non-equippable healing herb or iron key.
+17. Verify it remains in Inventory.
+18. Verify the bottom panel says `That item cannot be equipped.`
+19. Try equipping an item while all of its compatible slots are occupied.
+20. Verify the existing items are not replaced and the required-slot notice appears.
+21. Resize through 1600×800, 1920×1080, 2560×1600, a tall window, and ultrawide.
+22. Repeat the Inventory click.
+23. Verify the same target and equipment action; clicks in unused bars remain ignored.
+24. Open dialogue.
+25. Verify equip clicks are consumed but mutation remains blocked.
+26. Save and load after clicking an item to equip.
+27. Verify authoritative Equipment ownership and both panels reconstruct correctly; reset and verify authored ownership returns without stale interaction state.
+28. Confirm there are no GUI, Defold, ownership, combat, or save/load errors.
+
 ## Unified responsive client check
 
 1. Launch near 1280×800 and verify the complete world, sidebar, and bottom panel are visible as one boxed client.

@@ -319,12 +319,18 @@ function on_input(self, action_id, action)
             local intent, consumed = input_dispatch.click(self.pointer, dialogue.is_active(self.dialogue))
             if intent then self.last_ui_intent = intent end
             local result = equipment_controller.handle_intent(intent, {
-                equipment = self.player.equipment, inventory = self.player.inventory, events = events,
+                equipment = self.player.equipment, inventory = self.player.inventory,
+                item_registry = self.item_registry, events = events,
             })
             if result.handled and result.success then
-                self.notice = "Unequipped " .. self.item_registry:get(result.item_type).name .. "."
+                local verb = result.action == "equip" and "Equipped " or "Unequipped "
+                self.notice = verb .. self.item_registry:get(result.item_type).name .. "."
             elseif result.handled and result.reason == "inventory_full" then
                 self.notice = "Inventory is full."
+            elseif result.handled and result.reason == "not_equippable" then
+                self.notice = "That item cannot be equipped."
+            elseif result.handled and result.reason == "slot_occupied" then
+                self.notice = "The required equipment slot is occupied."
             end
             render(self)
             if consumed then return true end
