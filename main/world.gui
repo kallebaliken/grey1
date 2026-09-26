@@ -1,5 +1,5 @@
 script: "/main/world.gui_script"
-max_nodes: 64
+max_nodes: 112
 fonts {
   name: "default"
   font: "/builtins/fonts/default.font"
@@ -78,7 +78,55 @@ nodes { position { x: 160.0 y: 334.0 } size { x: 28.0 y: 28.0 } color { x: 0.025
 nodes { position { x: 160.0 y: 334.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_feet_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
 nodes { position { x: 160.0 y: 334.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "F" font: "default" id: "equipment_feet_label" parent: "sidebar_root" layer: "hud" }
 nodes { position { x: 160.0 y: 188.0 } size { x: 288.0 y: 220.0 } color { x: 0.065 y: 0.078 z: 0.095 w: 1.0 } type: TYPE_BOX id: "inventory_panel" parent: "sidebar_root" layer: "panels" }
-nodes { position { x: 28.0 y: 280.0 } size { x: 260.0 y: 190.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "INVENTORY\n\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]" font: "default" id: "inventory_placeholder" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 28.0 y: 280.0 } size { x: 260.0 y: 20.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "INVENTORY  0/0" font: "default" id: "inventory_title" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" }
+nodes { position { x: 70.0 y: 244.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_1_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 70.0 y: 244.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_1_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 83.0 y: 232.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_1_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 130.0 y: 244.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_2_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 130.0 y: 244.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_2_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 143.0 y: 232.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_2_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 190.0 y: 244.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_3_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 190.0 y: 244.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_3_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 203.0 y: 232.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_3_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 250.0 y: 244.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_4_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 250.0 y: 244.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_4_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 263.0 y: 232.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_4_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 70.0 y: 204.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_5_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 70.0 y: 204.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_5_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 83.0 y: 192.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_5_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 130.0 y: 204.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_6_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 130.0 y: 204.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_6_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 143.0 y: 192.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_6_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 190.0 y: 204.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_7_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 190.0 y: 204.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_7_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 203.0 y: 192.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_7_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 250.0 y: 204.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_8_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 250.0 y: 204.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_8_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 263.0 y: 192.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_8_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 70.0 y: 164.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_9_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 70.0 y: 164.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_9_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 83.0 y: 152.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_9_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 130.0 y: 164.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_10_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 130.0 y: 164.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_10_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 143.0 y: 152.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_10_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 190.0 y: 164.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_11_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 190.0 y: 164.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_11_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 203.0 y: 152.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_11_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 250.0 y: 164.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_12_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 250.0 y: 164.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_12_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 263.0 y: 152.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_12_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 70.0 y: 124.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_13_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 70.0 y: 124.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_13_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 83.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_13_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 130.0 y: 124.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_14_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 130.0 y: 124.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_14_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 143.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_14_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 190.0 y: 124.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_15_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 190.0 y: 124.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_15_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 203.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_15_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 250.0 y: 124.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_16_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 250.0 y: 124.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_16_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 263.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_16_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
 nodes { position { x: 160.0 y: 52.0 } size { x: 288.0 y: 72.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "utility_panel" parent: "sidebar_root" layer: "panels" }
 nodes { position { x: 28.0 y: 74.0 } size { x: 260.0 y: 44.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "QUESTS | CHARACTER" font: "default" id: "utility_label" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" }
 

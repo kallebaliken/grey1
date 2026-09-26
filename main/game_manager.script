@@ -18,6 +18,7 @@ local item_registry_api = require "items.item_registry"
 local inventory_api = require "items.inventory"
 local equipment_api = require "items.equipment"
 local equipment_panel = require "ui.equipment_panel"
+local inventory_panel = require "ui.inventory_panel"
 local item_transfers = require "simulation.item_transfers"
 local pathfinding = require "simulation.pathfinding"
 local movement_controller = require "simulation.movement_controller"
@@ -119,6 +120,7 @@ local function render(self)
     local player_damage = attacks.get_damage(self.attacks, self.player.id)
     local player_armor = attacks.get_armor(self.attacks, self.player.id)
     local equipment_ui = equipment_panel.snapshot(self.player.equipment, self.item_registry)
+    local inventory_ui = inventory_panel.snapshot(self.player.inventory, self.item_registry)
     local armor_sources = {}
     for _, source in ipairs(player_armor.sources) do
         armor_sources[#armor_sources + 1] = source.slot .. ":" .. source.item_type .. " [" .. source.item_id .. "]"
@@ -150,6 +152,7 @@ local function render(self)
         inventory = describe_inventory(self.player.inventory),
         equipment = describe_equipment(self.player.equipment),
         equipment_ui = equipment_ui, equipment_ui_diagnostics = equipment_panel.describe(equipment_ui),
+        inventory_ui = inventory_ui, inventory_ui_diagnostics = inventory_panel.describe(inventory_ui),
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,

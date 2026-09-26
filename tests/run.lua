@@ -55,6 +55,7 @@ local inventory_api = require "items.inventory"
 local equipment_api = require "items.equipment"
 local equipment_slots = require "items.equipment_slots"
 local equipment_panel = require "ui.equipment_panel"
+local inventory_panel = require "ui.inventory_panel"
 local world_items = require "world.world_items"
 local item_transfers = require "simulation.item_transfers"
 local renderer = require "render.world_renderer"
@@ -2160,6 +2161,59 @@ test("equipment panel snapshots canonical slots without owning equipment state",
     equal(equipment_api.get(restored, "main_hand").id, "ui.sword.exact")
     local reset = equipment_api.restore({ id = "equipment.ui", owner_id = "ui.hero", slots = {} }, registry)
     equal(equipment_panel.snapshot(reset, registry).occupied, 0)
+end)
+
+test("inventory panel snapshots authoritative order, quantities, and identities", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.panel", "panel.hero", 18, registry)
+    local empty = inventory_panel.snapshot(inventory, registry)
+    equal(empty.capacity, 18); equal(empty.occupied, 0); equal(empty.visible_slots, 16); equal(empty.overflow, 0)
+
+    inventory_api.add_item(inventory, item_instance.new({ id = "panel.herb", type = "healing_herb", quantity = 15 }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "panel.key", type = "old_iron_key" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "panel.sword", type = "worn_iron_sword" }, registry))
+    local shown = inventory_panel.snapshot(inventory, registry)
+    equal(shown.occupied, 3); equal(shown.entries[1].slot, 1)
+    equal(shown.entries[1].item_id, "panel.herb"); equal(shown.entries[1].quantity, 15)
+    assert(shown.entries[1].show_quantity); equal(shown.entries[1].animation, "herb_01")
+    equal(shown.entries[2].item_id, "panel.key"); assert(not shown.entries[2].show_quantity)
+    equal(shown.entries[2].animation, "key_01"); equal(shown.entries[3].animation, "sword_01")
+    shown.entries[1].quantity = 1
+    equal(inventory_api.get_item(inventory, "panel.herb").quantity, 15)
+
+    local before_merge = inventory_panel.fingerprint(inventory_panel.snapshot(inventory, registry))
+    local merge = inventory_api.add_item(inventory,
+        item_instance.new({ id = "panel.herb.incoming", type = "healing_herb", quantity = 3 }, registry))
+    equal(merge.inserted_quantity, 3)
+    local merged = inventory_panel.snapshot(inventory, registry)
+    equal(merged.entries[1].item_id, "panel.herb"); equal(merged.entries[1].quantity, 18)
+    assert(before_merge ~= inventory_panel.fingerprint(merged))
+    equal(inventory_panel.fingerprint(merged), inventory_panel.fingerprint(inventory_panel.snapshot(inventory, registry)))
+
+    local equipment = equipment_api.create("equipment.panel", "panel.hero", registry)
+    assert(equipment_api.equip(equipment, inventory, "panel.sword", "main_hand"))
+    local equipped = inventory_panel.snapshot(inventory, registry)
+    equal(equipped.occupied, 2)
+    for _, entry in ipairs(equipped.entries) do assert(entry.item_id ~= "panel.sword") end
+    assert(equipment_api.unequip(equipment, inventory, "main_hand"))
+    local unequipped = inventory_panel.snapshot(inventory, registry)
+    equal(unequipped.entries[3].item_id, "panel.sword")
+
+    local removed = inventory_api.remove_item(inventory, "panel.key")
+    equal(removed.id, "panel.key"); equal(inventory_panel.snapshot(inventory, registry).occupied, 2)
+    local saved = codec.deserialize(codec.serialize(inventory_api.snapshot(inventory)))
+    local restored = inventory_api.restore(saved, registry)
+    local restored_ui = inventory_panel.snapshot(restored, registry)
+    equal(restored_ui.entries[1].item_id, "panel.herb"); equal(restored_ui.entries[1].quantity, 18)
+
+    for index = 1, 17 do
+        inventory_api.add_item(inventory, item_instance.new({ id = "panel.extra." .. index,
+            type = "old_iron_key" }, registry))
+    end
+    local full = inventory_panel.snapshot(inventory, registry)
+    equal(full.occupied, 18); equal(full.overflow, 2); equal(#full.entries, 16); assert(inventory_api.is_full(inventory))
+    local reset = inventory_api.create("inventory.panel.reset", "panel.hero", 18, registry)
+    equal(inventory_panel.snapshot(reset, registry).occupied, 0)
 end)
 
 test("equip and unequip preserve exclusive identity and events", function()

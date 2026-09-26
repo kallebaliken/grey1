@@ -275,7 +275,22 @@ The Python check runs the full Lua suite when `lua`, `lua5.1`, or `luajit` is in
 7. Save, restart/load, and confirm sword and armor icons reconstruct from restored Equipment state without saved GUI state.
 8. Reset and confirm every slot immediately reflects the authored empty equipment state with no stale icon.
 9. Resize the physical window and confirm 24×24 virtual-pixel icons remain inside Equipment while the complete client scales uniformly.
-10. Confirm world sprites never enter the sidebar, Inventory and Map remain placeholders, and dialogue/quests/combat remain functional.
+10. Confirm world sprites never enter the sidebar, the Inventory panel remains contained, Map remains a placeholder, and dialogue/quests/combat remain functional.
 11. Confirm there are no GUI-node, atlas-animation, render, Sprite, or Game Object errors.
 
 The panel is read-only in this milestone; slot-click unequip is deferred until Greyhaven has a stable mouse/UI dispatch path.
+
+## Functional inventory panel check
+
+1. Launch Greyhaven and confirm the real 4×4 Inventory grid appears beneath Equipment with clean empty slots and the real occupied/capacity count.
+2. Confirm authored starter items appear in deterministic container order; herb stacks show their exact quantity, while keys and other quantity-one items show no count.
+3. Pick up another herb and confirm the surviving stack updates immediately instead of creating a fake duplicate slot.
+4. Pick up the iron key and worn iron sword and confirm their existing atlas icons appear without quantity-one labels.
+5. Press **L** to equip the sword; confirm the exact instance leaves Inventory and appears in Equipment main hand. Press **L** again and confirm it returns to Inventory.
+6. Press **G** to drop an item and confirm the Inventory presentation updates from gameplay state.
+7. Enable F1 and verify Inventory UI reports occupied/capacity plus exact item IDs and quantities. Inventories above 16 entries must report `+N more`.
+8. Save, restart/load, and confirm exact identities, order, and quantities reconstruct without saved GUI state; reset and confirm the authored starter inventory returns without stale icons/counts.
+9. Resize the physical window and confirm the fixed grid remains within the sidebar without overlapping Equipment, world, or bottom panel.
+10. Confirm combat, dialogue, quests, world clipping, and equipment remain functional, with no GUI-node, atlas, or runtime errors.
+
+The Inventory panel is read-only; drag/drop, item use, slot reordering, nested containers, and mouse inventory interaction remain deferred.

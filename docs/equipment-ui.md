@@ -17,4 +17,4 @@ The eight recessed 28×28 virtual-pixel slots are created once in `main/world.gu
 
 The current panel is deliberately read-only. Greyhaven has physical-to-virtual coordinate helpers, but no established mouse button binding/UI dispatch layer yet; click-to-unequip is deferred rather than adding fragile input plumbing. Future UI input must map physical coordinates into the virtual client, prioritize sidebar UI hits, and call the public Equipment/Inventory APIs. It must never mutate GUI or equipment slot tables directly.
 
-The Inventory and Minimap sidebar regions remain nonfunctional placeholders. Drag/drop, inventory-to-equipment actions, swaps, context menus, tooltips, and final paper-doll artwork are outside this milestone.
+Inventory now has its own independent read-only adapter and panel; Minimap remains a placeholder. Drag/drop, inventory-to-equipment actions, swaps, context menus, tooltips, and final paper-doll artwork remain outside these panels.

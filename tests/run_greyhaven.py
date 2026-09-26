@@ -17,6 +17,7 @@ required = [
     "items/equipment_slots.lua",
     "items/equipment.lua",
     "ui/equipment_panel.lua",
+    "ui/inventory_panel.lua",
     "actors/actor_types.lua",
     "actors/registry.lua",
     "actors/capabilities.lua",
@@ -114,7 +115,8 @@ gui = (ROOT / "main/world.gui").read_text()
 assert 'script: "/main/world.gui_script"' in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
 assert 'texture: "/assets/world.atlas"' in gui
-assert "max_nodes: 64" in gui
+assert "max_nodes: 112" in gui
+assert gui.count("nodes {") == 100
 assert 'name: "hud"' in gui
 assert 'id: "dialogue_panel"' in gui and 'id: "dialogue_text"' in gui
 assert 'id: "sidebar_background"' in gui
@@ -125,11 +127,16 @@ for node_id in ("client_root", "world_frame", "sidebar_root", "minimap_panel", "
 for slot_id in ("head", "torso", "legs", "feet", "neck", "ring", "main_hand", "off_hand"):
     for suffix in ("slot", "icon", "label"):
         assert f'id: "equipment_{slot_id}_{suffix}"' in gui
+assert 'id: "inventory_placeholder"' not in gui
+for slot_index in range(1, 17):
+    for suffix in ("slot", "icon", "quantity"):
+        assert f'id: "inventory_{slot_index}_{suffix}"' in gui
 assert 'parent: "sidebar_root"' in gui and 'parent: "bottom_root"' in gui
 gui_script = (ROOT / "main/world.gui_script").read_text()
 assert "gui.new_box_node" not in gui_script
 assert "gui.set_scale" not in gui_script
 assert "equipment_panel.fingerprint" in gui_script
+assert "inventory_panel.fingerprint" in gui_script
 assert "gui.play_flipbook" in gui_script
 assert "world_sprite_renderer" in collection
 assert "world_piece_factory" in collection
@@ -156,6 +163,7 @@ assert 'sys.get_config_int("sprite.max_count", 128)' in manager
 assert "camera_api.visible_tiles" in manager
 assert "layout.WORLD.width" in manager and "layout.WORLD.height" in manager
 assert "equipment_panel.snapshot" in manager
+assert "inventory_panel.snapshot" in manager
 layout_source = (ROOT / "render/layout.lua").read_text()
 for contract in ("VIRTUAL_HEIGHT = 800", "WORLD = { x = 0, y = 160, width = 960, height = 640 }",
                  "BOTTOM = { x = 0, y = 0, width = 960, height = 160 }",
