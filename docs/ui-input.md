@@ -10,7 +10,7 @@ Defold physical mouse coordinates
     -> semantic UI target / ui_click intent
 ```
 
-The adapter reads Defold's unadjusted, bottom-left-origin `screen_x`/`screen_y` fields (falling back to `x`/`y), so orientation is normalized at that single boundary. `render.layout` remains the sole owner of physical scaling, centring, and unused-bar rejection. The dispatcher never performs scaling math. `ui/client_layout.lua` owns virtual hit rectangles for the eight Equipment nodes and sixteen Inventory nodes; its centres and sizes match the authored nodes in `main/world.gui`. These rectangles are independent of physical resolution.
+Defold delivers mouse motion to `on_input` with a nil action ID, without a binding entry; only the left button uses a `mouse_trigger`. The adapter reads Defold's unadjusted, bottom-left-origin `screen_x`/`screen_y` fields (falling back to `x`/`y`), so orientation is normalized at that single boundary. `render.layout` remains the sole owner of physical scaling, centring, and unused-bar rejection. The dispatcher never performs scaling math. `ui/client_layout.lua` owns virtual hit rectangles for the eight Equipment nodes and sixteen Inventory nodes; its centres and sizes match the authored nodes in `main/world.gui`. These rectangles are independent of physical resolution.
 
 Targets contain presentation/gameplay identities rather than GUI node IDs. Equipment uses `{ region = "sidebar", target_type = "equipment_slot", slot = <canonical slot> }`; Inventory uses `{ region = "sidebar", target_type = "inventory_slot", index = <1..16> }`. When a current read-only panel snapshot has an item in that target, `item_id` and `item_type` are copied into the result. Empty slots are still targets and have nil item identity.
 

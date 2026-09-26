@@ -156,8 +156,8 @@ assert 'input: KEY_Y action: "debug_quest_start"' in binding
 assert 'input: KEY_U action: "debug_quest_advance"' in binding
 assert 'input: KEY_I action: "debug_quest_complete"' in binding
 assert 'input: KEY_V action: "debug_rat_perception"' in binding
-assert 'mouse_movement { action: "mouse_position" }' in binding
 assert 'mouse_trigger { input: MOUSE_BUTTON_1 action: "left_click" }' in binding
+assert "mouse_movement" not in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
@@ -198,6 +198,7 @@ for index in range(1, 17):
     authored = f'position {{ x: {x}.0 y: {y}.0 }} size {{ x: 34.0 y: 34.0 }} color'
     assert authored in gui and f'id: "inventory_{index}_slot"' in gui
 assert 'input_dispatch.resolve_physical(layout.physical_transform' in manager
+assert "local mouse_motion = action_id == nil" in manager
 assert "equipment_api.equip" not in dispatcher_source and "equipment_api.unequip" not in dispatcher_source
 assert "item_transfers" not in dispatcher_source
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
