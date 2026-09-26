@@ -4,63 +4,74 @@ fonts {
   name: "default"
   font: "/builtins/fonts/default.font"
 }
-layers {
-  name: "sidebar"
-}
-layers {
-  name: "hud"
-}
+layers { name: "frame" }
+layers { name: "panels" }
+layers { name: "hud" }
+
 nodes {
-  position { x: 1120.0 y: 360.0 }
-  size { x: 320.0 y: 704.0 }
-  color { x: 0.035 y: 0.045 z: 0.06 w: 0.98 }
+  position { x: 0.0 y: 0.0 }
+  size { x: 1280.0 y: 800.0 }
+  color { w: 0.0 }
   type: TYPE_BOX
-  id: "sidebar_background"
-  layer: "sidebar"
+  id: "client_root"
+  pivot: PIVOT_SW
+  layer: "frame"
 }
 nodes {
-  position { x: 976.0 y: 700.0 }
-  size { x: 288.0 y: 72.0 }
-  color { x: 0.92 y: 0.92 z: 0.84 w: 1.0 }
-  type: TYPE_TEXT
-  text: "Greyhaven"
-  font: "default"
-  id: "status"
-  layer: "hud"
-  pivot: PIVOT_NW
-  line_break: true
-}
-nodes {
-  position { x: 16.0 y: 704.0 }
-  size { x: 920.0 y: 680.0 }
-  color { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }
-  type: TYPE_TEXT
-  text: ""
-  font: "default"
-  id: "debug"
-  layer: "hud"
-  pivot: PIVOT_NW
-  line_break: true
-}
-nodes {
-  position { x: 480.0 y: 125.0 }
-  size { x: 760.0 y: 210.0 }
-  color { x: 0.06 y: 0.07 z: 0.09 w: 0.94 }
+  position { x: 0.0 y: 160.0 }
+  size { x: 960.0 y: 640.0 }
+  color { w: 0.0 }
   type: TYPE_BOX
-  id: "dialogue_panel"
-  layer: "hud"
-  enabled: 0
+  id: "world_frame"
+  parent: "client_root"
+  pivot: PIVOT_SW
+  layer: "frame"
 }
+nodes { position { x: 2.0 y: 320.0 } size { x: 4.0 y: 640.0 } color { x: 0.22 y: 0.16 z: 0.12 w: 1.0 } type: TYPE_BOX id: "world_border_left" parent: "world_frame" layer: "frame" }
+nodes { position { x: 958.0 y: 320.0 } size { x: 4.0 y: 640.0 } color { x: 0.22 y: 0.16 z: 0.12 w: 1.0 } type: TYPE_BOX id: "world_border_right" parent: "world_frame" layer: "frame" }
+nodes { position { x: 480.0 y: 2.0 } size { x: 960.0 y: 4.0 } color { x: 0.22 y: 0.16 z: 0.12 w: 1.0 } type: TYPE_BOX id: "world_border_bottom" parent: "world_frame" layer: "frame" }
+nodes { position { x: 480.0 y: 638.0 } size { x: 960.0 y: 4.0 } color { x: 0.22 y: 0.16 z: 0.12 w: 1.0 } type: TYPE_BOX id: "world_border_top" parent: "world_frame" layer: "frame" }
+
 nodes {
-  position { x: 120.0 y: 215.0 }
-  size { x: 720.0 y: 180.0 }
-  color { x: 0.94 y: 0.92 z: 0.82 w: 1.0 }
-  type: TYPE_TEXT
-  text: ""
-  font: "default"
-  id: "dialogue_text"
-  layer: "hud"
-  pivot: PIVOT_NW
-  line_break: true
-  enabled: 0
+  position { x: 960.0 y: 0.0 }
+  size { x: 320.0 y: 800.0 }
+  color { w: 0.0 }
+  type: TYPE_BOX
+  id: "sidebar_root"
+  parent: "client_root"
+  pivot: PIVOT_SW
+  layer: "panels"
 }
+nodes { position { x: 160.0 y: 400.0 } size { x: 320.0 y: 800.0 } color { x: 0.035 y: 0.045 z: 0.06 w: 1.0 } type: TYPE_BOX id: "sidebar_background" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 690.0 } size { x: 288.0 y: 188.0 } color { x: 0.07 y: 0.085 z: 0.10 w: 1.0 } type: TYPE_BOX id: "minimap_panel" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 690.0 } size { x: 280.0 y: 24.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "MAP" font: "default" id: "minimap_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 160.0 y: 554.0 } size { x: 288.0 y: 64.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "status_panel" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 24.0 y: 574.0 } size { x: 270.0 y: 44.0 } color { x: 0.92 y: 0.90 z: 0.80 w: 1.0 } type: TYPE_TEXT text: "GREYHAVEN" font: "default" id: "status" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 160.0 y: 410.0 } size { x: 288.0 y: 208.0 } color { x: 0.065 y: 0.078 z: 0.095 w: 1.0 } type: TYPE_BOX id: "equipment_panel" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 28.0 y: 500.0 } size { x: 260.0 y: 180.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "EQUIPMENT\n\n [Head]   [Neck]\n [Torso]  [Main]\n [Legs]   [Off]\n [Feet]   [Ring]" font: "default" id: "equipment_placeholder" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 160.0 y: 188.0 } size { x: 288.0 y: 220.0 } color { x: 0.065 y: 0.078 z: 0.095 w: 1.0 } type: TYPE_BOX id: "inventory_panel" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 28.0 y: 280.0 } size { x: 260.0 y: 190.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "INVENTORY\n\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]" font: "default" id: "inventory_placeholder" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 160.0 y: 52.0 } size { x: 288.0 y: 72.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "utility_panel" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 28.0 y: 74.0 } size { x: 260.0 y: 44.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "QUESTS | CHARACTER" font: "default" id: "utility_label" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" }
+
+nodes {
+  position { x: 0.0 y: 0.0 }
+  size { x: 960.0 y: 160.0 }
+  color { w: 0.0 }
+  type: TYPE_BOX
+  id: "bottom_root"
+  parent: "client_root"
+  pivot: PIVOT_SW
+  layer: "panels"
+}
+nodes { position { x: 480.0 y: 80.0 } size { x: 960.0 y: 160.0 } color { x: 0.045 y: 0.052 z: 0.065 w: 1.0 } type: TYPE_BOX id: "bottom_background" parent: "bottom_root" layer: "panels" }
+nodes { position { x: 16.0 y: 146.0 } size { x: 600.0 y: 24.0 } color { x: 0.82 y: 0.76 z: 0.62 w: 1.0 } type: TYPE_TEXT text: "Log  |  Dialogue  |  Combat  |  Journal" font: "default" id: "bottom_tabs" parent: "bottom_root" pivot: PIVOT_NW layer: "hud" }
+nodes { position { x: 16.0 y: 112.0 } size { x: 920.0 y: 56.0 } color { x: 0.88 y: 0.88 z: 0.84 w: 1.0 } type: TYPE_TEXT text: "Greyhaven ready." font: "default" id: "bottom_content" parent: "bottom_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 16.0 y: 48.0 } size { x: 920.0 y: 36.0 } color { x: 0.62 y: 0.66 z: 0.70 w: 1.0 } type: TYPE_TEXT text: "WASD/arrows move | E use | K attack | F1 debug | F5 save | F8 reset | F9 load" font: "default" id: "control_help" parent: "bottom_root" pivot: PIVOT_NW layer: "hud" enabled: 0 line_break: true }
+
+nodes { position { x: 0.0 y: 0.0 } size { x: 960.0 y: 800.0 } color { w: 0.0 } type: TYPE_BOX id: "dialogue_root" parent: "client_root" pivot: PIVOT_SW layer: "hud" }
+nodes { position { x: 480.0 y: 264.0 } size { x: 760.0 y: 176.0 } color { x: 0.06 y: 0.07 z: 0.09 w: 0.94 } type: TYPE_BOX id: "dialogue_panel" parent: "dialogue_root" layer: "hud" enabled: 0 }
+nodes { position { x: 120.0 y: 332.0 } size { x: 720.0 y: 144.0 } color { x: 0.94 y: 0.92 z: 0.82 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "dialogue_text" parent: "dialogue_root" pivot: PIVOT_NW layer: "hud" line_break: true enabled: 0 }
+
+nodes { position { x: 0.0 y: 0.0 } size { x: 1280.0 y: 800.0 } color { w: 0.0 } type: TYPE_BOX id: "debug_root" parent: "client_root" pivot: PIVOT_SW layer: "hud" }
+nodes { position { x: 16.0 y: 784.0 } size { x: 920.0 y: 610.0 } color { x: 1.0 y: 1.0 z: 1.0 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "debug" parent: "debug_root" pivot: PIVOT_NW layer: "hud" line_break: true }

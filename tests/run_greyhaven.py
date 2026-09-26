@@ -100,7 +100,7 @@ project = (ROOT / "game.project").read_text()
 assert "main_collection = /main/main.collectionc" in project
 assert "render = /render/greyhaven.renderc" in project
 assert "game_binding = /input/game.input_bindingc" in project
-assert "width = 1280" in project and "height = 720" in project
+assert "width = 1280" in project and "height = 800" in project
 assert "[collection]" in project and "max_instances = 4096" in project
 assert "[sprite]" in project and "max_count = 2048" in project
 assert "default_texture_min_filter = nearest" in project
@@ -116,6 +116,11 @@ assert "max_nodes: 64" in gui
 assert 'name: "hud"' in gui
 assert 'id: "dialogue_panel"' in gui and 'id: "dialogue_text"' in gui
 assert 'id: "sidebar_background"' in gui
+for node_id in ("client_root", "world_frame", "sidebar_root", "minimap_panel", "status_panel",
+                "equipment_panel", "inventory_panel", "utility_panel", "bottom_root",
+                "bottom_tabs", "bottom_content", "dialogue_root", "debug_root"):
+    assert f'id: "{node_id}"' in gui, node_id
+assert 'parent: "sidebar_root"' in gui and 'parent: "bottom_root"' in gui
 gui_script = (ROOT / "main/world.gui_script").read_text()
 assert "gui.new_box_node" not in gui_script
 assert "gui.set_scale" not in gui_script
@@ -143,6 +148,12 @@ assert 'sys.get_config_int("collection.max_instances", 1024)' in manager
 assert 'sys.get_config_int("sprite.max_count", 128)' in manager
 assert "camera_api.visible_tiles" in manager
 assert "layout.WORLD.width" in manager and "layout.WORLD.height" in manager
+layout_source = (ROOT / "render/layout.lua").read_text()
+for contract in ("VIRTUAL_HEIGHT = 800", "WORLD = { x = 0, y = 160, width = 960, height = 640 }",
+                 "BOTTOM = { x = 0, y = 0, width = 960, height = 160 }",
+                 "SIDEBAR = { x = 960, y = 0, width = 320, height = 800 }",
+                 "is_world_point", "is_sidebar_point", "is_bottom_panel_point"):
+    assert contract in layout_source, contract
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()

@@ -1,9 +1,20 @@
 local M = {
     VIRTUAL_WIDTH = 1280,
-    VIRTUAL_HEIGHT = 720,
-    WORLD = { x = 0, y = 8, width = 960, height = 704 },
-    SIDEBAR = { x = 960, y = 8, width = 320, height = 704 },
+    VIRTUAL_HEIGHT = 800,
+    VIRTUAL = { x = 0, y = 0, width = 1280, height = 800 },
+    WORLD = { x = 0, y = 160, width = 960, height = 640 },
+    BOTTOM = { x = 0, y = 0, width = 960, height = 160 },
+    SIDEBAR = { x = 960, y = 0, width = 320, height = 800 },
 }
+
+local function contains(rect, x, y)
+    return x >= rect.x and x < rect.x + rect.width and y >= rect.y and y < rect.y + rect.height
+end
+
+function M.is_virtual_point(x, y) return contains(M.VIRTUAL, x, y) end
+function M.is_world_point(x, y) return contains(M.WORLD, x, y) end
+function M.is_bottom_panel_point(x, y) return contains(M.BOTTOM, x, y) end
+function M.is_sidebar_point(x, y) return contains(M.SIDEBAR, x, y) end
 
 function M.physical_transform(width, height)
     assert(type(width) == "number" and width > 0 and type(height) == "number" and height > 0,

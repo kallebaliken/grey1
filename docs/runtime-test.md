@@ -235,20 +235,19 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 6. Confirm HUD, F1 text, and dialogue retain their original screen-space size.
 7. Confirm no new allocation, atlas, sprite, or runtime errors appear.
 
-## Fixed virtual canvas and boxed world check
+## Boxed Greyhaven RPG client check
 
-1. Clean-build and launch at the initial 1280×720 window size.
-2. Confirm the world is clipped to `(0, 8, 960, 704)`, shows 15×11 logical tiles at 2x zoom, and centres the player around `(480, 360)`.
-3. Confirm the subtle 320-pixel sidebar occupies virtual X `960..1280`; world sprites and large roof/wall pieces never spill into it.
-4. Maximize or resize to 2560×1440 and confirm the same world tiles remain visible while the entire 1280×720 presentation scales to 2x.
-5. Resize to 1024×768, an ultrawide window, and a tall window. Confirm uniform scaling with letterbox/pillarbox bars, no stretching, and no additional world exposure.
-6. Resize below 1280×720 and confirm the complete canvas scales down rather than cropping; nearest filtering remains enabled, with the expected uneven pixel sizes at non-integer physical scales.
-7. Confirm HUD, F1, sidebar, and dialogue remain aligned in fixed virtual coordinates and dialogue does not resize the world.
-8. Walk, use the door and stairs, reveal the roof, pick up/drop items, attack, talk, complete the quest, and save/load. Confirm fixed visibility and clipping throughout.
-9. Confirm F1 reports a stable fixed-viewport render count (278 pieces at the authored exterior start before state changes), reuse while standing still, and no Sprite/Game Object capacity failures.
-10. Confirm there are no render-script, scissor, projection, GUI, or Defold runtime errors.
-11. Specifically confirm startup contains neither `table index is nil`, `Invalid state: render.enable_state(1)`, nor `attempt to call field 'set_scissor'`; verify the Defold 1.13.1 buffer clear and world-viewport clipping complete successfully.
-12. Confirm transparent pixels around the player, villager, rat, items, walls, doors, and roofs reveal the ground beneath them rather than black Sprite-quad rectangles or bands.
+1. Clean-build and launch at the initial 1280×800 window size; confirm the client reads as a framed world, permanent sidebar, and permanent bottom panel.
+2. Confirm the world is clipped to `(0, 160, 960, 640)`, shows exactly 15×10 logical tiles at 2x zoom, and centres the player around `(480, 480)`.
+3. Confirm the sidebar occupies `(960, 0, 320, 800)` with labeled map, status, equipment, inventory, and utility placeholders.
+4. Confirm the bottom panel occupies `(0, 0, 960, 160)`, shows the placeholder tab header and current runtime notice, and shows control help only while F1 is enabled.
+5. Confirm world sprites and large roof/wall pieces never spill into either GUI region, and transparent pixels reveal ground rather than black Sprite-quad rectangles or bands.
+6. Move in all directions; use doors and stairs; reveal roofs; pick up/drop items; attack; talk; complete the quest; and save/load. Confirm all behavior is unchanged.
+7. Confirm dialogue remains usable in the lower world viewport and F1 remains a constrained developer overlay without changing world dimensions.
+8. Resize through 1920×1200, 2560×1600, 1920×1080, 4:3, tall, and ultrawide windows. Confirm the same 15×10 world remains visible, the complete client scales uniformly, and unused space becomes letterbox/pillarbox.
+9. Resize below 1280×800 and confirm the complete client scales down rather than cropping; nearest filtering remains enabled, with the expected pixel tradeoff at non-integer scale.
+10. Confirm F1 reports a stable fixed-viewport render count (259 pieces at the authored exterior start before state changes), reuse while standing still, and no Sprite/Game Object capacity failures.
+11. Confirm there are no render-script, projection, GUI, Sprite, Game Object, or Defold runtime errors, including the previously fixed constant/state/scissor failures.
 
 ## Expected prototype content
 

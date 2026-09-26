@@ -11,29 +11,29 @@ Actors follow the equivalent Actor state -> Actor renderer -> sprite adapter pat
 
 ## Fixed presentation layout
 
-Greyhaven has three deliberately separate coordinate spaces:
+Greyhaven has four deliberately separate concepts:
 
 1. **Logical world:** authoritative integer 32×32 tile coordinates used by gameplay.
-2. **Virtual presentation:** a fixed 1280×720 canvas. The clipped world rectangle is `(0, 8, 960, 704)`, its centre is `(480, 360)`, and the permanent future-UI sidebar is `(960, 8, 320, 704)`. At 2x world zoom, the world rectangle always exposes 15×11 logical tiles; the existing two-tile culling margin only admits graphics that may overlap the clipped edge.
-3. **Physical window:** arbitrary size. `render/layout.lua` computes one uniform `min(physical_width / 1280, physical_height / 720)` scale and centred letterbox/pillarbox offsets. The custom render script projects the complete virtual canvas through that physical viewport and uses a separate physical viewport for the world rectangle.
+2. **World presentation:** fixed 2x zoom makes each 32×32 logical tile occupy 64×64 virtual pixels.
+3. **Greyhaven client:** a fixed 1280×800 GUI canvas. The clipped world rectangle is `(0, 160, 960, 640)`, its centre is `(480, 480)`, the bottom panel is `(0, 0, 960, 160)`, and the permanent sidebar is `(960, 0, 320, 800)`. The world rectangle always exposes 15×10 logical tiles; the existing two-tile culling margin only admits graphics that may overlap the clipped edge.
+4. **Physical window:** arbitrary size. `render/layout.lua` computes one uniform `min(physical_width / 1280, physical_height / 800)` scale and centred letterbox/pillarbox offsets. The custom render script projects the complete virtual client through that physical viewport and uses a separate physical viewport for the world rectangle.
 
-The custom pipeline targets Defold 1.13.1. Buffer-clear keys and supported blend/depth state values come from `graphics` (`BUFFER_TYPE_COLOR0_BIT`, `BUFFER_TYPE_DEPTH_BIT`, `BUFFER_TYPE_STENCIL_BIT`, blend/depth states and factors); `render` owns the operations themselves. This version exposes neither a supported scissor render state nor `render.set_scissor`. World clipping therefore uses the rasterization viewport itself: the renderer selects the physical 960×704-scaled world rectangle and a matching world-only orthographic projection, draws world sprites, then restores the full physical canvas viewport and 1280×720 projection before GUI drawing. Required constants are asserted during initialization so an API mismatch fails descriptively.
+The custom pipeline targets Defold 1.13.1. Buffer-clear keys and supported blend/depth state values come from `graphics` (`BUFFER_TYPE_COLOR0_BIT`, `BUFFER_TYPE_DEPTH_BIT`, `BUFFER_TYPE_STENCIL_BIT`, blend/depth states and factors); `render` owns the operations themselves. This version exposes neither a supported scissor render state nor `render.set_scissor`. World clipping therefore uses the rasterization viewport itself: the renderer selects the physical 960×640-scaled world rectangle and a matching world-only orthographic projection, draws world sprites, then restores the full physical canvas viewport and 1280×800 projection before GUI drawing. Required constants are asserted during initialization so an API mismatch fails descriptively.
 
 World pieces use the built-in alpha-blended Sprite material and painter ordering from the deterministic render-command sequence. Depth testing and depth writes remain disabled for this pass. Transparent pixels still produce fragments, so writing their whole sprite quads to depth would incorrectly occlude already-drawn ground and appear as black rectangles or bands around Actors, items, walls, and roofs.
 
-The camera follows the player's interpolated presentation position around the world-rectangle centre, never the full-canvas centre. The right sidebar is therefore never additional world space. Resizing only changes the physical canvas scale and black bars; it cannot change camera zoom, logical culling dimensions, Sprite positions, or visible tile count. Windows smaller than 1280×720 are supported by uniform downscaling with no configured minimum, although non-integer physical scales can produce uneven pixel sizes despite nearest-neighbour sampling.
+The camera follows the player's interpolated presentation position around `(480, 480)`, never the full-client centre. The sidebar and bottom panel are therefore never additional world space. Resizing only changes the physical client scale and black bars; it cannot change camera zoom, logical culling dimensions, Sprite positions, or visible tile count. Windows smaller than 1280×800 are supported by uniform downscaling with no configured minimum, although non-integer physical scales can produce uneven pixel sizes despite nearest-neighbour sampling.
 
-GUI nodes use the same fixed 1280×720 virtual coordinates. The current sidebar background and constrained status text establish the permanent boundary; dialogue remains a GUI overlay inside the world side and does not resize it. Keyboard input is unaffected. Future mouse input must first apply `layout.physical_to_virtual()`, reject letterbox coordinates, then decide whether the resulting point belongs to the world rectangle or sidebar before mapping world pixels to tiles.
+GUI nodes use the same fixed 1280×800 virtual coordinates and are grouped beneath client, world-frame, sidebar, bottom, dialogue, and debug roots. The sidebar provides nonfunctional map, status, equipment, inventory, and utility placeholders. The bottom panel provides nonfunctional Log/Dialogue/Combat/Journal tabs, current notice text, and debug-only controls. Dialogue remains a GUI overlay in the lower world view and does not resize it. Keyboard input is unaffected. Future mouse input must first apply `layout.physical_to_virtual()`, reject points outside `layout.VIRTUAL`, then use `is_world_point`, `is_sidebar_point`, or `is_bottom_panel_point` before any world-tile mapping.
 
 ```text
-VIRTUAL CANVAS 1280x720
+GREYHAVEN CLIENT 1280x800
 
 +--------------------------------------+-------------+
-|                                      |             |
-|              WORLD                   |     UI      |
-|              960x704                 |    320px    |
-|          15x11 tiles @ 2x            |   reserved  |
-|                                      |             |
+|              WORLD 960x640           |  SIDEBAR    |
+|          15x10 tiles @ 2x            |  320x800    |
++--------------------------------------+             |
+|          BOTTOM PANEL 960x160         |             |
 +--------------------------------------+-------------+
 ```
 
@@ -64,7 +64,7 @@ Door animation selection reads the existing authoritative `open` state. Roof vis
 
 `render/world_render_piece.go` contains one atlas-backed sprite. A single collection factory creates these pieces; `render/world_sprite_renderer.script` retains instances by stable render-command identity (`object ID + piece index`), updates animation/position, and deletes only pieces absent from the next visible command set.
 
-The exhaustive uncropped prototype render-command check peaks at **332 visible world pieces**. The fixed exterior viewport at the authored player position produces **278 pieces**: 230 ground/detail, 25 world-object, 4 item, 3 Actor, and 16 roof pieces. Multi-piece commands are included in those categories. Each piece consumes one factory-created Game Object and one Sprite component. Standing still reuses all stable identities; the automated reconciliation test verifies that active count does not grow.
+The exhaustive uncropped prototype render-command check peaks at **332 visible world pieces**. The fixed 15×10 exterior viewport at the authored player position produces **259 pieces**: 212 ground/detail, 25 world-object, 4 item, 2 Actor, and 16 roof pieces. Multi-piece commands are included in those categories. Each piece consumes one factory-created Game Object and one Sprite component. Standing still reuses all stable identities; the automated reconciliation test verifies that active count does not grow.
 
 The prior Sprite capacity was Defold's default **128**, which was below the 332-piece conservative peak even though `collection.max_instances` was already **4096**. `game.project` now explicitly configures `sprite.max_count = 2048` and retains `collection.max_instances = 4096`. That leaves more than 1,700 Sprite slots and 3,700 Game Object slots above the measured peak, including headroom for non-world components and future effects. The runtime reads both compiled settings for F1 diagnostics. Project settings require a clean rebuild; hot reload cannot resize existing component or collection buffers.
 
