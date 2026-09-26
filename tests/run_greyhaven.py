@@ -113,6 +113,7 @@ assert 'component: \\"/main/game_manager.script\\"' in collection
 assert 'component: \\"/main/world.gui\\"' in collection
 gui = (ROOT / "main/world.gui").read_text()
 assert 'script: "/main/world.gui_script"' in gui
+assert "adjust_reference: ADJUST_REFERENCE_DISABLED" in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
 assert 'texture: "/assets/world.atlas"' in gui
 assert "max_nodes: 112" in gui
@@ -206,6 +207,7 @@ assert "graphics.BUFFER_TYPE_COLOR0_BIT" in render_script
 assert "graphics.BUFFER_TYPE_DEPTH_BIT" in render_script
 assert "graphics.BUFFER_TYPE_STENCIL_BIT" in render_script
 assert "layout.world_viewport" in render_script
+assert "layout.client_viewport" in render_script
 assert "render.set_viewport(world_x, world_y, world_width, world_height)" in render_script
 assert "render.disable_state(graphics.STATE_DEPTH_TEST)" in render_script
 assert "render.set_depth_mask(false)" in render_script

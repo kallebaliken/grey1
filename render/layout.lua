@@ -30,7 +30,14 @@ function M.virtual_to_physical(transform, x, y)
 end
 
 function M.physical_to_virtual(transform, x, y)
-    return (x - transform.x) / transform.scale, (y - transform.y) / transform.scale
+    local virtual_x = (x - transform.x) / transform.scale
+    local virtual_y = (y - transform.y) / transform.scale
+    if not M.is_virtual_point(virtual_x, virtual_y) then return nil end
+    return virtual_x, virtual_y
+end
+
+function M.client_viewport(transform)
+    return transform.x, transform.y, transform.width, transform.height
 end
 
 function M.world_viewport(transform)

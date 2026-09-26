@@ -1,4 +1,5 @@
 script: "/main/world.gui_script"
+adjust_reference: ADJUST_REFERENCE_DISABLED
 max_nodes: 112
 fonts {
   name: "default"

@@ -294,3 +294,14 @@ The panel is read-only in this milestone; slot-click unequip is deferred until G
 10. Confirm combat, dialogue, quests, world clipping, and equipment remain functional, with no GUI-node, atlas, or runtime errors.
 
 The Inventory panel is read-only; drag/drop, item use, slot reordering, nested containers, and mouse inventory interaction remain deferred.
+
+## Unified responsive client check
+
+1. Launch near 1280×800 and verify the complete world, sidebar, and bottom panel are visible as one boxed client.
+2. Slowly widen the window and confirm the sidebar and bottom panel never disappear, the world remains exactly 15×10 tiles, and neutral pillarbox space appears.
+3. Make the window taller or narrower and confirm the complete 1.6-aspect client remains centred with letterbox/pillarbox space and no stretching.
+4. Verify 1600×800 produces 160-pixel bars on both sides, 1280×1000 produces 100-pixel bars above and below, and 1920×1080 produces 96-pixel bars on both sides.
+5. Maximize on a 16:9 monitor and confirm MAP, status, Equipment, Inventory, utility, bottom tabs, and bottom text all remain visible.
+6. Walk while resizing and confirm camera/world alignment and fixed 2x world zoom. Open dialogue and verify its authored client-relative placement remains correct.
+7. Equip sword/armor, perform save/load, and confirm the complete client and both item panels remain aligned.
+8. Confirm no render-script, GUI, atlas, Sprite, or Game Object errors occur.

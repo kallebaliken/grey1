@@ -36,7 +36,10 @@ function update(self)
     render.set_depth_mask(false)
     render.draw(self.world_predicate)
 
-    render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
+    -- GUI adjustment is disabled in world.gui, so this is the one and only
+    -- virtual-client-to-window transform used by both presentation passes.
+    local client_x, client_y, client_width, client_height = layout.client_viewport(canvas)
+    render.set_viewport(client_x, client_y, client_width, client_height)
     render.set_view(vmath.matrix4())
     render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
     render.draw(self.gui_predicate)
