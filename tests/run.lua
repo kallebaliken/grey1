@@ -700,6 +700,133 @@ test("drag drop targets remain semantic across physical resolutions", function()
     assert(vx == nil); assert(input_dispatch.drop_target(vx, nil, {}, "equipment_slot") == nil)
 end)
 
+test("inventory authoritative slot drops move, swap, and preserve identity", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.restore({ id = "inventory.reorder", owner_id = "reorder.hero", capacity = 8,
+        items = {
+            { id = "reorder.sword", type = "worn_iron_sword", quantity = 1, state = { maker = "Mara" } },
+            { id = "reorder.key", type = "old_iron_key", quantity = 1, state = {} },
+            { id = "reorder.cap", type = "leather_cap", quantity = 1, state = {} },
+        } }, registry)
+    local capacity = inventory_api.snapshot(inventory).capacity
+    local moved = inventory_api.drop_slot(inventory, 1, 5)
+    assert(moved.success); equal(moved.action, "inventory_move"); equal(moved.to, 3)
+    local order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.key"); equal(order[2].id, "reorder.cap")
+    equal(order[3].id, "reorder.sword"); equal(order[3].state.maker, "Mara")
+    equal(inventory_api.snapshot(inventory).capacity, capacity)
+
+    local earlier = inventory_api.move_slot(inventory, 3, 1)
+    assert(earlier.success); equal(earlier.action, "inventory_move")
+    order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.sword"); equal(order[2].id, "reorder.key")
+    local same = inventory_api.drop_slot(inventory, 1, 1)
+    assert(not same.success); equal(same.reason, "same_slot")
+    local swapped = inventory_api.drop_slot(inventory, 1, 2)
+    assert(swapped.success); equal(swapped.action, "inventory_swap")
+    equal(swapped.source_item_id, "reorder.sword"); equal(swapped.target_item_id, "reorder.key")
+    order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.key"); equal(order[2].id, "reorder.sword")
+    equal(order[2].state.maker, "Mara")
+
+    local restored = inventory_api.restore(codec.deserialize(codec.serialize(inventory_api.snapshot(inventory))), registry)
+    local restored_order = inventory_api.get_items(restored)
+    equal(restored_order[1].id, "reorder.key"); equal(restored_order[2].id, "reorder.sword")
+    equal(restored_order[2].state.maker, "Mara")
+    local world = fixture()
+    local player = actor_api.new("reorder.hero", "player", 1, 1, 7, "south")
+    player.inventory, player.equipment = inventory,
+        equipment_api.create("equipment.reorder", "reorder.hero", registry)
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local save_restored = save_data.restore_inventory(saved, registry)
+    equal(inventory_api.get_item_at(save_restored, 1).id, "reorder.key")
+    equal(inventory_api.get_item_at(save_restored, 2).id, "reorder.sword")
+end)
+
+test("inventory slot drops merge toward destination with stable stack identities", function()
+    local registry = item_registry_api.new(item_definitions)
+    local function stacked(id, source_quantity, target_quantity)
+        return inventory_api.restore({ id = "inventory.stack.drop." .. id, owner_id = "stack.hero." .. id,
+            capacity = 4, items = {
+                { id = id .. ".source", type = "healing_herb", quantity = source_quantity, state = {} },
+                { id = id .. ".target", type = "healing_herb", quantity = target_quantity, state = {} },
+            } }, registry)
+    end
+    local full = stacked("full", 12, 8)
+    local merged = inventory_api.drop_slot(full, 1, 2)
+    assert(merged.success); equal(merged.action, "inventory_merge"); equal(merged.transferred, 12)
+    equal(merged.source_remainder, 0); equal(merged.target_item_id, "full.target")
+    equal(merged.selected_item_id, "full.target"); assert(inventory_api.get_item(full, "full.source") == nil)
+    equal(inventory_api.get_item(full, "full.target").quantity, 20)
+
+    local partial = stacked("partial", 12, 15)
+    local partial_result = inventory_api.drop_slot(partial, 1, 2)
+    assert(partial_result.success); equal(partial_result.transferred, 5); equal(partial_result.source_remainder, 7)
+    equal(partial_result.selected_item_id, "partial.source")
+    equal(inventory_api.get_item(partial, "partial.source").quantity, 7)
+    equal(inventory_api.get_item(partial, "partial.target").quantity, 20)
+    local restored = inventory_api.restore(codec.deserialize(codec.serialize(inventory_api.snapshot(partial))), registry)
+    equal(inventory_api.get_item(restored, "partial.source").quantity, 7)
+    equal(inventory_api.get_item(restored, "partial.target").quantity, 20)
+    local restored_order = inventory_api.get_items(restored)
+    equal(restored_order[1].id, "partial.source"); equal(restored_order[2].id, "partial.target")
+    local world = fixture()
+    local player = actor_api.new("stack.hero.partial", "player", 1, 1, 7, "south")
+    player.inventory, player.equipment = partial,
+        equipment_api.create("equipment.stack.partial", "stack.hero.partial", registry)
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local save_restored = save_data.restore_inventory(saved, registry)
+    equal(inventory_api.get_item_at(save_restored, 1).id, "partial.source")
+    equal(inventory_api.get_item_at(save_restored, 1).quantity, 7)
+    equal(inventory_api.get_item_at(save_restored, 2).id, "partial.target")
+    equal(inventory_api.get_item_at(save_restored, 2).quantity, 20)
+
+    local maximum = stacked("maximum", 5, 20)
+    local maximum_result = inventory_api.drop_slot(maximum, 1, 2)
+    assert(maximum_result.success); equal(maximum_result.action, "inventory_swap")
+    equal(inventory_api.get_items(maximum)[1].id, "maximum.target")
+    equal(inventory_api.get_items(maximum)[2].id, "maximum.source")
+    local mixed = inventory_api.restore({ id = "inventory.stack.mixed", owner_id = "stack.hero.mixed",
+        capacity = 2, items = {
+            { id = "mixed.herb", type = "healing_herb", quantity = 3, state = {} },
+            { id = "mixed.key", type = "old_iron_key", quantity = 1, state = {} },
+        } }, registry)
+    local mixed_result = inventory_api.drop_slot(mixed, 1, 2)
+    equal(mixed_result.action, "inventory_swap")
+    equal(inventory_api.get_item_at(mixed, 1).id, "mixed.key")
+    equal(inventory_api.get_item_at(mixed, 2).id, "mixed.herb")
+end)
+
+test("inventory drop controller preserves overflow and selection by exact ID", function()
+    local registry = item_registry_api.new(item_definitions)
+    local items = {}
+    for index = 1, 18 do
+        items[index] = { id = "overflow.key." .. index, type = "old_iron_key", quantity = 1,
+            state = { sequence = index } }
+    end
+    local inventory = inventory_api.restore({ id = "inventory.overflow.drag", owner_id = "overflow.hero",
+        capacity = 20, items = items }, registry)
+    local equipment = equipment_api.create("equipment.overflow.drag", "overflow.hero", registry)
+    local selection = item_selection.create()
+    item_selection.select_target(selection, { target_type = "inventory_slot", index = 1,
+        item_id = "overflow.key.1", item_type = "old_iron_key" })
+    local result = equipment_controller.handle_drop({ type = "drop_item", item_id = "overflow.key.1",
+        item_type = "old_iron_key", source = { type = "inventory_slot", index = 1 },
+        target = { target_type = "inventory_slot", index = 16 } }, {
+        inventory = inventory, equipment = equipment, item_registry = registry,
+    })
+    assert(result.success); equal(result.action, "inventory_swap")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).slot_index, 16)
+    local snapshot = inventory_panel.snapshot(inventory, registry)
+    equal(snapshot.occupied, 18); equal(snapshot.overflow, 2)
+    equal(inventory_api.get_count(inventory), 18)
+    equal(inventory_api.get_item_at(inventory, 16).id, "overflow.key.1")
+    equal(inventory_api.get_item_at(inventory, 17).id, "overflow.key.17")
+    equal(inventory_api.get_item_at(inventory, 18).id, "overflow.key.18")
+end)
+
 test("actor identity, types, directions, and registry are canonical", function()
     assert(actor_types.is_valid("player") and actor_types.is_valid("npc") and actor_types.is_valid("monster"))
     assert(not actor_types.is_valid("vendor"))

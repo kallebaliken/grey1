@@ -230,6 +230,15 @@ assert "equipment_controller.handle_drop" in manager
 assert "equipment_api.equip" not in drag_source and "equipment_api.unequip" not in drag_source
 assert 'id: "drag_ghost"' in gui
 assert "update_drag_ghost" in gui_script and "Drag: %s" in gui_script
+container_source = (ROOT / "items/container.lua").read_text()
+inventory_source = (ROOT / "items/inventory.lua").read_text()
+for contract in ("move_slot", "preview_slot_drop", "drop_slot", "restore"):
+    assert f"function M.{contract}" in container_source
+for contract in ("move_slot", "preview_slot_drop", "drop_slot"):
+    assert f"function M.{contract}" in inventory_source
+assert "inventory_api.drop_slot" in controller_source
+assert "inventory_api.drop_slot" not in dispatcher_source and "container_api.drop_slot" not in gui_script
+assert "Last inventory drop: %s" in gui_script
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()

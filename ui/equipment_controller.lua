@@ -41,7 +41,7 @@ local function compatible_empty_slot(equipment, definition)
 end
 
 -- Translates semantic Equipment and Inventory intents into authoritative transfer APIs.
--- The dispatcher and GUI remain read-only; Equipment owns the mutation rules.
+-- The dispatcher and GUI remain read-only; Inventory/Container and Equipment own mutation rules.
 function M.handle_intent(intent, context)
     if not intent or intent.type ~= "ui_click" or not intent.target then
         return { handled = false, success = false, reason = "unsupported_intent" }
@@ -95,8 +95,14 @@ function M.validate_drop(intent, context)
     end
     if not intent.target then return { valid = false, reason = "outside" } end
     if intent.source.type == "inventory_slot" then
-        local item = inventory_api.get_item(context.inventory, intent.item_id)
-        if not item then return { valid = false, reason = "item_missing" } end
+        local item = inventory_api.get_item_at(context.inventory, intent.source.index)
+        if not item or item.id ~= intent.item_id then return { valid = false, reason = "item_missing" } end
+        if intent.target.target_type == "inventory_slot" then
+            local preview = inventory_api.preview_slot_drop(context.inventory,
+                intent.source.index, intent.target.index)
+            preview.item = item
+            return preview
+        end
         if intent.target.target_type ~= "equipment_slot" then
             return { valid = false, reason = "unsupported_drop" }
         end
@@ -128,7 +134,12 @@ function M.handle_drop(intent, context)
             reason = validation.reason }
     end
     local success, item_or_reason
-    if validation.action == "equip" then
+    if validation.action and validation.action:match("^inventory_") then
+        local inventory_result = inventory_api.drop_slot(context.inventory,
+            intent.source.index, intent.target.index)
+        inventory_result.handled = true
+        return inventory_result
+    elseif validation.action == "equip" then
         success, item_or_reason = equipment_api.equip(context.equipment, context.inventory,
             validation.item.id, validation.slot, context.events)
     else

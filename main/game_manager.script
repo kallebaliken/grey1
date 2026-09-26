@@ -183,6 +183,7 @@ local function render(self)
         selected_target = item_selection.target_name(selected_item),
         selected_item = item_selection.describe(selected_item),
         drag = drag, drag_diagnostics = item_drag.describe(drag), drag_slots = drag_slots,
+        last_inventory_drop = self.last_inventory_drop or "none",
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
@@ -229,6 +230,7 @@ local function create_session(self, map, loaded)
     if self.event_bindings then event_bindings.destroy(self.event_bindings); self.event_bindings = nil end
     if self.item_selection then item_selection.clear(self.item_selection) end
     if self.item_drag then item_drag.cancel(self.item_drag) end
+    self.last_inventory_drop = nil
     self.map = map
     self.state = state_api.new(loaded)
     self.item_registry = item_registry_api.new(item_definitions)
@@ -382,7 +384,25 @@ function on_input(self, action_id, action)
                     equipment = self.player.equipment, inventory = self.player.inventory,
                     item_registry = self.item_registry, events = events,
                 })
-                if result.success then
+                if result.success and result.action and result.action:match("^inventory_") then
+                    self.last_inventory_drop = string.format("%d -> %d | %s%s", result.from, result.to,
+                        result.action:gsub("inventory_", ""), result.transferred
+                            and (" " .. result.transferred) or "")
+                    self.notice = result.action == "inventory_merge" and "Inventory stacks merged."
+                        or (result.action == "inventory_swap" and "Inventory items swapped."
+                            or "Inventory item moved.")
+                    if result.selected_item_id and result.selected_item_id ~= result.source_item_id then
+                        local refreshed = inventory_panel.snapshot(self.player.inventory, self.item_registry)
+                        for index, entry in ipairs(refreshed.entries) do
+                            if entry.item_id == result.selected_item_id then
+                                item_selection.select_target(self.item_selection, { target_type = "inventory_slot",
+                                    index = index, item_id = entry.item_id, item_type = entry.item_type,
+                                    item_name = entry.item_name, animation = entry.animation })
+                                break
+                            end
+                        end
+                    end
+                elseif result.success then
                     local verb = result.action == "equip" and "Equipped " or "Unequipped "
                     self.notice = verb .. self.item_registry:get(result.item_type).name .. "."
                 elseif result.reason == "incompatible_slot" then

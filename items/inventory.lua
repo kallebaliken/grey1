@@ -56,6 +56,26 @@ function M.get_items(inventory)
     return container_api.get_items(record.container, record.registry)
 end
 
+function M.get_item_at(inventory, index)
+    local record = record_for(inventory)
+    return container_api.get_item_at(record.container, index, record.registry)
+end
+
+function M.move_slot(inventory, from_index, to_index)
+    local record = record_for(inventory)
+    return container_api.move_slot(record.container, from_index, to_index, record.registry)
+end
+
+function M.preview_slot_drop(inventory, from_index, to_index)
+    local record = record_for(inventory)
+    return container_api.preview_slot_drop(record.container, from_index, to_index, record.registry)
+end
+
+function M.drop_slot(inventory, from_index, to_index)
+    local record = record_for(inventory)
+    return container_api.drop_slot(record.container, from_index, to_index, record.registry)
+end
+
 function M.get_count(inventory)
     return container_api.get_count(record_for(inventory).container)
 end
@@ -90,12 +110,11 @@ end
 
 function M.restore(snapshot, registry)
     assert(type(snapshot) == "table" and type(snapshot.items) == "table", "invalid inventory snapshot")
-    local inventory = M.create(snapshot.id, snapshot.owner_id, snapshot.capacity, registry)
-    for _, item in ipairs(snapshot.items) do
-        local result = M.add_item(inventory, item)
-        assert(result.inserted_quantity == item.quantity and not result.remainder, "inventory snapshot exceeds capacity")
-        assert(M.get_item(inventory, item.id), "inventory snapshot contains a non-canonical merged stack")
-    end
+    ids.require_stable(snapshot.id, "inventory id")
+    ids.require_stable(snapshot.owner_id, "inventory owner id")
+    local inventory = setmetatable({}, inventory_mt)
+    inventories[inventory] = { id = snapshot.id, owner_id = snapshot.owner_id, registry = registry,
+        container = container_api.restore(snapshot.id .. ".items", snapshot.capacity, snapshot.items, registry) }
     return inventory
 end
 

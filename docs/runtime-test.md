@@ -422,7 +422,7 @@ The Inventory GUI remains a read-only projection. Confirmed second clicks may eq
 18. Equip the sword and fill Inventory if practical.
 19. Drag the equipped sword to Inventory.
 20. Verify `Inventory is full.` and that the sword remains equipped.
-21. Drag Inventory to another Inventory slot and verify no rearrange, merge, or split.
+21. Drag Inventory to another Inventory slot and verify the authoritative move, swap, or merge policy; verify no stack split.
 22. Drag Equipment to another Equipment slot and verify no rearrange or swap.
 23. Start a drag and release over the world.
 24. Verify no item is dropped and keyboard pickup/drop remains unchanged.
@@ -442,6 +442,39 @@ The Inventory GUI remains a read-only projection. Confirmed second clicks may eq
 38. Confirm no additional item instances or IDs are created.
 39. Recheck ordinary first/second-click equip and unequip behavior.
 40. Confirm there are no GUI, Defold, ownership, combat, or input errors.
+
+## Inventory rearranging and stack-aware drag check
+
+1. Put several distinct items into Inventory.
+2. Drag the sword from the first visible position to a later empty position.
+3. Verify compact ordering shifts and the sword appends to the occupied sequence.
+4. Verify the exact sword ID and mutable state remain unchanged.
+5. Drag the sword onto the key.
+6. Verify the two exact item instances swap.
+7. Create or restore two compatible healing-herb stacks.
+8. Drag the source herb stack onto the destination herb stack.
+9. Verify quantity transfers toward the destination and its ID survives a full merge.
+10. Verify the authored stack maximum of 20 is respected.
+11. Test a partial merge into a nearly full destination.
+12. Verify the destination clamps at 20 and the source ID remains with the exact remainder.
+13. Drag onto an already full compatible stack.
+14. Verify the two stacks swap rather than merge.
+15. Drag an item back onto its original slot.
+16. Verify a no-op with no ownership or quantity change.
+17. Confirm move, swap, and merge target colors differ while the existing ghost/source dimming remain.
+18. Equip the sword through existing Inventory-to-Equipment drag.
+19. Verify exact-slot Equipment behavior and weapon damage remain unchanged.
+20. Drag it back to Inventory and verify normal authoritative insertion remains in use.
+21. Create an Inventory with overflow if practical and reorder visible slots 1–16.
+22. Verify `+N MORE`, total occupancy, and invisible-entry relative order remain correct.
+23. Save after rearranging, restart/load, and verify exact Inventory order restores.
+24. Save after a partial merge and reload.
+25. Verify both stack IDs, exact quantities, and order restore without insertion-time re-merging.
+26. Reset and verify authored Inventory order and quantities return.
+27. Resize and repeat a visible slot drop; verify virtual targeting remains correct.
+28. Open dialogue and verify Inventory dragging remains blocked/cancelled.
+29. Confirm there are no duplicate or lost item IDs and no world-item transfer occurs.
+30. Confirm there are no GUI, Defold, save/load, ownership, or input errors.
 
 ## Unified responsive client check
 

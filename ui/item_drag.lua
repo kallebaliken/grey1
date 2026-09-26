@@ -25,6 +25,7 @@ end
 function M.cancel(state)
     state.candidate, state.active, state.pointer_x, state.pointer_y = nil, false, nil, nil
     state.target, state.target_valid, state.target_reason = nil, false, nil
+    state.target_action = nil
 end
 
 function M.pointer_down(state, target, x, y)
@@ -42,6 +43,7 @@ function M.pointer_move(state, x, y, target, validation)
     state.pointer_x, state.pointer_y, state.target = x, y, copy(target)
     state.target_valid = validation and validation.valid == true or false
     state.target_reason = validation and validation.reason or nil
+    state.target_action = validation and validation.action or nil
     if not state.active and x and y then
         local dx, dy = x - state.candidate.start_x, y - state.candidate.start_y
         if dx * dx + dy * dy >= M.THRESHOLD * M.THRESHOLD then state.active = true end
@@ -71,7 +73,8 @@ function M.get_snapshot(state)
     return { active = state.active, item_id = source.item_id, item_type = source.item_type,
         animation = source.animation, source = copy(source), target = copy(state.target),
         pointer_x = state.pointer_x, pointer_y = state.pointer_y,
-        target_valid = state.target_valid, target_reason = state.target_reason }
+        target_valid = state.target_valid, target_reason = state.target_reason,
+        target_action = state.target_action }
 end
 
 function M.reconcile(state, equipment_snapshot, inventory_snapshot)

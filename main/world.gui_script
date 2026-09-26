@@ -8,8 +8,17 @@ local SELECTED_COLOR = vmath.vector4(0.42, 0.32, 0.12, 1)
 local HOVER_SELECTED_COLOR = vmath.vector4(0.52, 0.43, 0.20, 1)
 local DRAG_VALID_COLOR = vmath.vector4(0.12, 0.38, 0.22, 1)
 local DRAG_INVALID_COLOR = vmath.vector4(0.42, 0.14, 0.12, 1)
+local DRAG_SWAP_COLOR = vmath.vector4(0.34, 0.20, 0.46, 1)
+local DRAG_MERGE_COLOR = vmath.vector4(0.10, 0.46, 0.30, 1)
 local DRAG_SOURCE_COLOR = vmath.vector4(0.10, 0.10, 0.11, 1)
 local INVENTORY_PANEL_COLOR = vmath.vector4(0.065, 0.078, 0.095, 1)
+
+local function drag_target_color(drag)
+    if not drag.target_valid then return DRAG_INVALID_COLOR end
+    if drag.target_action == "inventory_swap" then return DRAG_SWAP_COLOR end
+    if drag.target_action == "inventory_merge" then return DRAG_MERGE_COLOR end
+    return DRAG_VALID_COLOR
+end
 
 local function node_for_target(target_name)
     local equipment_slot = target_name:match("^equipment%.(.+)$")
@@ -36,7 +45,8 @@ local function update_highlights(self, hover_target, selected_target, drag, drag
     for slot, status in pairs(drag_slots or {}) do slot_parts[#slot_parts + 1] = slot .. status end
     table.sort(slot_parts)
     local fingerprint = table.concat({ hover_target, selected_target, drag_source_name(drag),
-        drag_target_name(drag), drag and tostring(drag.target_valid) or "", table.concat(slot_parts, ",") }, "|")
+        drag_target_name(drag), drag and tostring(drag.target_valid) or "",
+        drag and (drag.target_action or "") or "", table.concat(slot_parts, ",") }, "|")
     if self.highlight_fingerprint == fingerprint then return end
     self.highlight_fingerprint = fingerprint
     if self.hover_node then gui.set_color(gui.get_node(self.hover_node), SLOT_COLOR) end
@@ -58,13 +68,11 @@ local function update_highlights(self, hover_target, selected_target, drag, drag
         local target_name = drag_target_name(drag)
         if target_name == "inventory_panel" then
             self.drag_inventory_panel = true
-            gui.set_color(gui.get_node("inventory_panel"), drag.target_valid
-                and DRAG_VALID_COLOR or DRAG_INVALID_COLOR)
+            gui.set_color(gui.get_node("inventory_panel"), drag_target_color(drag))
         else
             local target_node = node_for_target(target_name)
             if target_node then self.drag_nodes[#self.drag_nodes + 1] = target_node
-                gui.set_color(gui.get_node(target_node), drag.target_valid
-                    and DRAG_VALID_COLOR or DRAG_INVALID_COLOR) end
+                gui.set_color(gui.get_node(target_node), drag_target_color(drag)) end
         end
     end
     if self.hover_node and not (drag and drag.active) then
@@ -135,7 +143,7 @@ function on_message(self, message_id, message)
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
     gui.set_enabled(gui.get_node("control_help"), message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nMouse physical: %s | Mouse virtual: %s | Region: %s\nHover: %s | Clicked: %s%s\nSelected item: %s\nDrag: %s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nEquipment UI: %s\nInventory UI: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nMouse physical: %s | Mouse virtual: %s | Region: %s\nHover: %s | Clicked: %s%s\nSelected item: %s\nDrag: %s\nLast inventory drop: %s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nEquipment UI: %s\nInventory UI: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.player_faction,
         message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
@@ -153,6 +161,7 @@ function on_message(self, message_id, message)
         message.mouse_clicked, message.mouse_click_blocked and " (dialogue blocked)" or "",
         message.selected_item,
         message.drag_diagnostics,
+        message.last_inventory_drop,
         message.camera_zoom, message.visible_tiles_width, message.visible_tiles_height,
         message.render_commands, message.render_ground, message.render_objects, message.render_multi_piece,
         message.render_items, message.render_actors, message.render_roofs,

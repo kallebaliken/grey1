@@ -48,6 +48,7 @@ The map remains the source of original geometry and original `item_placements`. 
 - A **persistent override** records only removal or changed quantity/state for that static placement.
 - A **dynamic world item** is a runtime placement, such as a dropped inventory item, and therefore stores its world-placement ID, item instance, and logical coordinates.
 - An **inventory item** appears only in the inventory snapshot and retains its item-instance ID, quantity, and mutable state.
+- Inventory snapshot array order is authoritative player-controlled Container order. Restore preserves entries directly—including partial compatible stacks—without replaying insertion-time merging; no schema-version change is required.
 - An **equipped item** appears only under its canonical equipment slot and retains the same item-instance schema and identity.
 
 Before saving or loading, validation rejects duplicate item ownership across inventory, equipment, and world; duplicate dynamic placement IDs; unknown equipment slots; unknown static overrides; malformed positions; and incompatible map/version identities. Snapshots come from public ownership APIs and contain copies rather than live internal tables. Item ID allocators reserve every restored inventory, equipment, and world ID before producing new IDs.
