@@ -67,6 +67,12 @@ function M.is_selected(state, item_id)
     return state.current ~= nil and state.current.item_id == item_id
 end
 
+function M.select_target(state, target)
+    if not target or not target.item_id or not location_for(target) then M.clear(state); return false end
+    assign(state, target, true)
+    return true
+end
+
 local function find_target(item_id, equipment_snapshot, inventory_snapshot)
     for index, entry in ipairs(inventory_snapshot and inventory_snapshot.entries or {}) do
         if entry.item_id == item_id then

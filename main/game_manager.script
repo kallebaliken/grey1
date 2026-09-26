@@ -50,6 +50,7 @@ local layout = require "render.layout"
 local input_dispatch = require "ui.input_dispatch"
 local equipment_controller = require "ui.equipment_controller"
 local item_selection = require "ui.item_selection"
+local item_drag = require "ui.item_drag"
 
 local LOGICAL_TILE_SIZE = 32
 local CAMERA_ZOOM = sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM)
@@ -132,9 +133,20 @@ local function render(self)
     end
     local last_attack = self.last_attack
     local conversation = dialogue.get_current(self.dialogue)
-    if conversation then item_selection.clear(self.item_selection)
+    if conversation then item_selection.clear(self.item_selection); item_drag.cancel(self.item_drag)
     else item_selection.reconcile(self.item_selection, equipment_ui, inventory_ui) end
+    item_drag.reconcile(self.item_drag, equipment_ui, inventory_ui)
     local selected_item = item_selection.get_snapshot(self.item_selection)
+    local drag = item_drag.get_snapshot(self.item_drag)
+    local drag_slots = {}
+    if drag and drag.active and drag.source.type == "inventory_slot" then
+        local definition = self.item_registry:get(drag.item_type)
+        local allowed = {}
+        for _, slot in ipairs(definition.equipment and definition.equipment.slots or {}) do allowed[slot] = true end
+        for _, entry in ipairs(equipment_ui.entries) do
+            if allowed[entry.slot] then drag_slots[entry.slot] = entry.item_id and "blocked" or "valid" end
+        end
+    end
     local quest_definition = self.quest_registry:get("rat_problem")
     local quest_status = quests.get_status(self.quests, "rat_problem")
     local quest_progress = quests.get_objective_progress(self.quests, "rat_problem", "investigate") or 0
@@ -170,6 +182,7 @@ local function render(self)
         mouse_click_blocked = self.last_ui_intent and self.last_ui_intent.blocked or false,
         selected_target = item_selection.target_name(selected_item),
         selected_item = item_selection.describe(selected_item),
+        drag = drag, drag_diagnostics = item_drag.describe(drag), drag_slots = drag_slots,
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
@@ -215,6 +228,7 @@ end
 local function create_session(self, map, loaded)
     if self.event_bindings then event_bindings.destroy(self.event_bindings); self.event_bindings = nil end
     if self.item_selection then item_selection.clear(self.item_selection) end
+    if self.item_drag then item_drag.cancel(self.item_drag) end
     self.map = map
     self.state = state_api.new(loaded)
     self.item_registry = item_registry_api.new(item_definitions)
@@ -290,6 +304,7 @@ function init(self)
     self.held, self.debug_visible, self.inspect_offset = {}, false, 0
     self.pointer, self.last_ui_intent = { region = "outside" }, nil
     self.item_selection = item_selection.create()
+    self.item_drag = item_drag.create()
     local map = map_loader.load("data.maps.prototype")
     create_session(self, map, save_manager.load(map))
     events.emit("world_loaded", { map_id = self.map.id })
@@ -323,8 +338,64 @@ function on_input(self, action_id, action)
         local physical_x, physical_y = action.screen_x or action.x, action.screen_y or action.y
         self.pointer = input_dispatch.resolve_physical(layout.physical_transform(width, height),
             physical_x, physical_y, context)
+        local dialogue_active = dialogue.is_active(self.dialogue)
         if action_id == hash("left_click") and action.pressed then
-            local intent, consumed = input_dispatch.click(self.pointer, dialogue.is_active(self.dialogue))
+            self.pointer_press_target = self.pointer.target
+            if not dialogue_active then
+                item_drag.pointer_down(self.item_drag, self.pointer.target,
+                    self.pointer.virtual_x, self.pointer.virtual_y)
+            end
+            render(self)
+            return self.pointer.target ~= nil
+        elseif mouse_motion and item_drag.is_pending(self.item_drag) then
+            local source = item_drag.get_source(self.item_drag)
+            local target = input_dispatch.drop_target(self.pointer.virtual_x, self.pointer.virtual_y,
+                context, source.type)
+            local drop_intent = { type = "drop_item", item_id = source.item_id,
+                item_type = source.item_type, source = source, target = target }
+            local validation = equipment_controller.validate_drop(drop_intent, {
+                equipment = self.player.equipment, inventory = self.player.inventory,
+                item_registry = self.item_registry,
+            })
+            local was_active = item_drag.is_active(self.item_drag)
+            item_drag.pointer_move(self.item_drag, self.pointer.virtual_x, self.pointer.virtual_y,
+                target, validation)
+            if not was_active and item_drag.is_active(self.item_drag) then
+                item_selection.select_target(self.item_selection, self.pointer_press_target)
+            end
+            render(self)
+            return true
+        elseif action_id == hash("left_click") and action.released then
+            local source = item_drag.get_source(self.item_drag)
+            if item_drag.is_active(self.item_drag) then
+                local target = input_dispatch.drop_target(self.pointer.virtual_x, self.pointer.virtual_y,
+                    context, source.type)
+                local validation = equipment_controller.validate_drop({ type = "drop_item",
+                    item_id = source.item_id, item_type = source.item_type, source = source, target = target }, {
+                    equipment = self.player.equipment, inventory = self.player.inventory,
+                    item_registry = self.item_registry,
+                })
+                item_drag.pointer_move(self.item_drag, self.pointer.virtual_x, self.pointer.virtual_y,
+                    target, validation)
+                local drop_intent = item_drag.release(self.item_drag)
+                local result = equipment_controller.handle_drop(drop_intent, {
+                    equipment = self.player.equipment, inventory = self.player.inventory,
+                    item_registry = self.item_registry, events = events,
+                })
+                if result.success then
+                    local verb = result.action == "equip" and "Equipped " or "Unequipped "
+                    self.notice = verb .. self.item_registry:get(result.item_type).name .. "."
+                elseif result.reason == "incompatible_slot" then
+                    self.notice = "That item cannot be equipped there."
+                elseif result.reason == "slot_occupied" then
+                    self.notice = "The required equipment slot is occupied."
+                elseif result.reason == "inventory_full" then self.notice = "Inventory is full." end
+                render(self)
+                return true
+            end
+            if item_drag.is_pending(self.item_drag) then item_drag.release(self.item_drag) end
+            local target = self.pointer.target
+            local intent = target and { type = "ui_click", target = target, blocked = dialogue_active } or nil
             if intent then self.last_ui_intent = intent end
             local activate = false
             if intent and intent.blocked then item_selection.clear(self.item_selection)
@@ -347,11 +418,15 @@ function on_input(self, action_id, action)
                 self.notice = "The required equipment slot is occupied."
             end
             render(self)
-            if consumed then return true end
+            self.pointer_press_target = nil
+            if target then return true end
         else
             render(self)
-            return self.pointer.target ~= nil
+            return item_drag.is_pending(self.item_drag) or self.pointer.target ~= nil
         end
+    end
+    if action.pressed and action_id == hash("dialogue_close") and item_drag.is_pending(self.item_drag) then
+        item_drag.cancel(self.item_drag); self.notice = "Drag cancelled"; render(self); return true
     end
     if dialogue.is_active(self.dialogue) then
         if action.pressed and action_id == hash("debug") then
@@ -481,6 +556,7 @@ function on_input(self, action_id, action)
         end
         render(self); return true
     elseif action.pressed and action_id == hash("save") then
+        item_drag.cancel(self.item_drag)
         self.notice = save_manager.save(self.player, self.world, self.map.id,
             combat_registry.get(self.combat, self.player.id), quests.get_snapshot(self.quests))
             and "Game saved" or "Save failed"; render(self); return true

@@ -28,6 +28,7 @@ for index = 1, 16 do
     local row = math.floor((index - 1) / 4)
     M.INVENTORY_SLOTS[index] = centred_rect(1030 + column * 60, 244 - row * 40, INVENTORY_SIZE)
 end
+M.INVENTORY_PANEL = { x = 976, y = 78, width = 288, height = 220 }
 
 function M.contains(rect, x, y)
     return x >= rect.x and x < rect.x + rect.width and y >= rect.y and y < rect.y + rect.height

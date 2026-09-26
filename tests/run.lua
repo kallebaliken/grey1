@@ -71,6 +71,7 @@ local client_layout = require "ui.client_layout"
 local input_dispatch = require "ui.input_dispatch"
 local equipment_controller = require "ui.equipment_controller"
 local item_selection = require "ui.item_selection"
+local item_drag = require "ui.item_drag"
 local events = require "core.events"
 
 local count = 0
@@ -527,6 +528,176 @@ test("item selection is identity-based, transient, and reconciles ownership", fu
     assert(item_selection.get_snapshot(selection) == nil)
     assert(item_selection.get_snapshot(item_selection.create()) == nil,
         "save/load and reset construct transient selection empty")
+end)
+
+test("item drag threshold preserves clicks and emits semantic drop intents", function()
+    local source = { target_type = "inventory_slot", index = 3, item_id = "drag.item",
+        item_type = "worn_iron_sword", animation = "sword_01" }
+    local target = { target_type = "equipment_slot", slot = "off_hand" }
+    local drag = item_drag.create()
+    assert(item_drag.pointer_down(drag, source, 100, 100))
+    assert(item_drag.is_pending(drag)); assert(not item_drag.is_active(drag))
+    assert(not item_drag.pointer_move(drag, 103, 104, target, { valid = true }))
+    assert(not item_drag.is_active(drag), "five virtual pixels stays below the six-pixel threshold")
+    local click_intent, click_reason = item_drag.release(drag)
+    assert(click_intent == nil); equal(click_reason, "click")
+
+    assert(item_drag.pointer_down(drag, source, 100, 100))
+    assert(item_drag.pointer_move(drag, 106, 100, target, { valid = true }))
+    local snapshot = item_drag.get_snapshot(drag)
+    assert(snapshot.active and snapshot.target_valid); equal(snapshot.item_id, "drag.item")
+    equal(snapshot.pointer_x, 106); equal(snapshot.target.slot, "off_hand")
+    local intent = item_drag.release(drag)
+    equal(intent.type, "drop_item"); equal(intent.item_id, "drag.item")
+    equal(intent.source.type, "inventory_slot"); equal(intent.source.index, 3)
+    equal(intent.target.type or intent.target.target_type, "equipment_slot")
+    assert(not item_drag.is_pending(drag))
+
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    item_drag.pointer_move(drag, 20, 10, nil, { valid = false, reason = "outside" })
+    local outside, outside_reason = item_drag.release(drag)
+    equal(outside_reason, "outside"); assert(outside.target == nil)
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    item_drag.cancel(drag); assert(not item_drag.is_pending(drag))
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    assert(not item_drag.reconcile(drag, { entries = {} }, { entries = {} }))
+    assert(not item_drag.is_pending(drag), "a vanished source identity cancels drag")
+    assert(not item_drag.pointer_down(drag, { target_type = "inventory_slot", index = 4 }, 0, 0),
+        "empty slots never create candidates")
+end)
+
+test("drag drops use authoritative equipment transfers and reject unsupported targets", function()
+    local registry = item_registry_api.new(item_definitions)
+    local function ownership(id, capacity)
+        return inventory_api.create("inventory.drag." .. id, "drag." .. id, capacity or 6, registry),
+            equipment_api.create("equipment.drag." .. id, "drag." .. id, registry)
+    end
+    local function drop(item_id, item_type, source, target)
+        return { type = "drop_item", item_id = item_id, item_type = item_type,
+            source = source, target = target }
+    end
+
+    local inventory, equipment = ownership("success")
+    local sword = item_instance.new({ id = "drag.sword", type = "worn_iron_sword",
+        state = { maker = "Mara" } }, registry)
+    local armor_item = item_instance.new({ id = "drag.armor", type = "patched_leather_armor" }, registry)
+    local cap = item_instance.new({ id = "drag.cap", type = "leather_cap" }, registry)
+    inventory_api.add_item(inventory, sword); inventory_api.add_item(inventory, armor_item)
+    inventory_api.add_item(inventory, cap)
+    local context = { inventory = inventory, equipment = equipment, item_registry = registry }
+    local selection = item_selection.create()
+    item_selection.select_target(selection, { target_type = "inventory_slot", index = 1,
+        item_id = sword.id, item_type = sword.type })
+    local sword_result = equipment_controller.handle_drop(drop(sword.id, sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "main_hand" }), context)
+    assert(sword_result.success); equal(sword_result.action, "equip"); equal(sword_result.item_id, sword.id)
+    equal(sword_result.target_slot, "main_hand"); equal(equipment_api.get(equipment, "main_hand").id, sword.id)
+    equal(equipment_api.get(equipment, "main_hand").state.maker, "Mara")
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 8)
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).equipment_slot, "main_hand")
+    local armor_result = equipment_controller.handle_drop(drop(armor_item.id, armor_item.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "torso" }), context)
+    assert(armor_result.success); equal(equipment_api.get(equipment, "torso").id, armor_item.id)
+    equal(armor.resolve(equipment, registry, 8).armor, 2)
+    local cap_result = equipment_controller.handle_drop(drop(cap.id, cap.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "head" }), context)
+    assert(cap_result.success); equal(equipment_api.get(equipment, "head").id, cap.id)
+
+    local returned = equipment_controller.handle_drop(drop(sword.id, sword.type,
+        { type = "equipment_slot", slot = "main_hand" }, { target_type = "inventory_panel" }), context)
+    assert(returned.success); equal(returned.action, "unequip")
+    equal(inventory_api.get_item(inventory, sword.id).state.maker, "Mara")
+    assert(equipment_api.get(equipment, "main_hand") == nil)
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).source, "inventory")
+    local returned_armor = equipment_controller.handle_drop(drop(armor_item.id, armor_item.type,
+        { type = "equipment_slot", slot = "torso" }, { target_type = "inventory_panel" }), context)
+    assert(returned_armor.success); equal(inventory_api.get_item(inventory, armor_item.id).id, armor_item.id)
+    assert(equipment_api.get(equipment, "torso") == nil)
+
+    local reject_inventory, reject_equipment = ownership("reject")
+    local reject_sword = item_instance.new({ id = "drag.reject.sword", type = "worn_iron_sword" }, registry)
+    local reject_armor = item_instance.new({ id = "drag.reject.armor", type = "patched_leather_armor" }, registry)
+    local herb = item_instance.new({ id = "drag.reject.herb", type = "healing_herb", quantity = 2 }, registry)
+    inventory_api.add_item(reject_inventory, reject_sword); inventory_api.add_item(reject_inventory, reject_armor)
+    inventory_api.add_item(reject_inventory, herb)
+    local reject_context = { inventory = reject_inventory, equipment = reject_equipment, item_registry = registry }
+    local before_inventory = codec.serialize(inventory_api.snapshot(reject_inventory))
+    local before_equipment = codec.serialize(equipment_api.snapshot(reject_equipment))
+    local incompatible = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "torso" }), reject_context)
+    assert(not incompatible.success); equal(incompatible.reason, "incompatible_slot")
+    local armor_hand = equipment_controller.handle_drop(drop(reject_armor.id, reject_armor.type,
+        { type = "inventory_slot", index = 2 }, { target_type = "equipment_slot", slot = "main_hand" }), reject_context)
+    equal(armor_hand.reason, "incompatible_slot")
+    local herb_drop = equipment_controller.handle_drop(drop(herb.id, herb.type,
+        { type = "inventory_slot", index = 3 }, { target_type = "equipment_slot", slot = "head" }), reject_context)
+    equal(herb_drop.reason, "incompatible_slot")
+    for _, target_type in ipairs({ "inventory_slot", "world", "sidebar_background" }) do
+        local rejected = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+            { type = "inventory_slot", index = 1 }, { target_type = target_type, index = 2 }), reject_context)
+        equal(rejected.reason, "unsupported_drop")
+    end
+    local outside = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, nil), reject_context)
+    equal(outside.reason, "outside")
+    equal(codec.serialize(inventory_api.snapshot(reject_inventory)), before_inventory)
+    equal(codec.serialize(equipment_api.snapshot(reject_equipment)), before_equipment)
+
+    inventory_api.add_item(reject_inventory,
+        item_instance.new({ id = "drag.blocker", type = "worn_iron_sword" }, registry))
+    assert(equipment_api.equip(reject_equipment, reject_inventory, "drag.blocker", "main_hand"))
+    local occupied_inventory = codec.serialize(inventory_api.snapshot(reject_inventory))
+    local occupied_equipment = codec.serialize(equipment_api.snapshot(reject_equipment))
+    local occupied = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "main_hand" }), reject_context)
+    equal(occupied.reason, "slot_occupied")
+    equal(codec.serialize(inventory_api.snapshot(reject_inventory)), occupied_inventory)
+    equal(codec.serialize(equipment_api.snapshot(reject_equipment)), occupied_equipment)
+
+    local full_inventory, full_equipment = ownership("full", 1)
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "drag.full.sword", type = "worn_iron_sword" }, registry))
+    assert(equipment_api.equip(full_equipment, full_inventory, "drag.full.sword", "main_hand"))
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "drag.full.key", type = "old_iron_key" }, registry))
+    local full = equipment_controller.handle_drop(drop("drag.full.sword", "worn_iron_sword",
+        { type = "equipment_slot", slot = "main_hand" }, { target_type = "inventory_panel" }),
+        { inventory = full_inventory, equipment = full_equipment, item_registry = registry })
+    assert(not full.success); equal(full.reason, "inventory_full")
+    equal(equipment_api.get(full_equipment, "main_hand").id, "drag.full.sword")
+    local equipment_to_equipment = equipment_controller.handle_drop(drop("drag.full.sword", "worn_iron_sword",
+        { type = "equipment_slot", slot = "main_hand" },
+        { target_type = "equipment_slot", slot = "off_hand" }),
+        { inventory = full_inventory, equipment = full_equipment, item_registry = registry })
+    equal(equipment_to_equipment.reason, "unsupported_drop")
+end)
+
+test("drag drop targets remain semantic across physical resolutions", function()
+    local registry = item_registry_api.new(item_definitions)
+    local sizes = { { 1280, 800 }, { 1920, 1080 }, { 1600, 800 }, { 1280, 1000 }, { 2560, 1600 } }
+    for index, size in ipairs(sizes) do
+        local inventory = inventory_api.create("inventory.drag.resize." .. index, "drag.resize." .. index, 1, registry)
+        local equipment = equipment_api.create("equipment.drag.resize." .. index, "drag.resize." .. index, registry)
+        local item_id = "drag.resize.sword." .. index
+        inventory_api.add_item(inventory, item_instance.new({ id = item_id, type = "worn_iron_sword" }, registry))
+        local context = { inventory = inventory_panel.snapshot(inventory, registry),
+            equipment = equipment_panel.snapshot(equipment, registry) }
+        local transform = layout.physical_transform(size[1], size[2])
+        local px, py = layout.virtual_to_physical(transform, 1055, 394)
+        local vx, vy = layout.physical_to_virtual(transform, px, py)
+        local target = input_dispatch.drop_target(vx, vy, context, "inventory_slot")
+        equal(target.target_type, "equipment_slot"); equal(target.slot, "main_hand")
+    end
+    local wide = layout.physical_transform(1600, 800)
+    local vx = layout.physical_to_virtual(wide, 10, 400)
+    assert(vx == nil); assert(input_dispatch.drop_target(vx, nil, {}, "inventory_slot") == nil)
+    local tall = layout.physical_transform(1280, 1000)
+    vx = layout.physical_to_virtual(tall, 640, 10)
+    assert(vx == nil); assert(input_dispatch.drop_target(vx, nil, {}, "equipment_slot") == nil)
 end)
 
 test("actor identity, types, directions, and registry are canonical", function()

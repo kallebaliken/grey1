@@ -7,6 +7,8 @@ local function enrich(target, entry)
     if entry then
         target.item_id = entry.item_id
         target.item_type = entry.item_type
+        target.item_name = entry.item_name
+        target.animation = entry.animation
     end
     return target
 end
@@ -44,6 +46,14 @@ function M.resolve_physical(transform, physical_x, physical_y, context)
         region = layout.classify_virtual_point(x, y), target = M.hit_test(x, y, context) }
 end
 
+function M.drop_target(x, y, context, source_type)
+    if not x or layout.classify_virtual_point(x, y) ~= "sidebar" then return nil end
+    if source_type == "equipment_slot" and client_layout.contains(client_layout.INVENTORY_PANEL, x, y) then
+        return { region = "sidebar", target_type = "inventory_panel" }
+    end
+    return M.hit_test(x, y, context)
+end
+
 function M.click(pointer, dialogue_active)
     if not pointer.target then return nil, false end
     return { type = "ui_click", target = pointer.target, blocked = dialogue_active == true }, true
@@ -52,6 +62,7 @@ end
 function M.target_name(target)
     if not target then return "none" end
     if target.target_type == "equipment_slot" then return "equipment." .. target.slot end
+    if target.target_type == "inventory_panel" then return "inventory.panel" end
     return "inventory.slot." .. target.index
 end
 

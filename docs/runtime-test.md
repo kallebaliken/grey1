@@ -400,6 +400,49 @@ The Inventory GUI remains a read-only projection. Confirmed second clicks may eq
 28. Verify dialogue clears selection and blocks item actions while hover remains available.
 29. Confirm there are no GUI, Defold, ownership, or input errors.
 
+## Inventory and Equipment drag/drop check
+
+1. Pick up the worn iron sword and verify it is in Inventory.
+2. Press the sword and move fewer than six virtual pixels; release and verify ordinary click/selection behavior.
+3. Press and drag the sword toward `main_hand`.
+4. Verify the atlas-backed translucent drag ghost follows the pointer without world zoom.
+5. Verify compatible hand slots highlight and the source remains visible but dimmed.
+6. Release on `main_hand`.
+7. Verify the exact sword equips and selection follows its stable ID.
+8. Verify attack damage changes through the existing resolver.
+9. Drag the sword from `main_hand` to anywhere inside the Inventory panel/grid.
+10. Release and verify the exact sword returns through authoritative Inventory insertion.
+11. Drag patched leather armor to `torso` and verify it equips.
+12. Verify mitigation changes through the existing resolver.
+13. Drag armor to `main_hand` and verify the target is invalid.
+14. Release and verify armor remains in Inventory with unchanged identity.
+15. Drag a healing herb over Equipment and verify no compatible slots.
+16. Release and verify the herb remains unchanged; no item-use behavior occurs.
+17. Try an occupied compatible Equipment target and verify no swap or auto-unequip.
+18. Equip the sword and fill Inventory if practical.
+19. Drag the equipped sword to Inventory.
+20. Verify `Inventory is full.` and that the sword remains equipped.
+21. Drag Inventory to another Inventory slot and verify no rearrange, merge, or split.
+22. Drag Equipment to another Equipment slot and verify no rearrange or swap.
+23. Start a drag and release over the world.
+24. Verify no item is dropped and keyboard pickup/drop remains unchanged.
+25. Repeat over bottom/sidebar background and verify cancellation.
+26. Start a drag and press **Escape**; verify the ghost and target state clear.
+27. Resize through 1280×800, 1920×1080, 1600×800, 1280×1000, and 2560×1600.
+28. Repeat valid drops and verify the same semantic slot receives them.
+29. Release in pillarbox and letterbox space and verify cancellation.
+30. Start a drag, resize while holding, and verify the ghost and target continue using updated virtual coordinates.
+31. Start a drag and open dialogue.
+32. Verify dialogue cancels the drag and blocks new drags.
+33. Start a drag and save; verify the transient gesture cancels.
+34. Load or reset and verify no drag state persists.
+35. Enable F1 and verify source, target, item ID, active/candidate state, and validity diagnostics.
+36. Verify the GUI reports capacity 112 with 101 authored nodes and 11 nodes of headroom.
+37. Confirm selection follows successful transfers and remains on failed drops.
+38. Confirm no additional item instances or IDs are created.
+39. Recheck ordinary first/second-click equip and unequip behavior.
+40. Confirm there are no GUI, Defold, ownership, combat, or input errors.
+
 ## Unified responsive client check
 
 1. Launch near 1280×800 and verify the complete world, sidebar, and bottom panel are visible as one boxed client.
