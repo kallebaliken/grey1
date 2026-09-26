@@ -175,6 +175,12 @@ assert "reconciler.instances[command.id] = entry" in reconciler_source
 assert "if handle then" in reconciler_source
 render_script = (ROOT / "render/greyhaven.render_script").read_text()
 assert "layout.physical_transform" in render_script
-assert "render.STATE_SCISSOR_TEST" in render_script
+assert "graphics.BUFFER_TYPE_COLOR0_BIT" in render_script
+assert "graphics.BUFFER_TYPE_DEPTH_BIT" in render_script
+assert "graphics.BUFFER_TYPE_STENCIL_BIT" in render_script
+assert "graphics.STATE_SCISSOR_TEST" in render_script
+for unsupported in ("render.BUFFER_COLOR_BIT", "render.BUFFER_DEPTH_BIT", "render.BUFFER_STENCIL_BIT",
+                    "render.STATE_BLEND", "render.STATE_DEPTH_TEST", "render.STATE_SCISSOR_TEST"):
+    assert unsupported not in render_script, unsupported
 assert "layout.world_scissor" in render_script
 print("Greyhaven project wiring passed")

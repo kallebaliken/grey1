@@ -1,6 +1,14 @@
 local layout = require "render.layout"
 
 function init(self)
+    assert(graphics.BUFFER_TYPE_COLOR0_BIT ~= nil, "Defold graphics color-buffer constant is unavailable")
+    assert(graphics.BUFFER_TYPE_DEPTH_BIT ~= nil, "Defold graphics depth-buffer constant is unavailable")
+    assert(graphics.BUFFER_TYPE_STENCIL_BIT ~= nil, "Defold graphics stencil-buffer constant is unavailable")
+    assert(graphics.STATE_BLEND ~= nil and graphics.STATE_DEPTH_TEST ~= nil
+        and graphics.STATE_SCISSOR_TEST ~= nil, "Defold graphics render-state constants are unavailable")
+    assert(graphics.BLEND_FACTOR_SRC_ALPHA ~= nil and graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ~= nil,
+        "Defold graphics blend constants are unavailable")
+    assert(graphics.COMPARE_FUNC_LEQUAL ~= nil, "Defold graphics depth comparison constant is unavailable")
     self.world_predicate = render.predicate({ "tile" })
     self.gui_predicate = render.predicate({ "gui" })
     self.text_predicate = render.predicate({ "text" })
@@ -12,26 +20,28 @@ function update(self)
     local canvas = layout.physical_transform(physical_width, physical_height)
 
     render.set_viewport(0, 0, physical_width, physical_height)
-    render.clear({ [render.BUFFER_COLOR_BIT] = self.clear_color,
-        [render.BUFFER_DEPTH_BIT] = 1, [render.BUFFER_STENCIL_BIT] = 0 })
+    render.clear({ [graphics.BUFFER_TYPE_COLOR0_BIT] = self.clear_color,
+        [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0 })
 
     render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
     render.set_view(vmath.matrix4())
     render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
-    render.enable_state(render.STATE_BLEND)
-    render.set_blend_func(render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(graphics.STATE_BLEND)
+    render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
 
     local clip_x, clip_y, clip_width, clip_height = layout.world_scissor(canvas)
-    render.enable_state(render.STATE_DEPTH_TEST)
+    render.enable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(true)
-    render.set_depth_func(render.COMPARE_FUNC_LEQUAL)
-    render.enable_state(render.STATE_SCISSOR_TEST)
+    render.set_depth_func(graphics.COMPARE_FUNC_LEQUAL)
+    render.enable_state(graphics.STATE_SCISSOR_TEST)
     render.set_scissor(clip_x, clip_y, clip_width, clip_height)
     render.draw(self.world_predicate)
-    render.disable_state(render.STATE_SCISSOR_TEST)
-    render.disable_state(render.STATE_DEPTH_TEST)
+    render.disable_state(graphics.STATE_SCISSOR_TEST)
+    render.disable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(false)
 
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
     render.draw(self.gui_predicate)
     render.draw(self.text_predicate)
 end
