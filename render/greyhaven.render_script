@@ -4,8 +4,8 @@ function init(self)
     assert(graphics.BUFFER_TYPE_COLOR0_BIT ~= nil, "Defold graphics color-buffer constant is unavailable")
     assert(graphics.BUFFER_TYPE_DEPTH_BIT ~= nil, "Defold graphics depth-buffer constant is unavailable")
     assert(graphics.BUFFER_TYPE_STENCIL_BIT ~= nil, "Defold graphics stencil-buffer constant is unavailable")
-    assert(graphics.STATE_BLEND ~= nil and graphics.STATE_DEPTH_TEST ~= nil
-        and graphics.STATE_SCISSOR_TEST ~= nil, "Defold graphics render-state constants are unavailable")
+    assert(graphics.STATE_BLEND ~= nil and graphics.STATE_DEPTH_TEST ~= nil,
+        "Defold graphics render-state constants are unavailable")
     assert(graphics.BLEND_FACTOR_SRC_ALPHA ~= nil and graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ~= nil,
         "Defold graphics blend constants are unavailable")
     assert(graphics.COMPARE_FUNC_LEQUAL ~= nil, "Defold graphics depth comparison constant is unavailable")
@@ -33,10 +33,9 @@ function update(self)
     render.enable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(true)
     render.set_depth_func(graphics.COMPARE_FUNC_LEQUAL)
-    render.enable_state(graphics.STATE_SCISSOR_TEST)
     render.set_scissor(clip_x, clip_y, clip_width, clip_height)
     render.draw(self.world_predicate)
-    render.disable_state(graphics.STATE_SCISSOR_TEST)
+    render.set_scissor()
     render.disable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(false)
 

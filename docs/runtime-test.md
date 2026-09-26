@@ -247,7 +247,7 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 8. Walk, use the door and stairs, reveal the roof, pick up/drop items, attack, talk, complete the quest, and save/load. Confirm fixed visibility and clipping throughout.
 9. Confirm F1 reports a stable fixed-viewport render count (278 pieces at the authored exterior start before state changes), reuse while standing still, and no Sprite/Game Object capacity failures.
 10. Confirm there are no render-script, scissor, projection, GUI, or Defold runtime errors.
-11. Specifically confirm startup contains no `table index is nil` error and the custom render script gets past its Defold 1.13.1 buffer clear.
+11. Specifically confirm startup contains neither `table index is nil` nor `Invalid state: render.enable_state(1)` and the custom render script gets past its Defold 1.13.1 buffer clear and scissor setup.
 
 ## Expected prototype content
 
