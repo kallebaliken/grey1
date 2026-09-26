@@ -4,6 +4,10 @@ fonts {
   name: "default"
   font: "/builtins/fonts/default.font"
 }
+textures {
+  name: "world"
+  texture: "/assets/world.atlas"
+}
 layers { name: "frame" }
 layers { name: "panels" }
 layers { name: "hud" }
@@ -48,7 +52,31 @@ nodes { position { x: 160.0 y: 690.0 } size { x: 280.0 y: 24.0 } color { x: 0.72
 nodes { position { x: 160.0 y: 554.0 } size { x: 288.0 y: 64.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "status_panel" parent: "sidebar_root" layer: "panels" }
 nodes { position { x: 24.0 y: 574.0 } size { x: 270.0 y: 44.0 } color { x: 0.92 y: 0.90 z: 0.80 w: 1.0 } type: TYPE_TEXT text: "GREYHAVEN" font: "default" id: "status" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
 nodes { position { x: 160.0 y: 410.0 } size { x: 288.0 y: 208.0 } color { x: 0.065 y: 0.078 z: 0.095 w: 1.0 } type: TYPE_BOX id: "equipment_panel" parent: "sidebar_root" layer: "panels" }
-nodes { position { x: 28.0 y: 500.0 } size { x: 260.0 y: 180.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "EQUIPMENT\n\n [Head]   [Neck]\n [Torso]  [Main]\n [Legs]   [Off]\n [Feet]   [Ring]" font: "default" id: "equipment_placeholder" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
+nodes { position { x: 28.0 y: 506.0 } size { x: 260.0 y: 20.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "EQUIPMENT" font: "default" id: "equipment_title" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" }
+nodes { position { x: 160.0 y: 484.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_head_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 484.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_head_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 160.0 y: 484.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "H" font: "default" id: "equipment_head_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 95.0 y: 454.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_neck_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 95.0 y: 454.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_neck_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 95.0 y: 454.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "N" font: "default" id: "equipment_neck_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 225.0 y: 454.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_ring_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 225.0 y: 454.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_ring_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 225.0 y: 454.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "R" font: "default" id: "equipment_ring_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 160.0 y: 424.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_torso_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 424.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_torso_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 160.0 y: 424.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "T" font: "default" id: "equipment_torso_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 95.0 y: 394.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_main_hand_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 95.0 y: 394.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_main_hand_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 95.0 y: 394.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "M" font: "default" id: "equipment_main_hand_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 225.0 y: 394.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_off_hand_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 225.0 y: 394.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_off_hand_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 225.0 y: 394.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "O" font: "default" id: "equipment_off_hand_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 160.0 y: 364.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_legs_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 364.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_legs_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 160.0 y: 364.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "L" font: "default" id: "equipment_legs_label" parent: "sidebar_root" layer: "hud" }
+nodes { position { x: 160.0 y: 334.0 } size { x: 28.0 y: 28.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "equipment_feet_slot" parent: "sidebar_root" layer: "panels" }
+nodes { position { x: 160.0 y: 334.0 } size { x: 24.0 y: 24.0 } type: TYPE_PIE texture: "world/fallback_01" id: "equipment_feet_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
+nodes { position { x: 160.0 y: 334.0 } size { x: 24.0 y: 18.0 } color { x: 0.42 y: 0.46 z: 0.50 w: 1.0 } type: TYPE_TEXT text: "F" font: "default" id: "equipment_feet_label" parent: "sidebar_root" layer: "hud" }
 nodes { position { x: 160.0 y: 188.0 } size { x: 288.0 y: 220.0 } color { x: 0.065 y: 0.078 z: 0.095 w: 1.0 } type: TYPE_BOX id: "inventory_panel" parent: "sidebar_root" layer: "panels" }
 nodes { position { x: 28.0 y: 280.0 } size { x: 260.0 y: 190.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "INVENTORY\n\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]\n [ ] [ ] [ ] [ ]" font: "default" id: "inventory_placeholder" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" line_break: true }
 nodes { position { x: 160.0 y: 52.0 } size { x: 288.0 y: 72.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "utility_panel" parent: "sidebar_root" layer: "panels" }

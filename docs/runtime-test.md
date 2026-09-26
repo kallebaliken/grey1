@@ -263,3 +263,19 @@ python3 tests/run_greyhaven.py
 ```
 
 The Python check runs the full Lua suite when `lua`, `lua5.1`, or `luajit` is installed. It also validates the Defold entry resources and the literal prototype-map dependency. These checks do not replace the graphical smoke test above.
+
+## Functional equipment panel check
+
+1. Launch Greyhaven and confirm all eight recessed Equipment slots appear in the right sidebar: head, torso, legs, feet, neck, ring, main hand, and off hand.
+2. Confirm empty slots show their compact neutral letter and no item icon.
+3. Pick up the worn iron sword, press **L**, and confirm its existing atlas icon immediately appears in main hand while attack damage changes through the existing combat resolver.
+4. Pick up patched leather armor, press **O**, and confirm its icon immediately appears in torso while existing armor mitigation remains effective.
+5. Press **L** to unequip and confirm main hand immediately returns to its empty marker; press **L** again to restore the exact sword instance.
+6. Enable F1 and confirm Equipment UI reports eight slots, occupied count, item types, and exact stable instance IDs.
+7. Save, restart/load, and confirm sword and armor icons reconstruct from restored Equipment state without saved GUI state.
+8. Reset and confirm every slot immediately reflects the authored empty equipment state with no stale icon.
+9. Resize the physical window and confirm 24×24 virtual-pixel icons remain inside Equipment while the complete client scales uniformly.
+10. Confirm world sprites never enter the sidebar, Inventory and Map remain placeholders, and dialogue/quests/combat remain functional.
+11. Confirm there are no GUI-node, atlas-animation, render, Sprite, or Game Object errors.
+
+The panel is read-only in this milestone; slot-click unequip is deferred until Greyhaven has a stable mouse/UI dispatch path.

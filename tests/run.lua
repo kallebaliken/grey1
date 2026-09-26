@@ -54,6 +54,7 @@ local container_api = require "items.container"
 local inventory_api = require "items.inventory"
 local equipment_api = require "items.equipment"
 local equipment_slots = require "items.equipment_slots"
+local equipment_panel = require "ui.equipment_panel"
 local world_items = require "world.world_items"
 local item_transfers = require "simulation.item_transfers"
 local renderer = require "render.world_renderer"
@@ -2118,6 +2119,47 @@ test("equipment slots and item policies are data-driven", function()
     inventory_api.add_item(other_inventory, sword)
     local owner_ok, owner_reason = equipment_api.equip(equipment, other_inventory, sword.id, "main_hand")
     assert(not owner_ok); equal(owner_reason, "owner_mismatch")
+end)
+
+test("equipment panel snapshots canonical slots without owning equipment state", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.ui", "ui.hero", 4, registry)
+    local equipment = equipment_api.create("equipment.ui", "ui.hero", registry)
+    local empty = equipment_panel.snapshot(equipment, registry)
+    equal(empty.count, 8); equal(empty.occupied, 0)
+    local canonical = equipment_slots.get_definitions()
+    for index, entry in ipairs(empty.entries) do
+        equal(entry.slot, canonical[index].id); assert(entry.item_id == nil)
+    end
+
+    inventory_api.add_item(inventory, item_instance.new({ id = "ui.sword.exact", type = "worn_iron_sword" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "ui.armor.exact", type = "patched_leather_armor" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "ui.herb.inventory", type = "healing_herb" }, registry))
+    assert(equipment_api.equip(equipment, inventory, "ui.sword.exact", "main_hand"))
+    assert(equipment_api.equip(equipment, inventory, "ui.armor.exact", "torso"))
+    local occupied = equipment_panel.snapshot(equipment, registry)
+    equal(occupied.occupied, 2)
+    local by_slot = {}; for _, entry in ipairs(occupied.entries) do by_slot[entry.slot] = entry end
+    equal(by_slot.main_hand.item_id, "ui.sword.exact"); equal(by_slot.main_hand.item_type, "worn_iron_sword")
+    equal(by_slot.main_hand.animation, "sword_01")
+    equal(by_slot.torso.item_id, "ui.armor.exact"); equal(by_slot.torso.animation, "leather_armor_01")
+    for _, entry in ipairs(occupied.entries) do assert(entry.item_id ~= "ui.herb.inventory") end
+    by_slot.main_hand.item_id = "ui.mutated.copy"
+    equal(equipment_api.get(equipment, "main_hand").id, "ui.sword.exact")
+
+    assert(equipment_api.unequip(equipment, inventory, "main_hand"))
+    local without_sword = equipment_panel.snapshot(equipment, registry)
+    equal(without_sword.occupied, 1)
+    assert(equipment_api.equip(equipment, inventory, "ui.sword.exact", "main_hand"))
+    local restored_icon = equipment_panel.snapshot(equipment, registry)
+    assert(equipment_panel.fingerprint(without_sword) ~= equipment_panel.fingerprint(restored_icon))
+
+    local restored = equipment_api.restore(codec.deserialize(codec.serialize(equipment_api.snapshot(equipment))), registry)
+    local restored_ui = equipment_panel.snapshot(restored, registry)
+    equal(restored_ui.occupied, 2)
+    equal(equipment_api.get(restored, "main_hand").id, "ui.sword.exact")
+    local reset = equipment_api.restore({ id = "equipment.ui", owner_id = "ui.hero", slots = {} }, registry)
+    equal(equipment_panel.snapshot(reset, registry).occupied, 0)
 end)
 
 test("equip and unequip preserve exclusive identity and events", function()

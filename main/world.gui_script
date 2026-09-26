@@ -1,5 +1,20 @@
 local view_model = require "main.view_model"
+local equipment_panel = require "ui.equipment_panel"
 local GUI_NODE_CAPACITY = 64
+
+local function update_equipment(self, snapshot)
+    local fingerprint = equipment_panel.fingerprint(snapshot)
+    if self.equipment_fingerprint == fingerprint then return end
+    self.equipment_fingerprint = fingerprint
+    for _, entry in ipairs(snapshot.entries) do
+        local prefix = "equipment_" .. entry.slot
+        local icon, label = gui.get_node(prefix .. "_icon"), gui.get_node(prefix .. "_label")
+        local occupied = entry.item_id ~= nil
+        gui.set_enabled(icon, occupied)
+        gui.set_enabled(label, not occupied)
+        if occupied then gui.play_flipbook(icon, hash(entry.animation)) end
+    end
+end
 
 function init(self)
 end
@@ -10,10 +25,11 @@ function on_message(self, message_id, message)
     if not message then return end
     gui.set_text(gui.get_node("status"), "GREYHAVEN\n" .. message.notice)
     gui.set_text(gui.get_node("bottom_content"), message.notice ~= "" and message.notice or "Greyhaven ready.")
+    update_equipment(self, message.equipment_ui)
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
     gui.set_enabled(gui.get_node("control_help"), message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nEquipment UI: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.player_faction,
         message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
@@ -35,7 +51,7 @@ function on_message(self, message_id, message)
         message.sprite_deferred, GUI_NODE_CAPACITY,
         message.npc_path_status, message.npc_path_remaining, message.npc_path_next,
         message.tile_objects, message.target, message.inventory, message.equipment,
-        message.chunk, message.roof_group))
+        message.equipment_ui_diagnostics, message.chunk, message.roof_group))
     local dialogue_panel, dialogue_text = gui.get_node("dialogue_panel"), gui.get_node("dialogue_text")
     gui.set_enabled(dialogue_panel, message.dialogue_active)
     gui.set_enabled(dialogue_text, message.dialogue_active)
