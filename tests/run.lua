@@ -156,6 +156,19 @@ test("sprite reconciliation reuses stable pieces and removes only stale identiti
     equal(removed[1], handles[1]); assert(reconciler.instances["ground:1"] == nil)
     equal(reconciler.instances["wall:1"].handle, handles[2])
     equal(reconciler.instances["wall:2"].handle, handles[3])
+
+    local animated = {
+        { id = "wall:1", animation = "door_open_01" }, { id = "wall:2", animation = "wall_01" },
+        { id = "roof:1", animation = "roof_01" },
+    }
+    local fourth = sprite_reconciler.synchronize(reconciler, animated)
+    equal(fourth.active, 3); equal(fourth.created, 0); equal(fourth.reused, 3)
+    equal(reconciler.instances["wall:1"].handle, handles[2])
+    assert(updated[#updated - 2].changed, "animation change must update the existing instance")
+
+    local recreated = sprite_reconciler.synchronize(reconciler, frame)
+    equal(recreated.active, 3); equal(recreated.created, 1); equal(recreated.reused, 2)
+    assert(reconciler.instances["ground:1"].handle ~= handles[1])
 end)
 
 test("sprite reconciliation never stores or updates a failed factory allocation and retries", function()

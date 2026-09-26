@@ -50,7 +50,8 @@ local CAMERA_ZOOM = sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAU
 local CAMERA = camera_api.new(960, 640, CAMERA_ZOOM)
 local VIEW_WIDTH_TILES, VIEW_HEIGHT_TILES = camera_api.visible_tiles(CAMERA, LOGICAL_TILE_SIZE)
 local VIEW_MARGIN_TILES = 2
-local SPRITE_CAPACITY = sys.get_config_int("collection.max_instances", 1024)
+local COLLECTION_CAPACITY = sys.get_config_int("collection.max_instances", 1024)
+local SPRITE_CAPACITY = sys.get_config_int("sprite.max_count", 128)
 local TEST_DIALOGUE_FLAG = "greyhaven.test_dialogue_flag"
 local MET_VILLAGER_FLAG = "greyhaven.met_test_villager"
 
@@ -153,7 +154,7 @@ local function render(self)
         sprite_instances = sprite_stats.active, sprite_created = sprite_stats.created,
         sprite_reused = sprite_stats.reused, sprite_removed = sprite_stats.removed,
         sprite_failures = sprite_stats.failures, sprite_deferred = sprite_stats.deferred or 0,
-        sprite_capacity = SPRITE_CAPACITY,
+        sprite_capacity = SPRITE_CAPACITY, collection_capacity = COLLECTION_CAPACITY,
         camera_zoom = CAMERA.zoom, visible_tiles_width = VIEW_WIDTH_TILES,
         visible_tiles_height = VIEW_HEIGHT_TILES,
         npc_path_next = npc_next and string.format("%d,%d,%d", npc_next.x, npc_next.y, npc_next.z) or "none",

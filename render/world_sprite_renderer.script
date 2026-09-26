@@ -6,7 +6,8 @@ local diagnostics = require "render.sprite_diagnostics"
 local TILE_SIZE = 32
 local DEPTH_MIN = -0.8
 local DEPTH_SPAN = 1.6
-local INSTANCE_RESERVE = 32
+local GAME_OBJECT_RESERVE = 32
+local SPRITE_RESERVE = 16
 
 local function sprite_url(instance_id)
     assert(instance_id, "world sprite instance id is required")
@@ -60,9 +61,12 @@ function init(self)
     self.camera = camera_api.new(960, 640,
         sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM))
     self.collection_capacity = sys.get_config_int("collection.max_instances", 1024)
-    self.sprite_budget = math.max(0, self.collection_capacity - INSTANCE_RESERVE)
-    print(string.format("Greyhaven sprite capacity: collection=%d sprite_budget=%d reserve=%d",
-        self.collection_capacity, self.sprite_budget, INSTANCE_RESERVE))
+    self.sprite_capacity = sys.get_config_int("sprite.max_count", 128)
+    self.sprite_budget = math.max(0, math.min(
+        self.collection_capacity - GAME_OBJECT_RESERVE,
+        self.sprite_capacity - SPRITE_RESERVE))
+    print(string.format("Greyhaven renderer capacity: collection=%d sprites=%d world_piece_budget=%d",
+        self.collection_capacity, self.sprite_capacity, self.sprite_budget))
     self.factory_failure_reported = false
     self.reconciler = create_reconciler(self)
 end
