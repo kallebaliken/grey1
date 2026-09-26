@@ -4,15 +4,28 @@ local inventory_panel = require "ui.inventory_panel"
 local GUI_NODE_CAPACITY = 112
 local SLOT_COLOR = vmath.vector4(0.025, 0.03, 0.04, 1)
 local HOVER_COLOR = vmath.vector4(0.22, 0.28, 0.34, 1)
+local SELECTED_COLOR = vmath.vector4(0.42, 0.32, 0.12, 1)
+local HOVER_SELECTED_COLOR = vmath.vector4(0.52, 0.43, 0.20, 1)
 
-local function update_hover(self, target_name)
-    if self.hover_node then gui.set_color(gui.get_node(self.hover_node), SLOT_COLOR) end
-    self.hover_node = nil
+local function node_for_target(target_name)
     local equipment_slot = target_name:match("^equipment%.(.+)$")
     local inventory_slot = target_name:match("^inventory%.slot%.(%d+)$")
-    if equipment_slot then self.hover_node = "equipment_" .. equipment_slot .. "_slot" end
-    if inventory_slot then self.hover_node = "inventory_" .. inventory_slot .. "_slot" end
-    if self.hover_node then gui.set_color(gui.get_node(self.hover_node), HOVER_COLOR) end
+    if equipment_slot then return "equipment_" .. equipment_slot .. "_slot" end
+    if inventory_slot then return "inventory_" .. inventory_slot .. "_slot" end
+end
+
+local function update_highlights(self, hover_target, selected_target)
+    local fingerprint = hover_target .. "|" .. selected_target
+    if self.highlight_fingerprint == fingerprint then return end
+    self.highlight_fingerprint = fingerprint
+    if self.hover_node then gui.set_color(gui.get_node(self.hover_node), SLOT_COLOR) end
+    if self.selected_node then gui.set_color(gui.get_node(self.selected_node), SLOT_COLOR) end
+    self.hover_node, self.selected_node = node_for_target(hover_target), node_for_target(selected_target)
+    if self.selected_node then gui.set_color(gui.get_node(self.selected_node), SELECTED_COLOR) end
+    if self.hover_node then
+        gui.set_color(gui.get_node(self.hover_node), self.hover_node == self.selected_node
+            and HOVER_SELECTED_COLOR or HOVER_COLOR)
+    end
 end
 
 local function update_equipment(self, snapshot)
@@ -60,11 +73,11 @@ function on_message(self, message_id, message)
     gui.set_text(gui.get_node("bottom_content"), message.notice ~= "" and message.notice or "Greyhaven ready.")
     update_equipment(self, message.equipment_ui)
     update_inventory(self, message.inventory_ui)
-    update_hover(self, message.mouse_hover_name)
+    update_highlights(self, message.mouse_hover_name, message.selected_target)
     local debug = gui.get_node("debug")
     gui.set_enabled(debug, message.debug_visible)
     gui.set_enabled(gui.get_node("control_help"), message.debug_visible)
-    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nMouse physical: %s | Mouse virtual: %s | Region: %s\nHover: %s | Clicked: %s%s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nEquipment UI: %s\nInventory UI: %s\nchunk: %s  revealed roof: %s",
+    gui.set_text(debug, string.format("actor: %s (%s) faction: %s  tile: %d,%d,%d  facing: %s  inspect: %+d\nPlayer HP: %s Attack: %d %s Weapon: %s Cooldown: %.2f | Armor: %d %s\nmonster_test_rat definition: %s type: %s faction: %s relationship: %s HP: %s dead: %s | Last attack: %s\nRat sight: %d | Perceives: %s\nnpc_test_villager definition: %s type: %s faction: %s relationship: %s\ndialogue: %s speaker: %s definition: %s node: %s\nflags: met_test_villager=%s test_dialogue=%s\nQuest: %s status: %s investigate: %d/%d | Last binding: %s\nMouse physical: %s | Mouse virtual: %s | Region: %s\nHover: %s | Clicked: %s%s\nSelected item: %s\nCamera zoom: %dx | Visible tiles: ~%.0fx%.0f\nRender commands: %d (ground %d objects %d multi %d items %d actors %d roofs %d)\nWorld sprites: %d | Sprite max: %d | Collection max: %d\nCreated: %d reused: %d removed: %d failures: %d deferred: %d | GUI nodes: %d\nnpc_test_villager path: %s  remaining: %d  next: %s\ntile objects: %s\nfront: %s\ninventory: %s\nequipment: %s\nEquipment UI: %s\nInventory UI: %s\nchunk: %s  revealed roof: %s",
         message.actor_id, message.actor_type, message.player_faction,
         message.logical_x, message.logical_y, message.player_z, message.facing,
         message.inspection_offset, message.player_health, message.player_attack, message.player_attack_source,
@@ -80,6 +93,7 @@ function on_message(self, message_id, message)
         message.last_binding,
         message.mouse_physical, message.mouse_virtual, message.mouse_region, message.mouse_hover,
         message.mouse_clicked, message.mouse_click_blocked and " (dialogue blocked)" or "",
+        message.selected_item,
         message.camera_zoom, message.visible_tiles_width, message.visible_tiles_height,
         message.render_commands, message.render_ground, message.render_objects, message.render_multi_piece,
         message.render_items, message.render_actors, message.render_roofs,

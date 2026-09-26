@@ -59,6 +59,7 @@ required = [
     "ui/client_layout.lua",
     "ui/input_dispatch.lua",
     "ui/equipment_controller.lua",
+    "ui/item_selection.lua",
     "render/greyhaven.render",
     "render/greyhaven.render_script",
     "render/world_render_piece.go",
@@ -179,6 +180,8 @@ for contract in ("VIRTUAL_HEIGHT = 800", "WORLD = { x = 0, y = 160, width = 960,
 assert "classify_virtual_point" in layout_source
 dispatcher_source = (ROOT / "ui/input_dispatch.lua").read_text()
 controller_source = (ROOT / "ui/equipment_controller.lua").read_text()
+selection_source = (ROOT / "ui/item_selection.lua").read_text()
+save_data_source = (ROOT / "state/save_data.lua").read_text()
 assert 'layout.physical_to_virtual(transform, physical_x, physical_y)' in dispatcher_source
 assert 'layout.classify_virtual_point(x, y)' in dispatcher_source
 assert 'target_type = "equipment_slot"' in dispatcher_source
@@ -208,6 +211,15 @@ assert 'equipment_api.equip(context.equipment, context.inventory' in controller_
 assert "equipment_api.unequip" not in dispatcher_source
 assert "equipment_api.equip" not in dispatcher_source
 assert "equipment_controller.handle_intent(intent" in manager
+for contract in ("create", "clear", "click_target", "get_snapshot", "is_selected", "reconcile"):
+    assert f"function M.{contract}" in selection_source
+assert "item_selection.click_target" in manager
+assert "item_selection.reconcile" in manager
+assert "if conversation then item_selection.clear" in manager
+assert "SELECTED_COLOR" in gui_script and "update_highlights" in gui_script
+assert "message.selected_target" in gui_script and "Selected item: %s" in gui_script
+assert "item_selection" not in save_data_source
+assert "if self.item_selection then item_selection.clear" in manager
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()

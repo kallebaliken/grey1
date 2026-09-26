@@ -37,7 +37,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
-| **Mouse move / left click** | Highlight and diagnose Equipment/Inventory semantic targets (read-only) |
+| **Mouse move / left click** | Hover/select item slots; confirm a selected item with a second click to equip/unequip |
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-piece category counts, active sprite instances, per-frame creation/reuse/removal/failure counts, configured capacity, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
 
@@ -279,7 +279,7 @@ The Python check runs the full Lua suite when `lua`, `lua5.1`, or `luajit` is in
 10. Confirm world sprites never enter the sidebar, the Inventory panel remains contained, Map remains a placeholder, and dialogue/quests/combat remain functional.
 11. Confirm there are no GUI-node, atlas-animation, render, Sprite, or Game Object errors.
 
-The panel is read-only in this milestone; slot-click unequip is deferred until Greyhaven has a stable mouse/UI dispatch path.
+The Equipment GUI remains a read-only projection. Semantic clicks pass through shared selection and the interaction controller before the authoritative Equipment API performs any transfer.
 
 ## Functional inventory panel check
 
@@ -294,7 +294,7 @@ The panel is read-only in this milestone; slot-click unequip is deferred until G
 9. Resize the physical window and confirm the fixed grid remains within the sidebar without overlapping Equipment, world, or bottom panel.
 10. Confirm combat, dialogue, quests, world clipping, and equipment remain functional, with no GUI-node, atlas, or runtime errors.
 
-The Inventory panel is read-only; drag/drop, item use, slot reordering, nested containers, and mouse inventory interaction remain deferred.
+The Inventory GUI remains a read-only projection. Confirmed second clicks may equip through the interaction controller; drag/drop, item use, slot reordering, and nested containers remain deferred.
 
 ## Shared mouse/UI input dispatch check
 
@@ -319,18 +319,18 @@ The Inventory panel is read-only; drag/drop, item use, slot reordering, nested c
 1. Pick up the worn iron sword.
 2. Equip the sword with the existing **L** development control.
 3. Verify it appears in `main_hand`.
-4. Click the visible sword slot.
-5. Verify the sword disappears from Equipment.
+4. Click the visible sword slot once and verify it becomes selected without moving.
+5. Click it again and verify the sword disappears from Equipment.
 6. Verify the exact same sword instance appears in Inventory.
 7. Verify attack damage falls back to unarmed damage.
 8. Pick up and equip patched leather armor with **O**.
-9. Click `torso`.
+9. Click `torso` twice.
 10. Verify the exact armor instance appears in Inventory.
 11. Verify its mitigation is removed.
 12. Click an empty Equipment slot and verify ownership and UI remain unchanged.
 13. Repeat after resizing to 1920×1080, a wide pillarboxed size, and a tall letterboxed size.
 14. Verify the visible hit target remains correct and clicks in unused bars remain ignored.
-15. Fill Inventory, click occupied Equipment, and verify `Inventory is full.` with both owners unchanged.
+15. Fill Inventory, select and click occupied Equipment again, and verify `Inventory is full.` with both owners unchanged.
 16. Open dialogue.
 17. Verify Equipment hover continues but click-to-unequip is blocked.
 18. Save and load after mouse unequip.
@@ -342,22 +342,22 @@ The Inventory panel is read-only; drag/drop, item use, slot reordering, nested c
 1. Start or reset the prototype.
 2. Pick up the worn iron sword.
 3. Verify the sword appears in Inventory.
-4. Click the sword icon.
-5. Verify the sword disappears from Inventory.
+4. Click the sword icon once and verify it becomes selected without moving.
+5. Click it again and verify the sword disappears from Inventory.
 6. Verify the exact same sword appears in `main_hand`.
 7. Verify weapon damage is active.
-8. Click the `main_hand` sword.
+8. Click the `main_hand` sword twice (the first click confirms its new location).
 9. Verify the exact sword returns to Inventory and unarmed damage is restored.
-10. Click the sword again.
+10. Click the sword twice again.
 11. Verify the same instance equips again with no duplicate.
 12. Pick up patched leather armor.
-13. Click the armor icon.
+13. Click the armor icon twice.
 14. Verify it equips to `torso`.
 15. Verify armor mitigation is active through the existing resolver.
-16. Pick up and click a non-equippable healing herb or iron key.
+16. Pick up and click a non-equippable healing herb or iron key twice.
 17. Verify it remains in Inventory.
 18. Verify the bottom panel says `That item cannot be equipped.`
-19. Try equipping an item while all of its compatible slots are occupied.
+19. Select an item and click it again while all of its compatible slots are occupied.
 20. Verify the existing items are not replaced and the required-slot notice appears.
 21. Resize through 1600×800, 1920×1080, 2560×1600, a tall window, and ultrawide.
 22. Repeat the Inventory click.
@@ -367,6 +367,38 @@ The Inventory panel is read-only; drag/drop, item use, slot reordering, nested c
 26. Save and load after clicking an item to equip.
 27. Verify authoritative Equipment ownership and both panels reconstruct correctly; reset and verify authored ownership returns without stale interaction state.
 28. Confirm there are no GUI, Defold, ownership, combat, or save/load errors.
+
+## Shared item selection check
+
+1. Start the game.
+2. Click the sword once in Inventory.
+3. Verify the sword slot highlights.
+4. Verify the sword remains in Inventory.
+5. Move the mouse elsewhere.
+6. Verify selection remains while hover moves independently.
+7. Click the armor once.
+8. Verify armor becomes selected, the sword highlight clears, and neither item moves.
+9. Click an empty Inventory slot.
+10. Verify selection clears.
+11. Select the sword.
+12. Click the same sword again.
+13. Verify the existing equip interaction occurs.
+14. Verify selection follows the exact sword ID into `main_hand`.
+15. Click the equipped sword once.
+16. Verify it is selected at its reconciled location but remains equipped.
+17. Click it again.
+18. Verify the sword unequips.
+19. Verify selection follows the exact sword ID to its new Inventory slot.
+20. Select a healing herb.
+21. Verify the herb can be selected.
+22. Click it again and verify `not_equippable` feedback without ownership corruption.
+23. Resize through native, 1920×1080, 1600×800, 1280×1000, and ultrawide sizes.
+24. Verify the same selection and second-click behavior at every size.
+25. Save and load.
+26. Verify selection starts empty while ownership restores normally.
+27. Select an item, then open dialogue.
+28. Verify dialogue clears selection and blocks item actions while hover remains available.
+29. Confirm there are no GUI, Defold, ownership, or input errors.
 
 ## Unified responsive client check
 

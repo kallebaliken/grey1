@@ -49,6 +49,7 @@ local camera_api = require "world.camera"
 local layout = require "render.layout"
 local input_dispatch = require "ui.input_dispatch"
 local equipment_controller = require "ui.equipment_controller"
+local item_selection = require "ui.item_selection"
 
 local LOGICAL_TILE_SIZE = 32
 local CAMERA_ZOOM = sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM)
@@ -131,6 +132,9 @@ local function render(self)
     end
     local last_attack = self.last_attack
     local conversation = dialogue.get_current(self.dialogue)
+    if conversation then item_selection.clear(self.item_selection)
+    else item_selection.reconcile(self.item_selection, equipment_ui, inventory_ui) end
+    local selected_item = item_selection.get_snapshot(self.item_selection)
     local quest_definition = self.quest_registry:get("rat_problem")
     local quest_status = quests.get_status(self.quests, "rat_problem")
     local quest_progress = quests.get_objective_progress(self.quests, "rat_problem", "investigate") or 0
@@ -164,6 +168,8 @@ local function render(self)
         mouse_hover = input_dispatch.describe_target(pointer.target),
         mouse_clicked = input_dispatch.describe_target(clicked_target),
         mouse_click_blocked = self.last_ui_intent and self.last_ui_intent.blocked or false,
+        selected_target = item_selection.target_name(selected_item),
+        selected_item = item_selection.describe(selected_item),
         chunk = chunk_x .. "," .. chunk_y, roof_group = next(revealed) or "none",
         inspection_offset = self.inspect_offset, notice = self.notice or "",
         render_commands = #commands, npc_path_status = npc_status, npc_path_remaining = npc_remaining,
@@ -208,6 +214,7 @@ end
 
 local function create_session(self, map, loaded)
     if self.event_bindings then event_bindings.destroy(self.event_bindings); self.event_bindings = nil end
+    if self.item_selection then item_selection.clear(self.item_selection) end
     self.map = map
     self.state = state_api.new(loaded)
     self.item_registry = item_registry_api.new(item_definitions)
@@ -282,6 +289,7 @@ function init(self)
     msg.post(".", "acquire_input_focus")
     self.held, self.debug_visible, self.inspect_offset = {}, false, 0
     self.pointer, self.last_ui_intent = { region = "outside" }, nil
+    self.item_selection = item_selection.create()
     local map = map_loader.load("data.maps.prototype")
     create_session(self, map, save_manager.load(map))
     events.emit("world_loaded", { map_id = self.map.id })
@@ -318,10 +326,16 @@ function on_input(self, action_id, action)
         if action_id == hash("left_click") and action.pressed then
             local intent, consumed = input_dispatch.click(self.pointer, dialogue.is_active(self.dialogue))
             if intent then self.last_ui_intent = intent end
-            local result = equipment_controller.handle_intent(intent, {
-                equipment = self.player.equipment, inventory = self.player.inventory,
-                item_registry = self.item_registry, events = events,
-            })
+            local activate = false
+            if intent and intent.blocked then item_selection.clear(self.item_selection)
+            elseif intent then activate = item_selection.click_target(self.item_selection, intent.target) end
+            local result = { handled = false, success = false }
+            if activate then
+                result = equipment_controller.handle_intent(intent, {
+                    equipment = self.player.equipment, inventory = self.player.inventory,
+                    item_registry = self.item_registry, events = events,
+                })
+            end
             if result.handled and result.success then
                 local verb = result.action == "equip" and "Equipped " or "Unequipped "
                 self.notice = verb .. self.item_registry:get(result.item_type).name .. "."

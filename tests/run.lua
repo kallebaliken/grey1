@@ -70,6 +70,7 @@ local layout = require "render.layout"
 local client_layout = require "ui.client_layout"
 local input_dispatch = require "ui.input_dispatch"
 local equipment_controller = require "ui.equipment_controller"
+local item_selection = require "ui.item_selection"
 local events = require "core.events"
 
 local count = 0
@@ -416,11 +417,19 @@ test("physical UI dispatch rejects bars and is stable across resolutions", funct
         assert(consumed, "matched UI click must be consumed before world input")
         equal(intent.type, "ui_click"); equal(intent.target.index, 1); assert(not intent.blocked)
         equal(inventory_api.get_item(inventory, item_id).id, item_id)
+        local selection = item_selection.create()
+        assert(not item_selection.click_target(selection, intent.target))
+        equal(item_selection.get_snapshot(selection).item_id, item_id)
+        equal(inventory_api.get_item(inventory, item_id).id, item_id)
+        assert(item_selection.click_target(selection, intent.target))
         local result = equipment_controller.handle_intent(intent,
             { equipment = equipment, inventory = inventory, item_registry = registry })
         assert(result.success); equal(result.item_id, item_id); equal(result.slot, "main_hand")
         equal(equipment_api.get(equipment, "main_hand").id, item_id)
         assert(inventory_api.get_item(inventory, item_id) == nil)
+        item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+            inventory_panel.snapshot(inventory, registry))
+        equal(item_selection.get_snapshot(selection).equipment_slot, "main_hand")
         local blocked = input_dispatch.click(pointer, true)
         assert(blocked.blocked, "dialogue policy must mark the UI intent blocked")
     end
@@ -433,6 +442,91 @@ test("physical UI dispatch rejects bars and is stable across resolutions", funct
     equal(outside.region, "outside"); assert(outside.target == nil)
     local _, consumed = input_dispatch.click(outside, false)
     assert(not consumed, "unmatched input remains available to future world handling")
+end)
+
+test("item selection is identity-based, transient, and reconciles ownership", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.selection", "selection.hero", 5, registry)
+    local equipment = equipment_api.create("equipment.selection", "selection.hero", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.sword",
+        type = "worn_iron_sword" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.herb",
+        type = "healing_herb", quantity = 5 }, registry))
+    local selection = item_selection.create()
+    assert(item_selection.get_snapshot(selection) == nil)
+
+    local inventory_ui = inventory_panel.snapshot(inventory, registry)
+    local equipment_ui = equipment_panel.snapshot(equipment, registry)
+    local sword_target = { target_type = "inventory_slot", index = 1,
+        item_id = inventory_ui.entries[1].item_id, item_type = inventory_ui.entries[1].item_type }
+    assert(not item_selection.click_target(selection, sword_target))
+    local selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "inventory"); equal(selected.slot_index, 1)
+    equal(selected.item_id, "selection.sword"); assert(item_selection.is_selected(selection, "selection.sword"))
+    assert(inventory_api.get_item(inventory, "selection.sword"), "selection must not mutate ownership")
+    local before_hover = codec.serialize(item_selection.get_snapshot(selection))
+    input_dispatch.hit_test(1090, 244, { equipment = equipment_ui, inventory = inventory_ui })
+    equal(codec.serialize(item_selection.get_snapshot(selection)), before_hover,
+        "hover hit testing must not replace persistent selection")
+
+    local herb_target = { target_type = "inventory_slot", index = 2,
+        item_id = inventory_ui.entries[2].item_id, item_type = inventory_ui.entries[2].item_type }
+    assert(not item_selection.click_target(selection, herb_target))
+    equal(item_selection.get_snapshot(selection).item_id, "selection.herb")
+    assert(not item_selection.is_selected(selection, "selection.sword"))
+    -- Quantity changes do not affect stable identity selection.
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.herb.merge",
+        type = "healing_herb", quantity = 2 }, registry))
+    item_selection.reconcile(selection, equipment_ui, inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).item_id, "selection.herb")
+
+    assert(not item_selection.click_target(selection,
+        { target_type = "inventory_slot", index = 5 }))
+    assert(item_selection.get_snapshot(selection) == nil, "empty slots clear selection")
+
+    -- First click selects only; second click activates the existing equip controller.
+    inventory_ui = inventory_panel.snapshot(inventory, registry)
+    sword_target.item_id, sword_target.item_type = inventory_ui.entries[1].item_id, inventory_ui.entries[1].item_type
+    assert(not item_selection.click_target(selection, sword_target))
+    assert(item_selection.click_target(selection, sword_target))
+    local equipped = equipment_controller.handle_intent({ type = "ui_click", target = sword_target }, {
+        equipment = equipment, inventory = inventory, item_registry = registry,
+    })
+    assert(equipped.success); equal(equipped.item_id, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "equipment"); equal(selected.equipment_slot, "main_hand")
+    equal(selected.item_id, "selection.sword")
+
+    local equipment_target = { target_type = "equipment_slot", slot = "main_hand",
+        item_id = selected.item_id, item_type = selected.item_type }
+    assert(not item_selection.click_target(selection, equipment_target),
+        "a relocated selection requires a fresh first click")
+    assert(item_selection.click_target(selection, equipment_target))
+    local unequipped = equipment_controller.handle_intent({ type = "ui_click", target = equipment_target }, {
+        equipment = equipment, inventory = inventory, item_registry = registry,
+    })
+    assert(unequipped.success); equal(unequipped.item_id, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "inventory"); equal(selected.item_id, "selection.sword")
+
+    inventory_api.remove_item(inventory, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    assert(item_selection.get_snapshot(selection) == nil, "items leaving player ownership clear selection")
+
+    inventory_ui = inventory_panel.snapshot(inventory, registry)
+    herb_target = { target_type = "inventory_slot", index = 1,
+        item_id = inventory_ui.entries[1].item_id, item_type = inventory_ui.entries[1].item_type }
+    assert(not item_selection.click_target(selection, herb_target))
+    assert(item_selection.is_selected(selection, "selection.herb"), "ordinary items remain selectable")
+    item_selection.clear(selection)
+    assert(item_selection.get_snapshot(selection) == nil)
+    assert(item_selection.get_snapshot(item_selection.create()) == nil,
+        "save/load and reset construct transient selection empty")
 end)
 
 test("actor identity, types, directions, and registry are canonical", function()
