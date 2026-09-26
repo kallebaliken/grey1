@@ -13,6 +13,7 @@ Greyhaven is a Defold-native local simulation. The legacy Canary tree is referen
 7. **Items** — `items/` validates immutable item-type definitions, creates runtime instances, provides generic containers/inventories, and transfers instances through data-driven equipment slots. It has no Defold dependency and does not implement nested containers or combat effects.
 8. **Combat state** — `combat/` composes validated health/death records with known Actor IDs. Capability policies prevent dead Actors from beginning movement or interaction without placing combat logic on Actor.
 9. **Explicit attacks** — `combat/attacks.lua` privately owns fixed-damage melee profiles and deterministic cooldown runtime, validates authoritative Actor positions, and delegates all health mutation to the combat registry.
+10. **UI input dispatch** — `render/layout.lua` converts and classifies physical pointer coordinates, while `ui/client_layout.lua` and `ui/input_dispatch.lua` resolve fixed virtual rectangles into semantic, read-only Equipment/Inventory targets and click intents.
 
 Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; world and simulation modules are ordinary Lua.
 
@@ -49,6 +50,7 @@ Dependencies point inward. Only the adapter calls `msg`, `sys`, or GUI APIs; wor
 - The generic Action executor validates quest identities against QuestDefinitions and delegates explicit start/advance/complete mutations to QuestState. Mixed lists are fully prevalidated, stop at runtime failures with prior successes committed, and let Dialogue author a complete quest loop without runtime quest branches or combat bindings.
 - Immutable Event Binding definitions subscribe only to `actor_died`, match the dead Actor through public identity/type/CreatureDefinition APIs, and invoke the canonical Action executor in stable binding-ID order. Failures never roll back the source death, action-generated events cannot recurse into bindings, and only resulting QuestState/WorldState is persisted.
 - Creature perception is external, stateless, and read-only. Authored positive-integer sight range combines same-Z Manhattan distance with explicit logical-object LOS; active/living Actors are returned in stable ID order, optionally enriched with faction facts, without target selection, memory, movement, pathfinding, attacks, or AI.
+- Pointer input reuses the complete-client physical-to-virtual transform and rejects letterbox/pillarbox space before centralized region classification. Sidebar slot hits produce semantic targets enriched from current UI snapshots; matched clicks are consumed ahead of future world pointer input and never mutate gameplay. Dialogue may block a click intent without preventing presentation-only hover.
 
 ## Scale boundary
 

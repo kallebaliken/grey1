@@ -37,6 +37,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
+| **Mouse move / left click** | Highlight and diagnose Equipment/Inventory semantic targets (read-only) |
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-piece category counts, active sprite instances, per-frame creation/reuse/removal/failure counts, configured capacity, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
 
@@ -294,6 +295,24 @@ The panel is read-only in this milestone; slot-click unequip is deferred until G
 10. Confirm combat, dialogue, quests, world clipping, and equipment remain functional, with no GUI-node, atlas, or runtime errors.
 
 The Inventory panel is read-only; drag/drop, item use, slot reordering, nested containers, and mouse inventory interaction remain deferred.
+
+## Shared mouse/UI input dispatch check
+
+1. Launch at 1280×800.
+2. Enable F1.
+3. Hover all Equipment slots and verify each correct semantic target.
+4. Click `main_hand` and verify the diagnostic target.
+5. Hover and click Inventory slot 1.
+6. Hover and click Inventory slot 16.
+7. Verify an occupied slot reports its exact item identity.
+8. Verify an empty slot produces nil item identity (no item identity is appended to the target).
+9. Resize to 1920×1080 and repeat the same clicks; verify the same targets.
+10. Resize very wide, click the pillarbox, and verify `outside` with no UI target.
+11. Resize tall, click the letterbox, and verify `outside` with no UI target.
+12. Verify clicks do not equip, unequip, drop, pick up, attack, move, or interact.
+13. Verify keyboard gameplay remains unchanged.
+14. Open dialogue; verify hover continues, matched clicks remain consumed, the diagnostic marks them dialogue-blocked, and the existing dialogue keyboard policy remains authoritative.
+15. Confirm there are no Defold, GUI, input, or missing-module errors.
 
 ## Unified responsive client check
 

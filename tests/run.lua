@@ -66,6 +66,8 @@ local command_diagnostics = require "render.command_diagnostics"
 local viewport_api = require "render.viewport"
 local camera_api = require "world.camera"
 local layout = require "render.layout"
+local client_layout = require "ui.client_layout"
+local input_dispatch = require "ui.input_dispatch"
 local events = require "core.events"
 
 local count = 0
@@ -349,6 +351,70 @@ test("fixed virtual canvas scales uniformly without changing world visibility", 
         vx, vy = layout.physical_to_virtual(transform, bottom_x, bottom_y)
         assert(layout.is_bottom_panel_point(vx, vy))
     end
+end)
+
+test("virtual client regions are classified centrally", function()
+    equal(layout.classify_virtual_point(480, 480), "world")
+    equal(layout.classify_virtual_point(1100, 400), "sidebar")
+    equal(layout.classify_virtual_point(480, 80), "bottom")
+    equal(layout.classify_virtual_point(-1, 400), "outside")
+    equal(layout.classify_virtual_point(1280, 400), "outside")
+end)
+
+test("UI dispatch resolves every semantic slot and enriches snapshot identity", function()
+    local equipment = { entries = {} }
+    for _, slot in ipairs(client_layout.EQUIPMENT_ORDER) do
+        equipment.entries[#equipment.entries + 1] = { slot = slot }
+    end
+    equipment.entries[7].item_id = "item_sword"
+    equipment.entries[7].item_type = "worn_iron_sword"
+    local inventory = { entries = {
+        [1] = { item_id = "item_herb", item_type = "healing_herb" },
+        [16] = { item_id = "item_key", item_type = "iron_key" },
+    } }
+    local context = { equipment = equipment, inventory = inventory }
+    for _, slot in ipairs(client_layout.EQUIPMENT_ORDER) do
+        local rect = client_layout.EQUIPMENT_SLOTS[slot]
+        local target = input_dispatch.hit_test(rect.x + rect.width / 2, rect.y + rect.height / 2, context)
+        equal(target.target_type, "equipment_slot"); equal(target.slot, slot)
+        if slot == "main_hand" then
+            equal(target.item_id, "item_sword"); equal(target.item_type, "worn_iron_sword")
+        else
+            assert(target.item_id == nil, "empty equipment slot must retain nil identity")
+        end
+    end
+    local first = input_dispatch.hit_test(1030, 244, context)
+    equal(first.target_type, "inventory_slot"); equal(first.index, 1); equal(first.item_id, "item_herb")
+    local last = input_dispatch.hit_test(1210, 124, context)
+    equal(last.index, 16); equal(last.item_id, "item_key")
+    local empty = input_dispatch.hit_test(1090, 244, context)
+    equal(empty.index, 2); assert(empty.item_id == nil, "empty inventory slot must retain nil identity")
+    assert(input_dispatch.hit_test(1060, 244, context) == nil, "between-slot background must not hit")
+end)
+
+test("physical UI dispatch rejects bars and is stable across resolutions", function()
+    local context = { equipment = { entries = {} }, inventory = { entries = {} } }
+    local sizes = { { 1280, 800 }, { 1600, 800 }, { 1920, 1080 }, { 2560, 1600 },
+        { 1280, 1000 }, { 2560, 1080 } }
+    for _, size in ipairs(sizes) do
+        local transform = layout.physical_transform(size[1], size[2])
+        local physical_x, physical_y = layout.virtual_to_physical(transform, 1055, 394)
+        local pointer = input_dispatch.resolve_physical(transform, physical_x, physical_y, context)
+        equal(pointer.region, "sidebar"); equal(pointer.target.slot, "main_hand")
+        local intent, consumed = input_dispatch.click(pointer, false)
+        assert(consumed, "matched UI click must be consumed before world input")
+        equal(intent.type, "ui_click"); equal(intent.target.slot, "main_hand"); assert(not intent.blocked)
+        local blocked = input_dispatch.click(pointer, true)
+        assert(blocked.blocked, "dialogue policy must mark the UI intent blocked")
+    end
+    local wide = layout.physical_transform(1600, 800)
+    local outside = input_dispatch.resolve_physical(wide, 10, 400, context)
+    equal(outside.region, "outside"); assert(outside.target == nil)
+    local tall = layout.physical_transform(1280, 1000)
+    outside = input_dispatch.resolve_physical(tall, 640, 10, context)
+    equal(outside.region, "outside"); assert(outside.target == nil)
+    local _, consumed = input_dispatch.click(outside, false)
+    assert(not consumed, "unmatched input remains available to future world handling")
 end)
 
 test("actor identity, types, directions, and registry are canonical", function()

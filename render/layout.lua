@@ -16,6 +16,14 @@ function M.is_world_point(x, y) return contains(M.WORLD, x, y) end
 function M.is_bottom_panel_point(x, y) return contains(M.BOTTOM, x, y) end
 function M.is_sidebar_point(x, y) return contains(M.SIDEBAR, x, y) end
 
+function M.classify_virtual_point(x, y)
+    if not M.is_virtual_point(x, y) then return "outside" end
+    if M.is_world_point(x, y) then return "world" end
+    if M.is_sidebar_point(x, y) then return "sidebar" end
+    if M.is_bottom_panel_point(x, y) then return "bottom" end
+    return "outside"
+end
+
 function M.physical_transform(width, height)
     assert(type(width) == "number" and width > 0 and type(height) == "number" and height > 0,
         "physical dimensions must be positive")
