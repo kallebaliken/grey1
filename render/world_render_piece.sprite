@@ -1,0 +1,8 @@
+default_animation: "fallback_01"
+material: "/builtins/materials/sprite.material"
+blend_mode: BLEND_MODE_ALPHA
+size_mode: SIZE_MODE_AUTO
+textures {
+  sampler: "texture_sampler"
+  texture: "/assets/world.atlas"
+}
