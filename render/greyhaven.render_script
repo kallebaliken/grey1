@@ -23,22 +23,22 @@ function update(self)
     render.clear({ [graphics.BUFFER_TYPE_COLOR0_BIT] = self.clear_color,
         [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0 })
 
-    render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
     render.set_view(vmath.matrix4())
-    render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
     render.enable_state(graphics.STATE_BLEND)
     render.set_blend_func(graphics.BLEND_FACTOR_SRC_ALPHA, graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
 
-    local clip_x, clip_y, clip_width, clip_height = layout.world_scissor(canvas)
+    local world_x, world_y, world_width, world_height = layout.world_viewport(canvas)
+    render.set_viewport(world_x, world_y, world_width, world_height)
+    render.set_projection(vmath.matrix4_orthographic(layout.WORLD.x, layout.WORLD.x + layout.WORLD.width,
+        layout.WORLD.y, layout.WORLD.y + layout.WORLD.height, -1, 1))
     render.enable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(true)
     render.set_depth_func(graphics.COMPARE_FUNC_LEQUAL)
-    render.set_scissor(clip_x, clip_y, clip_width, clip_height)
     render.draw(self.world_predicate)
-    render.set_scissor()
     render.disable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(false)
 
+    render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
     render.set_view(vmath.matrix4())
     render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
     render.draw(self.gui_predicate)

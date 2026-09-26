@@ -301,7 +301,7 @@ test("fixed virtual canvas scales uniformly without changing world visibility", 
     equal(four_three.scale, 0.8); equal(four_three.x, 0); equal(four_three.y, 96)
     local ultrawide = layout.physical_transform(2560, 1080)
     equal(ultrawide.scale, 1.5); equal(ultrawide.x, 320); equal(ultrawide.y, 0)
-    local sx, sy, sw, sh = layout.world_scissor(ultrawide)
+    local sx, sy, sw, sh = layout.world_viewport(ultrawide)
     equal(sx, 320); equal(sy, 12); equal(sw, 1440); equal(sh, 1056)
     local virtual_x, virtual_y = layout.physical_to_virtual(ultrawide, 1040, 540)
     equal(virtual_x, 480); equal(virtual_y, 360)

@@ -22,7 +22,7 @@ function M.physical_to_virtual(transform, x, y)
     return (x - transform.x) / transform.scale, (y - transform.y) / transform.scale
 end
 
-function M.world_scissor(transform)
+function M.world_viewport(transform)
     local x, y = M.virtual_to_physical(transform, M.WORLD.x, M.WORLD.y)
     return x, y, M.WORLD.width * transform.scale, M.WORLD.height * transform.scale
 end
