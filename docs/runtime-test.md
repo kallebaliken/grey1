@@ -37,6 +37,7 @@ The startup chain is `game.project` → `/main/main.collection` → `/main/game_
 | **F8** | Delete the development save and immediately rebuild the authored world |
 | **F9** | Load the development save |
 | **Page Up / Page Down** | While held, inspect the adjacent rendered Z level without moving the Actor |
+| **Mouse move / left click** | Hover/select item slots; confirm a selected item with a second click to equip/unequip |
 
 F1 reports the player Actor ID/type, logical tile and Z, facing, resolved attack damage/source/main-hand weapon/current cooldown, total armor and sources, last raw/armor/final attack resolution, player and test-rat health/death, the test quest status/progress, render-piece category counts, active sprite instances, per-frame creation/reuse/removal/failure counts, configured capacity, path status, tile context, inventory, and equipment. There is no equipment, quest, or combat GUI; **L**, **O**, **P**, **Y**, **U**, and **I** are development-only.
 
@@ -278,7 +279,7 @@ The Python check runs the full Lua suite when `lua`, `lua5.1`, or `luajit` is in
 10. Confirm world sprites never enter the sidebar, the Inventory panel remains contained, Map remains a placeholder, and dialogue/quests/combat remain functional.
 11. Confirm there are no GUI-node, atlas-animation, render, Sprite, or Game Object errors.
 
-The panel is read-only in this milestone; slot-click unequip is deferred until Greyhaven has a stable mouse/UI dispatch path.
+The Equipment GUI remains a read-only projection. Semantic clicks pass through shared selection and the interaction controller before the authoritative Equipment API performs any transfer.
 
 ## Functional inventory panel check
 
@@ -293,7 +294,187 @@ The panel is read-only in this milestone; slot-click unequip is deferred until G
 9. Resize the physical window and confirm the fixed grid remains within the sidebar without overlapping Equipment, world, or bottom panel.
 10. Confirm combat, dialogue, quests, world clipping, and equipment remain functional, with no GUI-node, atlas, or runtime errors.
 
-The Inventory panel is read-only; drag/drop, item use, slot reordering, nested containers, and mouse inventory interaction remain deferred.
+The Inventory GUI remains a read-only projection. Confirmed second clicks may equip through the interaction controller; drag/drop, item use, slot reordering, and nested containers remain deferred.
+
+## Shared mouse/UI input dispatch check
+
+1. Launch at 1280×800.
+2. Enable F1.
+3. Hover all Equipment slots and verify each correct semantic target.
+4. Click `main_hand` and verify the diagnostic target.
+5. Hover and click Inventory slot 1.
+6. Hover and click Inventory slot 16.
+7. Verify an occupied slot reports its exact item identity.
+8. Verify an empty slot produces nil item identity (no item identity is appended to the target).
+9. Resize to 1920×1080 and repeat the same clicks; verify the same targets.
+10. Resize very wide, click the pillarbox, and verify `outside` with no UI target.
+11. Resize tall, click the letterbox, and verify `outside` with no UI target.
+12. Verify clicks do not equip, unequip, drop, pick up, attack, move, or interact.
+13. Verify keyboard gameplay remains unchanged.
+14. Open dialogue; verify hover continues, matched clicks remain consumed, the diagnostic marks them dialogue-blocked, and the existing dialogue keyboard policy remains authoritative.
+15. Confirm there are no Defold, GUI, input, or missing-module errors.
+
+## Click equipped item to unequip check
+
+1. Pick up the worn iron sword.
+2. Equip the sword with the existing **L** development control.
+3. Verify it appears in `main_hand`.
+4. Click the visible sword slot once and verify it becomes selected without moving.
+5. Click it again and verify the sword disappears from Equipment.
+6. Verify the exact same sword instance appears in Inventory.
+7. Verify attack damage falls back to unarmed damage.
+8. Pick up and equip patched leather armor with **O**.
+9. Click `torso` twice.
+10. Verify the exact armor instance appears in Inventory.
+11. Verify its mitigation is removed.
+12. Click an empty Equipment slot and verify ownership and UI remain unchanged.
+13. Repeat after resizing to 1920×1080, a wide pillarboxed size, and a tall letterboxed size.
+14. Verify the visible hit target remains correct and clicks in unused bars remain ignored.
+15. Fill Inventory, select and click occupied Equipment again, and verify `Inventory is full.` with both owners unchanged.
+16. Open dialogue.
+17. Verify Equipment hover continues but click-to-unequip is blocked.
+18. Save and load after mouse unequip.
+19. Verify the resulting Inventory ownership persists and Inventory clicks remain diagnostic-only.
+20. Confirm there are no Defold, GUI, ownership, combat, or save/load errors.
+
+## Click compatible Inventory item to equip check
+
+1. Start or reset the prototype.
+2. Pick up the worn iron sword.
+3. Verify the sword appears in Inventory.
+4. Click the sword icon once and verify it becomes selected without moving.
+5. Click it again and verify the sword disappears from Inventory.
+6. Verify the exact same sword appears in `main_hand`.
+7. Verify weapon damage is active.
+8. Click the `main_hand` sword twice (the first click confirms its new location).
+9. Verify the exact sword returns to Inventory and unarmed damage is restored.
+10. Click the sword twice again.
+11. Verify the same instance equips again with no duplicate.
+12. Pick up patched leather armor.
+13. Click the armor icon twice.
+14. Verify it equips to `torso`.
+15. Verify armor mitigation is active through the existing resolver.
+16. Pick up and click a non-equippable healing herb or iron key twice.
+17. Verify it remains in Inventory.
+18. Verify the bottom panel says `That item cannot be equipped.`
+19. Select an item and click it again while all of its compatible slots are occupied.
+20. Verify the existing items are not replaced and the required-slot notice appears.
+21. Resize through 1600×800, 1920×1080, 2560×1600, a tall window, and ultrawide.
+22. Repeat the Inventory click.
+23. Verify the same target and equipment action; clicks in unused bars remain ignored.
+24. Open dialogue.
+25. Verify equip clicks are consumed but mutation remains blocked.
+26. Save and load after clicking an item to equip.
+27. Verify authoritative Equipment ownership and both panels reconstruct correctly; reset and verify authored ownership returns without stale interaction state.
+28. Confirm there are no GUI, Defold, ownership, combat, or save/load errors.
+
+## Shared item selection check
+
+1. Start the game.
+2. Click the sword once in Inventory.
+3. Verify the sword slot highlights.
+4. Verify the sword remains in Inventory.
+5. Move the mouse elsewhere.
+6. Verify selection remains while hover moves independently.
+7. Click the armor once.
+8. Verify armor becomes selected, the sword highlight clears, and neither item moves.
+9. Click an empty Inventory slot.
+10. Verify selection clears.
+11. Select the sword.
+12. Click the same sword again.
+13. Verify the existing equip interaction occurs.
+14. Verify selection follows the exact sword ID into `main_hand`.
+15. Click the equipped sword once.
+16. Verify it is selected at its reconciled location but remains equipped.
+17. Click it again.
+18. Verify the sword unequips.
+19. Verify selection follows the exact sword ID to its new Inventory slot.
+20. Select a healing herb.
+21. Verify the herb can be selected.
+22. Click it again and verify `not_equippable` feedback without ownership corruption.
+23. Resize through native, 1920×1080, 1600×800, 1280×1000, and ultrawide sizes.
+24. Verify the same selection and second-click behavior at every size.
+25. Save and load.
+26. Verify selection starts empty while ownership restores normally.
+27. Select an item, then open dialogue.
+28. Verify dialogue clears selection and blocks item actions while hover remains available.
+29. Confirm there are no GUI, Defold, ownership, or input errors.
+
+## Inventory and Equipment drag/drop check
+
+1. Pick up the worn iron sword and verify it is in Inventory.
+2. Press the sword and move fewer than six virtual pixels; release and verify ordinary click/selection behavior.
+3. Press and drag the sword toward `main_hand`.
+4. Verify the atlas-backed translucent drag ghost follows the pointer without world zoom.
+5. Verify compatible hand slots highlight and the source remains visible but dimmed.
+6. Release on `main_hand`.
+7. Verify the exact sword equips and selection follows its stable ID.
+8. Verify attack damage changes through the existing resolver.
+9. Drag the sword from `main_hand` to anywhere inside the Inventory panel/grid.
+10. Release and verify the exact sword returns through authoritative Inventory insertion.
+11. Drag patched leather armor to `torso` and verify it equips.
+12. Verify mitigation changes through the existing resolver.
+13. Drag armor to `main_hand` and verify the target is invalid.
+14. Release and verify armor remains in Inventory with unchanged identity.
+15. Drag a healing herb over Equipment and verify no compatible slots.
+16. Release and verify the herb remains unchanged; no item-use behavior occurs.
+17. Try an occupied compatible Equipment target and verify no swap or auto-unequip.
+18. Equip the sword and fill Inventory if practical.
+19. Drag the equipped sword to Inventory.
+20. Verify `Inventory is full.` and that the sword remains equipped.
+21. Drag Inventory to another Inventory slot and verify the authoritative move, swap, or merge policy; verify no stack split.
+22. Drag Equipment to another Equipment slot and verify no rearrange or swap.
+23. Start a drag and release over the world.
+24. Verify no item is dropped and keyboard pickup/drop remains unchanged.
+25. Repeat over bottom/sidebar background and verify cancellation.
+26. Start a drag and press **Escape**; verify the ghost and target state clear.
+27. Resize through 1280×800, 1920×1080, 1600×800, 1280×1000, and 2560×1600.
+28. Repeat valid drops and verify the same semantic slot receives them.
+29. Release in pillarbox and letterbox space and verify cancellation.
+30. Start a drag, resize while holding, and verify the ghost and target continue using updated virtual coordinates.
+31. Start a drag and open dialogue.
+32. Verify dialogue cancels the drag and blocks new drags.
+33. Start a drag and save; verify the transient gesture cancels.
+34. Load or reset and verify no drag state persists.
+35. Enable F1 and verify source, target, item ID, active/candidate state, and validity diagnostics.
+36. Verify the GUI reports capacity 112 with 101 authored nodes and 11 nodes of headroom.
+37. Confirm selection follows successful transfers and remains on failed drops.
+38. Confirm no additional item instances or IDs are created.
+39. Recheck ordinary first/second-click equip and unequip behavior.
+40. Confirm there are no GUI, Defold, ownership, combat, or input errors.
+
+## Inventory rearranging and stack-aware drag check
+
+1. Put several distinct items into Inventory.
+2. Drag the sword from the first visible position to a later empty position.
+3. Verify compact ordering shifts and the sword appends to the occupied sequence.
+4. Verify the exact sword ID and mutable state remain unchanged.
+5. Drag the sword onto the key.
+6. Verify the two exact item instances swap.
+7. Create or restore two compatible healing-herb stacks.
+8. Drag the source herb stack onto the destination herb stack.
+9. Verify quantity transfers toward the destination and its ID survives a full merge.
+10. Verify the authored stack maximum of 20 is respected.
+11. Test a partial merge into a nearly full destination.
+12. Verify the destination clamps at 20 and the source ID remains with the exact remainder.
+13. Drag onto an already full compatible stack.
+14. Verify the two stacks swap rather than merge.
+15. Drag an item back onto its original slot.
+16. Verify a no-op with no ownership or quantity change.
+17. Confirm move, swap, and merge target colors differ while the existing ghost/source dimming remain.
+18. Equip the sword through existing Inventory-to-Equipment drag.
+19. Verify exact-slot Equipment behavior and weapon damage remain unchanged.
+20. Drag it back to Inventory and verify normal authoritative insertion remains in use.
+21. Create an Inventory with overflow if practical and reorder visible slots 1–16.
+22. Verify `+N MORE`, total occupancy, and invisible-entry relative order remain correct.
+23. Save after rearranging, restart/load, and verify exact Inventory order restores.
+24. Save after a partial merge and reload.
+25. Verify both stack IDs, exact quantities, and order restore without insertion-time re-merging.
+26. Reset and verify authored Inventory order and quantities return.
+27. Resize and repeat a visible slot drop; verify virtual targeting remains correct.
+28. Open dialogue and verify Inventory dragging remains blocked/cancelled.
+29. Confirm there are no duplicate or lost item IDs and no world-item transfer occurs.
+30. Confirm there are no GUI, Defold, save/load, ownership, or input errors.
 
 ## Unified responsive client check
 

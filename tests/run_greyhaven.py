@@ -56,6 +56,11 @@ required = [
     "render/command_diagnostics.lua",
     "render/world_sprite_renderer.script",
     "render/layout.lua",
+    "ui/client_layout.lua",
+    "ui/input_dispatch.lua",
+    "ui/equipment_controller.lua",
+    "ui/item_selection.lua",
+    "ui/item_drag.lua",
     "render/greyhaven.render",
     "render/greyhaven.render_script",
     "render/world_render_piece.go",
@@ -117,7 +122,7 @@ assert "adjust_reference: ADJUST_REFERENCE_DISABLED" in gui
 assert 'font: "/builtins/fonts/default.font"' in gui
 assert 'texture: "/assets/world.atlas"' in gui
 assert "max_nodes: 112" in gui
-assert gui.count("nodes {") == 100
+assert gui.count("nodes {") == 101
 assert 'name: "hud"' in gui
 assert 'id: "dialogue_panel"' in gui and 'id: "dialogue_text"' in gui
 assert 'id: "sidebar_background"' in gui
@@ -154,6 +159,8 @@ assert 'input: KEY_Y action: "debug_quest_start"' in binding
 assert 'input: KEY_U action: "debug_quest_advance"' in binding
 assert 'input: KEY_I action: "debug_quest_complete"' in binding
 assert 'input: KEY_V action: "debug_rat_perception"' in binding
+assert 'mouse_trigger { input: MOUSE_BUTTON_1 action: "left_click" }' in binding
+assert "mouse_movement" not in binding
 map_loader = (ROOT / "world/map_loader.lua").read_text()
 assert 'require("data.maps.prototype")' in map_loader
 assert "require(module_name)" not in map_loader
@@ -171,6 +178,67 @@ for contract in ("VIRTUAL_HEIGHT = 800", "WORLD = { x = 0, y = 160, width = 960,
                  "SIDEBAR = { x = 960, y = 0, width = 320, height = 800 }",
                  "is_world_point", "is_sidebar_point", "is_bottom_panel_point"):
     assert contract in layout_source, contract
+assert "classify_virtual_point" in layout_source
+dispatcher_source = (ROOT / "ui/input_dispatch.lua").read_text()
+controller_source = (ROOT / "ui/equipment_controller.lua").read_text()
+selection_source = (ROOT / "ui/item_selection.lua").read_text()
+drag_source = (ROOT / "ui/item_drag.lua").read_text()
+save_data_source = (ROOT / "state/save_data.lua").read_text()
+assert 'layout.physical_to_virtual(transform, physical_x, physical_y)' in dispatcher_source
+assert 'layout.classify_virtual_point(x, y)' in dispatcher_source
+assert 'target_type = "equipment_slot"' in dispatcher_source
+assert 'target_type = "inventory_slot"' in dispatcher_source
+client_layout_source = (ROOT / "ui/client_layout.lua").read_text()
+for slot_id in ("head", "torso", "legs", "feet", "neck", "ring", "main_hand", "off_hand"):
+    assert f"{slot_id} = centred_rect" in client_layout_source
+assert "for index = 1, 16 do" in client_layout_source
+equipment_centres = {
+    "head": (160, 484), "torso": (160, 424), "legs": (160, 364), "feet": (160, 334),
+    "neck": (95, 454), "ring": (225, 454), "main_hand": (95, 394), "off_hand": (225, 394),
+}
+for slot_id, (x, y) in equipment_centres.items():
+    authored = f'position {{ x: {x}.0 y: {y}.0 }} size {{ x: 28.0 y: 28.0 }} color'
+    assert authored in gui and f'id: "equipment_{slot_id}_slot"' in gui
+for index in range(1, 17):
+    column, row = (index - 1) % 4, (index - 1) // 4
+    x, y = 70 + column * 60, 244 - row * 40
+    authored = f'position {{ x: {x}.0 y: {y}.0 }} size {{ x: 34.0 y: 34.0 }} color'
+    assert authored in gui and f'id: "inventory_{index}_slot"' in gui
+assert 'input_dispatch.resolve_physical(layout.physical_transform' in manager
+assert "local mouse_motion = action_id == nil" in manager
+assert "equipment_api.equip" not in dispatcher_source and "equipment_api.unequip" not in dispatcher_source
+assert "item_transfers" not in dispatcher_source
+assert 'equipment_api.unequip(context.equipment, context.inventory' in controller_source
+assert 'equipment_api.equip(context.equipment, context.inventory' in controller_source
+assert "equipment_api.unequip" not in dispatcher_source
+assert "equipment_api.equip" not in dispatcher_source
+assert "equipment_controller.handle_intent(intent" in manager
+for contract in ("create", "clear", "click_target", "get_snapshot", "is_selected", "reconcile"):
+    assert f"function M.{contract}" in selection_source
+assert "item_selection.click_target" in manager
+assert "item_selection.reconcile" in manager
+assert "if conversation then item_selection.clear" in manager
+assert "SELECTED_COLOR" in gui_script and "update_highlights" in gui_script
+assert "message.selected_target" in gui_script and "Selected item: %s" in gui_script
+assert "item_selection" not in save_data_source
+assert "item_drag" not in save_data_source
+assert "if self.item_selection then item_selection.clear" in manager
+for contract in ("create", "cancel", "pointer_down", "pointer_move", "release", "reconcile"):
+    assert f"function M.{contract}" in drag_source
+assert "item_drag.pointer_down" in manager and "item_drag.pointer_move" in manager
+assert "equipment_controller.handle_drop" in manager
+assert "equipment_api.equip" not in drag_source and "equipment_api.unequip" not in drag_source
+assert 'id: "drag_ghost"' in gui
+assert "update_drag_ghost" in gui_script and "Drag: %s" in gui_script
+container_source = (ROOT / "items/container.lua").read_text()
+inventory_source = (ROOT / "items/inventory.lua").read_text()
+for contract in ("move_slot", "preview_slot_drop", "drop_slot", "restore"):
+    assert f"function M.{contract}" in container_source
+for contract in ("move_slot", "preview_slot_drop", "drop_slot"):
+    assert f"function M.{contract}" in inventory_source
+assert "inventory_api.drop_slot" in controller_source
+assert "inventory_api.drop_slot" not in dispatcher_source and "container_api.drop_slot" not in gui_script
+assert "Last inventory drop: %s" in gui_script
 for contract in ("interaction.use", "item_transfers.drop", "pathfinding.find_path", "movement_controller.set_path", "movement_controller.update", "combat_registry.apply_damage", "attacks.try_attack", "attacks.update", "creatures.spawn", "factions.associate", "factions.relationship_between_actors", "dialogue.is_active", "dialogue.choose_index", "dialogue.close", "quests.start", "quests.advance_objective", "quests.complete", "quests.get_snapshot", "state_api.get_flag", "state_api.set_flag", "save_manager.save", "movement.begin", "renderer.build"):
     assert contract in manager, contract
 conditions_source = (ROOT / "conditions/conditions.lua").read_text()

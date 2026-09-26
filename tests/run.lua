@@ -16,6 +16,7 @@ local movement_controller = require "simulation.movement_controller"
 local health = require "combat.health"
 local combat_registry = require "combat.registry"
 local attacks = require "combat.attacks"
+local attack_damage = require "combat.attack_damage"
 local armor = require "combat.armor"
 local creature_definitions = require "creatures.creature_defs"
 local creature_registry_api = require "creatures.creature_registry"
@@ -66,6 +67,11 @@ local command_diagnostics = require "render.command_diagnostics"
 local viewport_api = require "render.viewport"
 local camera_api = require "world.camera"
 local layout = require "render.layout"
+local client_layout = require "ui.client_layout"
+local input_dispatch = require "ui.input_dispatch"
+local equipment_controller = require "ui.equipment_controller"
+local item_selection = require "ui.item_selection"
+local item_drag = require "ui.item_drag"
 local events = require "core.events"
 
 local count = 0
@@ -349,6 +355,476 @@ test("fixed virtual canvas scales uniformly without changing world visibility", 
         vx, vy = layout.physical_to_virtual(transform, bottom_x, bottom_y)
         assert(layout.is_bottom_panel_point(vx, vy))
     end
+end)
+
+test("virtual client regions are classified centrally", function()
+    equal(layout.classify_virtual_point(480, 480), "world")
+    equal(layout.classify_virtual_point(1100, 400), "sidebar")
+    equal(layout.classify_virtual_point(480, 80), "bottom")
+    equal(layout.classify_virtual_point(-1, 400), "outside")
+    equal(layout.classify_virtual_point(1280, 400), "outside")
+end)
+
+test("UI dispatch resolves every semantic slot and enriches snapshot identity", function()
+    local equipment = { entries = {} }
+    for _, slot in ipairs(client_layout.EQUIPMENT_ORDER) do
+        equipment.entries[#equipment.entries + 1] = { slot = slot }
+    end
+    equipment.entries[7].item_id = "item_sword"
+    equipment.entries[7].item_type = "worn_iron_sword"
+    local inventory = { entries = {
+        [1] = { item_id = "item_herb", item_type = "healing_herb" },
+        [16] = { item_id = "item_key", item_type = "iron_key" },
+    } }
+    local context = { equipment = equipment, inventory = inventory }
+    for _, slot in ipairs(client_layout.EQUIPMENT_ORDER) do
+        local rect = client_layout.EQUIPMENT_SLOTS[slot]
+        local target = input_dispatch.hit_test(rect.x + rect.width / 2, rect.y + rect.height / 2, context)
+        equal(target.target_type, "equipment_slot"); equal(target.slot, slot)
+        if slot == "main_hand" then
+            equal(target.item_id, "item_sword"); equal(target.item_type, "worn_iron_sword")
+        else
+            assert(target.item_id == nil, "empty equipment slot must retain nil identity")
+        end
+    end
+    local first = input_dispatch.hit_test(1030, 244, context)
+    equal(first.target_type, "inventory_slot"); equal(first.index, 1); equal(first.item_id, "item_herb")
+    local last = input_dispatch.hit_test(1210, 124, context)
+    equal(last.index, 16); equal(last.item_id, "item_key")
+    local empty = input_dispatch.hit_test(1090, 244, context)
+    equal(empty.index, 2); assert(empty.item_id == nil, "empty inventory slot must retain nil identity")
+    assert(input_dispatch.hit_test(1060, 244, context) == nil, "between-slot background must not hit")
+end)
+
+test("physical UI dispatch rejects bars and is stable across resolutions", function()
+    local registry = item_registry_api.new(item_definitions)
+    local sizes = { { 1280, 800 }, { 1600, 800 }, { 1920, 1080 }, { 2560, 1600 },
+        { 1280, 1000 }, { 2560, 1080 } }
+    for index, size in ipairs(sizes) do
+        local owner_id = "resize.hero." .. index
+        local inventory = inventory_api.create("resize.inventory." .. index, owner_id, 1, registry)
+        local equipment = equipment_api.create("resize.equipment." .. index, owner_id, registry)
+        local item_id = "resize.sword." .. index
+        inventory_api.add_item(inventory,
+            item_instance.new({ id = item_id, type = "worn_iron_sword" }, registry))
+        local context = { equipment = equipment_panel.snapshot(equipment, registry),
+            inventory = inventory_panel.snapshot(inventory, registry) }
+        local transform = layout.physical_transform(size[1], size[2])
+        local physical_x, physical_y = layout.virtual_to_physical(transform, 1030, 244)
+        local pointer = input_dispatch.resolve_physical(transform, physical_x, physical_y, context)
+        equal(pointer.region, "sidebar"); equal(pointer.target.index, 1)
+        equal(pointer.target.item_id, item_id)
+        local intent, consumed = input_dispatch.click(pointer, false)
+        assert(consumed, "matched UI click must be consumed before world input")
+        equal(intent.type, "ui_click"); equal(intent.target.index, 1); assert(not intent.blocked)
+        equal(inventory_api.get_item(inventory, item_id).id, item_id)
+        local selection = item_selection.create()
+        assert(not item_selection.click_target(selection, intent.target))
+        equal(item_selection.get_snapshot(selection).item_id, item_id)
+        equal(inventory_api.get_item(inventory, item_id).id, item_id)
+        assert(item_selection.click_target(selection, intent.target))
+        local result = equipment_controller.handle_intent(intent,
+            { equipment = equipment, inventory = inventory, item_registry = registry })
+        assert(result.success); equal(result.item_id, item_id); equal(result.slot, "main_hand")
+        equal(equipment_api.get(equipment, "main_hand").id, item_id)
+        assert(inventory_api.get_item(inventory, item_id) == nil)
+        item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+            inventory_panel.snapshot(inventory, registry))
+        equal(item_selection.get_snapshot(selection).equipment_slot, "main_hand")
+        local blocked = input_dispatch.click(pointer, true)
+        assert(blocked.blocked, "dialogue policy must mark the UI intent blocked")
+    end
+    local context = { equipment = { entries = {} }, inventory = { entries = {} } }
+    local wide = layout.physical_transform(1600, 800)
+    local outside = input_dispatch.resolve_physical(wide, 10, 400, context)
+    equal(outside.region, "outside"); assert(outside.target == nil)
+    local tall = layout.physical_transform(1280, 1000)
+    outside = input_dispatch.resolve_physical(tall, 640, 10, context)
+    equal(outside.region, "outside"); assert(outside.target == nil)
+    local _, consumed = input_dispatch.click(outside, false)
+    assert(not consumed, "unmatched input remains available to future world handling")
+end)
+
+test("item selection is identity-based, transient, and reconciles ownership", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.selection", "selection.hero", 5, registry)
+    local equipment = equipment_api.create("equipment.selection", "selection.hero", registry)
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.sword",
+        type = "worn_iron_sword" }, registry))
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.herb",
+        type = "healing_herb", quantity = 5 }, registry))
+    local selection = item_selection.create()
+    assert(item_selection.get_snapshot(selection) == nil)
+
+    local inventory_ui = inventory_panel.snapshot(inventory, registry)
+    local equipment_ui = equipment_panel.snapshot(equipment, registry)
+    local sword_target = { target_type = "inventory_slot", index = 1,
+        item_id = inventory_ui.entries[1].item_id, item_type = inventory_ui.entries[1].item_type }
+    assert(not item_selection.click_target(selection, sword_target))
+    local selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "inventory"); equal(selected.slot_index, 1)
+    equal(selected.item_id, "selection.sword"); assert(item_selection.is_selected(selection, "selection.sword"))
+    assert(inventory_api.get_item(inventory, "selection.sword"), "selection must not mutate ownership")
+    local before_hover = codec.serialize(item_selection.get_snapshot(selection))
+    input_dispatch.hit_test(1090, 244, { equipment = equipment_ui, inventory = inventory_ui })
+    equal(codec.serialize(item_selection.get_snapshot(selection)), before_hover,
+        "hover hit testing must not replace persistent selection")
+
+    local herb_target = { target_type = "inventory_slot", index = 2,
+        item_id = inventory_ui.entries[2].item_id, item_type = inventory_ui.entries[2].item_type }
+    assert(not item_selection.click_target(selection, herb_target))
+    equal(item_selection.get_snapshot(selection).item_id, "selection.herb")
+    assert(not item_selection.is_selected(selection, "selection.sword"))
+    -- Quantity changes do not affect stable identity selection.
+    inventory_api.add_item(inventory, item_instance.new({ id = "selection.herb.merge",
+        type = "healing_herb", quantity = 2 }, registry))
+    item_selection.reconcile(selection, equipment_ui, inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).item_id, "selection.herb")
+
+    assert(not item_selection.click_target(selection,
+        { target_type = "inventory_slot", index = 5 }))
+    assert(item_selection.get_snapshot(selection) == nil, "empty slots clear selection")
+
+    -- First click selects only; second click activates the existing equip controller.
+    inventory_ui = inventory_panel.snapshot(inventory, registry)
+    sword_target.item_id, sword_target.item_type = inventory_ui.entries[1].item_id, inventory_ui.entries[1].item_type
+    assert(not item_selection.click_target(selection, sword_target))
+    assert(item_selection.click_target(selection, sword_target))
+    local equipped = equipment_controller.handle_intent({ type = "ui_click", target = sword_target }, {
+        equipment = equipment, inventory = inventory, item_registry = registry,
+    })
+    assert(equipped.success); equal(equipped.item_id, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "equipment"); equal(selected.equipment_slot, "main_hand")
+    equal(selected.item_id, "selection.sword")
+
+    local equipment_target = { target_type = "equipment_slot", slot = "main_hand",
+        item_id = selected.item_id, item_type = selected.item_type }
+    assert(not item_selection.click_target(selection, equipment_target),
+        "a relocated selection requires a fresh first click")
+    assert(item_selection.click_target(selection, equipment_target))
+    local unequipped = equipment_controller.handle_intent({ type = "ui_click", target = equipment_target }, {
+        equipment = equipment, inventory = inventory, item_registry = registry,
+    })
+    assert(unequipped.success); equal(unequipped.item_id, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    selected = item_selection.get_snapshot(selection)
+    equal(selected.source, "inventory"); equal(selected.item_id, "selection.sword")
+
+    inventory_api.remove_item(inventory, "selection.sword")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    assert(item_selection.get_snapshot(selection) == nil, "items leaving player ownership clear selection")
+
+    inventory_ui = inventory_panel.snapshot(inventory, registry)
+    herb_target = { target_type = "inventory_slot", index = 1,
+        item_id = inventory_ui.entries[1].item_id, item_type = inventory_ui.entries[1].item_type }
+    assert(not item_selection.click_target(selection, herb_target))
+    assert(item_selection.is_selected(selection, "selection.herb"), "ordinary items remain selectable")
+    item_selection.clear(selection)
+    assert(item_selection.get_snapshot(selection) == nil)
+    assert(item_selection.get_snapshot(item_selection.create()) == nil,
+        "save/load and reset construct transient selection empty")
+end)
+
+test("item drag threshold preserves clicks and emits semantic drop intents", function()
+    local source = { target_type = "inventory_slot", index = 3, item_id = "drag.item",
+        item_type = "worn_iron_sword", animation = "sword_01" }
+    local target = { target_type = "equipment_slot", slot = "off_hand" }
+    local drag = item_drag.create()
+    assert(item_drag.pointer_down(drag, source, 100, 100))
+    assert(item_drag.is_pending(drag)); assert(not item_drag.is_active(drag))
+    assert(not item_drag.pointer_move(drag, 103, 104, target, { valid = true }))
+    assert(not item_drag.is_active(drag), "five virtual pixels stays below the six-pixel threshold")
+    local click_intent, click_reason = item_drag.release(drag)
+    assert(click_intent == nil); equal(click_reason, "click")
+
+    assert(item_drag.pointer_down(drag, source, 100, 100))
+    assert(item_drag.pointer_move(drag, 106, 100, target, { valid = true }))
+    local snapshot = item_drag.get_snapshot(drag)
+    assert(snapshot.active and snapshot.target_valid); equal(snapshot.item_id, "drag.item")
+    equal(snapshot.pointer_x, 106); equal(snapshot.target.slot, "off_hand")
+    local intent = item_drag.release(drag)
+    equal(intent.type, "drop_item"); equal(intent.item_id, "drag.item")
+    equal(intent.source.type, "inventory_slot"); equal(intent.source.index, 3)
+    equal(intent.target.type or intent.target.target_type, "equipment_slot")
+    assert(not item_drag.is_pending(drag))
+
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    item_drag.pointer_move(drag, 20, 10, nil, { valid = false, reason = "outside" })
+    local outside, outside_reason = item_drag.release(drag)
+    equal(outside_reason, "outside"); assert(outside.target == nil)
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    item_drag.cancel(drag); assert(not item_drag.is_pending(drag))
+    assert(item_drag.pointer_down(drag, source, 10, 10))
+    assert(not item_drag.reconcile(drag, { entries = {} }, { entries = {} }))
+    assert(not item_drag.is_pending(drag), "a vanished source identity cancels drag")
+    assert(not item_drag.pointer_down(drag, { target_type = "inventory_slot", index = 4 }, 0, 0),
+        "empty slots never create candidates")
+end)
+
+test("drag drops use authoritative equipment transfers and reject unsupported targets", function()
+    local registry = item_registry_api.new(item_definitions)
+    local function ownership(id, capacity)
+        return inventory_api.create("inventory.drag." .. id, "drag." .. id, capacity or 6, registry),
+            equipment_api.create("equipment.drag." .. id, "drag." .. id, registry)
+    end
+    local function drop(item_id, item_type, source, target)
+        return { type = "drop_item", item_id = item_id, item_type = item_type,
+            source = source, target = target }
+    end
+
+    local inventory, equipment = ownership("success")
+    local sword = item_instance.new({ id = "drag.sword", type = "worn_iron_sword",
+        state = { maker = "Mara" } }, registry)
+    local armor_item = item_instance.new({ id = "drag.armor", type = "patched_leather_armor" }, registry)
+    local cap = item_instance.new({ id = "drag.cap", type = "leather_cap" }, registry)
+    inventory_api.add_item(inventory, sword); inventory_api.add_item(inventory, armor_item)
+    inventory_api.add_item(inventory, cap)
+    local context = { inventory = inventory, equipment = equipment, item_registry = registry }
+    local selection = item_selection.create()
+    item_selection.select_target(selection, { target_type = "inventory_slot", index = 1,
+        item_id = sword.id, item_type = sword.type })
+    local sword_result = equipment_controller.handle_drop(drop(sword.id, sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "main_hand" }), context)
+    assert(sword_result.success); equal(sword_result.action, "equip"); equal(sword_result.item_id, sword.id)
+    equal(sword_result.target_slot, "main_hand"); equal(equipment_api.get(equipment, "main_hand").id, sword.id)
+    equal(equipment_api.get(equipment, "main_hand").state.maker, "Mara")
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 8)
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).equipment_slot, "main_hand")
+    local armor_result = equipment_controller.handle_drop(drop(armor_item.id, armor_item.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "torso" }), context)
+    assert(armor_result.success); equal(equipment_api.get(equipment, "torso").id, armor_item.id)
+    equal(armor.resolve(equipment, registry, 8).armor, 2)
+    local cap_result = equipment_controller.handle_drop(drop(cap.id, cap.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "head" }), context)
+    assert(cap_result.success); equal(equipment_api.get(equipment, "head").id, cap.id)
+
+    local returned = equipment_controller.handle_drop(drop(sword.id, sword.type,
+        { type = "equipment_slot", slot = "main_hand" }, { target_type = "inventory_panel" }), context)
+    assert(returned.success); equal(returned.action, "unequip")
+    equal(inventory_api.get_item(inventory, sword.id).state.maker, "Mara")
+    assert(equipment_api.get(equipment, "main_hand") == nil)
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).source, "inventory")
+    local returned_armor = equipment_controller.handle_drop(drop(armor_item.id, armor_item.type,
+        { type = "equipment_slot", slot = "torso" }, { target_type = "inventory_panel" }), context)
+    assert(returned_armor.success); equal(inventory_api.get_item(inventory, armor_item.id).id, armor_item.id)
+    assert(equipment_api.get(equipment, "torso") == nil)
+
+    local reject_inventory, reject_equipment = ownership("reject")
+    local reject_sword = item_instance.new({ id = "drag.reject.sword", type = "worn_iron_sword" }, registry)
+    local reject_armor = item_instance.new({ id = "drag.reject.armor", type = "patched_leather_armor" }, registry)
+    local herb = item_instance.new({ id = "drag.reject.herb", type = "healing_herb", quantity = 2 }, registry)
+    inventory_api.add_item(reject_inventory, reject_sword); inventory_api.add_item(reject_inventory, reject_armor)
+    inventory_api.add_item(reject_inventory, herb)
+    local reject_context = { inventory = reject_inventory, equipment = reject_equipment, item_registry = registry }
+    local before_inventory = codec.serialize(inventory_api.snapshot(reject_inventory))
+    local before_equipment = codec.serialize(equipment_api.snapshot(reject_equipment))
+    local incompatible = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "torso" }), reject_context)
+    assert(not incompatible.success); equal(incompatible.reason, "incompatible_slot")
+    local armor_hand = equipment_controller.handle_drop(drop(reject_armor.id, reject_armor.type,
+        { type = "inventory_slot", index = 2 }, { target_type = "equipment_slot", slot = "main_hand" }), reject_context)
+    equal(armor_hand.reason, "incompatible_slot")
+    local herb_drop = equipment_controller.handle_drop(drop(herb.id, herb.type,
+        { type = "inventory_slot", index = 3 }, { target_type = "equipment_slot", slot = "head" }), reject_context)
+    equal(herb_drop.reason, "incompatible_slot")
+    for _, target_type in ipairs({ "inventory_slot", "world", "sidebar_background" }) do
+        local rejected = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+            { type = "inventory_slot", index = 1 }, { target_type = target_type, index = 2 }), reject_context)
+        equal(rejected.reason, "unsupported_drop")
+    end
+    local outside = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, nil), reject_context)
+    equal(outside.reason, "outside")
+    equal(codec.serialize(inventory_api.snapshot(reject_inventory)), before_inventory)
+    equal(codec.serialize(equipment_api.snapshot(reject_equipment)), before_equipment)
+
+    inventory_api.add_item(reject_inventory,
+        item_instance.new({ id = "drag.blocker", type = "worn_iron_sword" }, registry))
+    assert(equipment_api.equip(reject_equipment, reject_inventory, "drag.blocker", "main_hand"))
+    local occupied_inventory = codec.serialize(inventory_api.snapshot(reject_inventory))
+    local occupied_equipment = codec.serialize(equipment_api.snapshot(reject_equipment))
+    local occupied = equipment_controller.handle_drop(drop(reject_sword.id, reject_sword.type,
+        { type = "inventory_slot", index = 1 }, { target_type = "equipment_slot", slot = "main_hand" }), reject_context)
+    equal(occupied.reason, "slot_occupied")
+    equal(codec.serialize(inventory_api.snapshot(reject_inventory)), occupied_inventory)
+    equal(codec.serialize(equipment_api.snapshot(reject_equipment)), occupied_equipment)
+
+    local full_inventory, full_equipment = ownership("full", 1)
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "drag.full.sword", type = "worn_iron_sword" }, registry))
+    assert(equipment_api.equip(full_equipment, full_inventory, "drag.full.sword", "main_hand"))
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "drag.full.key", type = "old_iron_key" }, registry))
+    local full = equipment_controller.handle_drop(drop("drag.full.sword", "worn_iron_sword",
+        { type = "equipment_slot", slot = "main_hand" }, { target_type = "inventory_panel" }),
+        { inventory = full_inventory, equipment = full_equipment, item_registry = registry })
+    assert(not full.success); equal(full.reason, "inventory_full")
+    equal(equipment_api.get(full_equipment, "main_hand").id, "drag.full.sword")
+    local equipment_to_equipment = equipment_controller.handle_drop(drop("drag.full.sword", "worn_iron_sword",
+        { type = "equipment_slot", slot = "main_hand" },
+        { target_type = "equipment_slot", slot = "off_hand" }),
+        { inventory = full_inventory, equipment = full_equipment, item_registry = registry })
+    equal(equipment_to_equipment.reason, "unsupported_drop")
+end)
+
+test("drag drop targets remain semantic across physical resolutions", function()
+    local registry = item_registry_api.new(item_definitions)
+    local sizes = { { 1280, 800 }, { 1920, 1080 }, { 1600, 800 }, { 1280, 1000 }, { 2560, 1600 } }
+    for index, size in ipairs(sizes) do
+        local inventory = inventory_api.create("inventory.drag.resize." .. index, "drag.resize." .. index, 1, registry)
+        local equipment = equipment_api.create("equipment.drag.resize." .. index, "drag.resize." .. index, registry)
+        local item_id = "drag.resize.sword." .. index
+        inventory_api.add_item(inventory, item_instance.new({ id = item_id, type = "worn_iron_sword" }, registry))
+        local context = { inventory = inventory_panel.snapshot(inventory, registry),
+            equipment = equipment_panel.snapshot(equipment, registry) }
+        local transform = layout.physical_transform(size[1], size[2])
+        local px, py = layout.virtual_to_physical(transform, 1055, 394)
+        local vx, vy = layout.physical_to_virtual(transform, px, py)
+        local target = input_dispatch.drop_target(vx, vy, context, "inventory_slot")
+        equal(target.target_type, "equipment_slot"); equal(target.slot, "main_hand")
+    end
+    local wide = layout.physical_transform(1600, 800)
+    local vx = layout.physical_to_virtual(wide, 10, 400)
+    assert(vx == nil); assert(input_dispatch.drop_target(vx, nil, {}, "inventory_slot") == nil)
+    local tall = layout.physical_transform(1280, 1000)
+    vx = layout.physical_to_virtual(tall, 640, 10)
+    assert(vx == nil); assert(input_dispatch.drop_target(vx, nil, {}, "equipment_slot") == nil)
+end)
+
+test("inventory authoritative slot drops move, swap, and preserve identity", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.restore({ id = "inventory.reorder", owner_id = "reorder.hero", capacity = 8,
+        items = {
+            { id = "reorder.sword", type = "worn_iron_sword", quantity = 1, state = { maker = "Mara" } },
+            { id = "reorder.key", type = "old_iron_key", quantity = 1, state = {} },
+            { id = "reorder.cap", type = "leather_cap", quantity = 1, state = {} },
+        } }, registry)
+    local capacity = inventory_api.snapshot(inventory).capacity
+    local moved = inventory_api.drop_slot(inventory, 1, 5)
+    assert(moved.success); equal(moved.action, "inventory_move"); equal(moved.to, 3)
+    local order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.key"); equal(order[2].id, "reorder.cap")
+    equal(order[3].id, "reorder.sword"); equal(order[3].state.maker, "Mara")
+    equal(inventory_api.snapshot(inventory).capacity, capacity)
+
+    local earlier = inventory_api.move_slot(inventory, 3, 1)
+    assert(earlier.success); equal(earlier.action, "inventory_move")
+    order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.sword"); equal(order[2].id, "reorder.key")
+    local same = inventory_api.drop_slot(inventory, 1, 1)
+    assert(not same.success); equal(same.reason, "same_slot")
+    local swapped = inventory_api.drop_slot(inventory, 1, 2)
+    assert(swapped.success); equal(swapped.action, "inventory_swap")
+    equal(swapped.source_item_id, "reorder.sword"); equal(swapped.target_item_id, "reorder.key")
+    order = inventory_api.get_items(inventory)
+    equal(order[1].id, "reorder.key"); equal(order[2].id, "reorder.sword")
+    equal(order[2].state.maker, "Mara")
+
+    local restored = inventory_api.restore(codec.deserialize(codec.serialize(inventory_api.snapshot(inventory))), registry)
+    local restored_order = inventory_api.get_items(restored)
+    equal(restored_order[1].id, "reorder.key"); equal(restored_order[2].id, "reorder.sword")
+    equal(restored_order[2].state.maker, "Mara")
+    local world = fixture()
+    local player = actor_api.new("reorder.hero", "player", 1, 1, 7, "south")
+    player.inventory, player.equipment = inventory,
+        equipment_api.create("equipment.reorder", "reorder.hero", registry)
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local save_restored = save_data.restore_inventory(saved, registry)
+    equal(inventory_api.get_item_at(save_restored, 1).id, "reorder.key")
+    equal(inventory_api.get_item_at(save_restored, 2).id, "reorder.sword")
+end)
+
+test("inventory slot drops merge toward destination with stable stack identities", function()
+    local registry = item_registry_api.new(item_definitions)
+    local function stacked(id, source_quantity, target_quantity)
+        return inventory_api.restore({ id = "inventory.stack.drop." .. id, owner_id = "stack.hero." .. id,
+            capacity = 4, items = {
+                { id = id .. ".source", type = "healing_herb", quantity = source_quantity, state = {} },
+                { id = id .. ".target", type = "healing_herb", quantity = target_quantity, state = {} },
+            } }, registry)
+    end
+    local full = stacked("full", 12, 8)
+    local merged = inventory_api.drop_slot(full, 1, 2)
+    assert(merged.success); equal(merged.action, "inventory_merge"); equal(merged.transferred, 12)
+    equal(merged.source_remainder, 0); equal(merged.target_item_id, "full.target")
+    equal(merged.selected_item_id, "full.target"); assert(inventory_api.get_item(full, "full.source") == nil)
+    equal(inventory_api.get_item(full, "full.target").quantity, 20)
+
+    local partial = stacked("partial", 12, 15)
+    local partial_result = inventory_api.drop_slot(partial, 1, 2)
+    assert(partial_result.success); equal(partial_result.transferred, 5); equal(partial_result.source_remainder, 7)
+    equal(partial_result.selected_item_id, "partial.source")
+    equal(inventory_api.get_item(partial, "partial.source").quantity, 7)
+    equal(inventory_api.get_item(partial, "partial.target").quantity, 20)
+    local restored = inventory_api.restore(codec.deserialize(codec.serialize(inventory_api.snapshot(partial))), registry)
+    equal(inventory_api.get_item(restored, "partial.source").quantity, 7)
+    equal(inventory_api.get_item(restored, "partial.target").quantity, 20)
+    local restored_order = inventory_api.get_items(restored)
+    equal(restored_order[1].id, "partial.source"); equal(restored_order[2].id, "partial.target")
+    local world = fixture()
+    local player = actor_api.new("stack.hero.partial", "player", 1, 1, 7, "south")
+    player.inventory, player.equipment = partial,
+        equipment_api.create("equipment.stack.partial", "stack.hero.partial", registry)
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local save_restored = save_data.restore_inventory(saved, registry)
+    equal(inventory_api.get_item_at(save_restored, 1).id, "partial.source")
+    equal(inventory_api.get_item_at(save_restored, 1).quantity, 7)
+    equal(inventory_api.get_item_at(save_restored, 2).id, "partial.target")
+    equal(inventory_api.get_item_at(save_restored, 2).quantity, 20)
+
+    local maximum = stacked("maximum", 5, 20)
+    local maximum_result = inventory_api.drop_slot(maximum, 1, 2)
+    assert(maximum_result.success); equal(maximum_result.action, "inventory_swap")
+    equal(inventory_api.get_items(maximum)[1].id, "maximum.target")
+    equal(inventory_api.get_items(maximum)[2].id, "maximum.source")
+    local mixed = inventory_api.restore({ id = "inventory.stack.mixed", owner_id = "stack.hero.mixed",
+        capacity = 2, items = {
+            { id = "mixed.herb", type = "healing_herb", quantity = 3, state = {} },
+            { id = "mixed.key", type = "old_iron_key", quantity = 1, state = {} },
+        } }, registry)
+    local mixed_result = inventory_api.drop_slot(mixed, 1, 2)
+    equal(mixed_result.action, "inventory_swap")
+    equal(inventory_api.get_item_at(mixed, 1).id, "mixed.key")
+    equal(inventory_api.get_item_at(mixed, 2).id, "mixed.herb")
+end)
+
+test("inventory drop controller preserves overflow and selection by exact ID", function()
+    local registry = item_registry_api.new(item_definitions)
+    local items = {}
+    for index = 1, 18 do
+        items[index] = { id = "overflow.key." .. index, type = "old_iron_key", quantity = 1,
+            state = { sequence = index } }
+    end
+    local inventory = inventory_api.restore({ id = "inventory.overflow.drag", owner_id = "overflow.hero",
+        capacity = 20, items = items }, registry)
+    local equipment = equipment_api.create("equipment.overflow.drag", "overflow.hero", registry)
+    local selection = item_selection.create()
+    item_selection.select_target(selection, { target_type = "inventory_slot", index = 1,
+        item_id = "overflow.key.1", item_type = "old_iron_key" })
+    local result = equipment_controller.handle_drop({ type = "drop_item", item_id = "overflow.key.1",
+        item_type = "old_iron_key", source = { type = "inventory_slot", index = 1 },
+        target = { target_type = "inventory_slot", index = 16 } }, {
+        inventory = inventory, equipment = equipment, item_registry = registry,
+    })
+    assert(result.success); equal(result.action, "inventory_swap")
+    item_selection.reconcile(selection, equipment_panel.snapshot(equipment, registry),
+        inventory_panel.snapshot(inventory, registry))
+    equal(item_selection.get_snapshot(selection).slot_index, 16)
+    local snapshot = inventory_panel.snapshot(inventory, registry)
+    equal(snapshot.occupied, 18); equal(snapshot.overflow, 2)
+    equal(inventory_api.get_count(inventory), 18)
+    equal(inventory_api.get_item_at(inventory, 16).id, "overflow.key.1")
+    equal(inventory_api.get_item_at(inventory, 17).id, "overflow.key.17")
+    equal(inventory_api.get_item_at(inventory, 18).id, "overflow.key.18")
 end)
 
 test("actor identity, types, directions, and registry are canonical", function()
@@ -2194,6 +2670,212 @@ test("equipment panel snapshots canonical slots without owning equipment state",
     equal(equipment_api.get(restored, "main_hand").id, "ui.sword.exact")
     local reset = equipment_api.restore({ id = "equipment.ui", owner_id = "ui.hero", slots = {} }, registry)
     equal(equipment_panel.snapshot(reset, registry).occupied, 0)
+end)
+
+test("equipment UI controller unequips exact items through authoritative ownership", function()
+    events.clear()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.click", "click.hero", 4, registry)
+    local equipment = equipment_api.create("equipment.click", "click.hero", registry)
+    local sword = item_instance.new({ id = "click.sword.exact", type = "worn_iron_sword",
+        state = { maker = "Mara" } }, registry)
+    local torso = item_instance.new({ id = "click.armor.exact", type = "patched_leather_armor",
+        state = { repaired = true } }, registry)
+    inventory_api.add_item(inventory, sword); inventory_api.add_item(inventory, torso)
+    assert(equipment_api.equip(equipment, inventory, sword.id, "main_hand"))
+    assert(equipment_api.equip(equipment, inventory, torso.id, "torso"))
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 8)
+    equal(armor.resolve(equipment, registry, 8).armor, 2)
+
+    local sword_intent = { type = "ui_click", target = { region = "sidebar",
+        target_type = "equipment_slot", slot = "main_hand", item_id = sword.id,
+        item_type = sword.type } }
+    local sword_result = equipment_controller.handle_intent(sword_intent,
+        { equipment = equipment, inventory = inventory, events = events })
+    assert(sword_result.handled and sword_result.success); equal(sword_result.action, "unequip")
+    equal(sword_result.slot, "main_hand"); equal(sword_result.item_id, sword.id)
+    assert(equipment_api.get(equipment, "main_hand") == nil)
+    local returned_sword = inventory_api.get_item(inventory, sword.id)
+    equal(returned_sword.type, sword.type); equal(returned_sword.state.maker, "Mara")
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 5)
+
+    local torso_result = equipment_controller.handle_intent({ type = "ui_click", target = {
+        target_type = "equipment_slot", slot = "torso", item_id = torso.id, item_type = torso.type,
+    } }, { equipment = equipment, inventory = inventory })
+    assert(torso_result.success); equal(torso_result.item_id, torso.id)
+    assert(equipment_api.get(equipment, "torso") == nil)
+    equal(inventory_api.get_item(inventory, torso.id).state.repaired, true)
+    equal(armor.resolve(equipment, registry, 8).armor, 0)
+
+    local equipment_ui = equipment_panel.snapshot(equipment, registry)
+    local inventory_ui = inventory_panel.snapshot(inventory, registry)
+    equal(equipment_ui.occupied, 0); equal(inventory_ui.occupied, 2)
+    equal(inventory_ui.entries[1].item_id, sword.id); equal(inventory_ui.entries[2].item_id, torso.id)
+
+    local empty = equipment_controller.handle_intent({ type = "ui_click", target = {
+        target_type = "equipment_slot", slot = "head",
+    } }, { equipment = equipment, inventory = inventory })
+    assert(empty.handled and not empty.success); equal(empty.reason, "empty_slot")
+    equal(inventory_api.get_count(inventory), 2)
+
+    assert(equipment_api.equip(equipment, inventory, sword.id, "main_hand"))
+    local locked = equipment_controller.handle_intent({ type = "ui_click", blocked = true, target = {
+        target_type = "equipment_slot", slot = "main_hand", item_id = sword.id,
+    } }, { equipment = equipment, inventory = inventory })
+    assert(locked.handled and not locked.success); equal(locked.reason, "input_locked")
+    equal(equipment_api.get(equipment, "main_hand").id, sword.id)
+
+    local full_inventory = inventory_api.create("inventory.click.full", "full.hero", 1, registry)
+    local full_equipment = equipment_api.create("equipment.click.full", "full.hero", registry)
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "click.full.sword", type = "worn_iron_sword" }, registry))
+    assert(equipment_api.equip(full_equipment, full_inventory, "click.full.sword", "main_hand"))
+    inventory_api.add_item(full_inventory,
+        item_instance.new({ id = "click.full.key", type = "old_iron_key" }, registry))
+    local before_inventory = codec.serialize(inventory_api.snapshot(full_inventory))
+    local before_equipment = codec.serialize(equipment_api.snapshot(full_equipment))
+    local full = equipment_controller.handle_intent({ type = "ui_click", target = {
+        target_type = "equipment_slot", slot = "main_hand", item_id = "click.full.sword",
+    } }, { equipment = full_equipment, inventory = full_inventory })
+    assert(full.handled and not full.success); equal(full.reason, "inventory_full")
+    equal(codec.serialize(inventory_api.snapshot(full_inventory)), before_inventory)
+    equal(codec.serialize(equipment_api.snapshot(full_equipment)), before_equipment)
+
+    -- The ownership produced by mouse unequip is ordinary save state.
+    assert(equipment_api.unequip(equipment, inventory, "main_hand"))
+    local world = path_world(2, 1)
+    local player = actor_api.new("click.hero", "player", 0, 0, 7, "south")
+    player.inventory, player.equipment = inventory, equipment
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local restored_inventory = save_data.restore_inventory(saved, registry)
+    local restored_equipment = save_data.restore_equipment(saved, registry)
+    equal(inventory_api.get_item(restored_inventory, sword.id).state.maker, "Mara")
+    assert(equipment_api.get(restored_equipment, "main_hand") == nil)
+end)
+
+test("inventory clicks equip compatible exact items with deterministic slot policy", function()
+    events.clear()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.click.equip", "equip.hero", 8, registry)
+    local equipment = equipment_api.create("equipment.click.equip", "equip.hero", registry)
+    local items = {
+        item_instance.new({ id = "equip.sword.exact", type = "worn_iron_sword",
+            state = { maker = "Mara" } }, registry),
+        item_instance.new({ id = "equip.armor.exact", type = "patched_leather_armor" }, registry),
+        item_instance.new({ id = "equip.cap.exact", type = "leather_cap" }, registry),
+        item_instance.new({ id = "equip.herb", type = "healing_herb", quantity = 5 }, registry),
+        item_instance.new({ id = "equip.key", type = "old_iron_key" }, registry),
+    }
+    for _, item in ipairs(items) do inventory_api.add_item(inventory, item) end
+    local authored_inventory = inventory_api.snapshot(inventory)
+
+    local function inventory_intent(index, blocked)
+        local snapshot = inventory_panel.snapshot(inventory, registry)
+        local entry = snapshot.entries[index]
+        return { type = "ui_click", blocked = blocked == true, target = {
+            region = "sidebar", target_type = "inventory_slot", index = index,
+            item_id = entry and entry.item_id, item_type = entry and entry.item_type,
+        } }
+    end
+    local context = { equipment = equipment, inventory = inventory,
+        item_registry = registry, events = events }
+
+    local sword = equipment_controller.handle_intent(inventory_intent(1), context)
+    assert(sword.handled and sword.success); equal(sword.action, "equip")
+    equal(sword.item_id, "equip.sword.exact"); equal(sword.item_type, "worn_iron_sword")
+    equal(sword.slot, "main_hand"); assert(inventory_api.get_item(inventory, sword.item_id) == nil)
+    equal(equipment_api.get(equipment, "main_hand").id, sword.item_id)
+    equal(equipment_api.get(equipment, "main_hand").state.maker, "Mara")
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 8)
+    equal(equipment_panel.snapshot(equipment, registry).occupied, 1)
+    equal(inventory_panel.snapshot(inventory, registry).occupied, 4)
+
+    -- Full round trip: the same instance unequips, returns to Inventory, and equips again.
+    local unequipped = equipment_controller.handle_intent({ type = "ui_click", target = {
+        target_type = "equipment_slot", slot = "main_hand", item_id = sword.item_id,
+        item_type = sword.item_type,
+    } }, context)
+    assert(unequipped.success); equal(unequipped.item_id, sword.item_id)
+    equal(inventory_api.get_item(inventory, sword.item_id).state.maker, "Mara")
+    equal(attack_damage.resolve({ damage = 5 }, equipment, registry).damage, 5)
+    local reequipped = equipment_controller.handle_intent(inventory_intent(5), context)
+    assert(reequipped.success); equal(reequipped.item_id, sword.item_id)
+    equal(equipment_api.get(equipment, "main_hand").id, sword.item_id)
+    assert(inventory_api.get_item(inventory, sword.item_id) == nil)
+
+    local armor_result = equipment_controller.handle_intent(inventory_intent(1), context)
+    assert(armor_result.success); equal(armor_result.slot, "torso")
+    equal(equipment_api.get(equipment, "torso").id, "equip.armor.exact")
+    equal(armor.resolve(equipment, registry, 8).armor, 2)
+    local cap_result = equipment_controller.handle_intent(inventory_intent(1), context)
+    assert(cap_result.success); equal(cap_result.slot, "head")
+    equal(equipment_api.get(equipment, "head").id, "equip.cap.exact")
+    equal(armor.resolve(equipment, registry, 8).armor, 3)
+    local equipped_ui = equipment_panel.snapshot(equipment, registry)
+    local equipped_by_slot = {}
+    for _, entry in ipairs(equipped_ui.entries) do equipped_by_slot[entry.slot] = entry end
+    equal(equipped_by_slot.main_hand.item_id, sword.item_id)
+    equal(equipped_by_slot.torso.item_id, "equip.armor.exact")
+    equal(equipped_by_slot.head.item_id, "equip.cap.exact")
+    equal(inventory_panel.snapshot(inventory, registry).occupied, 2)
+
+    local before_inventory = codec.serialize(inventory_api.snapshot(inventory))
+    local before_equipment = codec.serialize(equipment_api.snapshot(equipment))
+    local herb = equipment_controller.handle_intent(inventory_intent(1), context)
+    assert(not herb.success); equal(herb.reason, "not_equippable"); equal(herb.item_id, "equip.herb")
+    local key = equipment_controller.handle_intent(inventory_intent(2), context)
+    assert(not key.success); equal(key.reason, "not_equippable"); equal(key.item_id, "equip.key")
+    local empty = equipment_controller.handle_intent(inventory_intent(8), context)
+    assert(not empty.success); equal(empty.reason, "empty_slot")
+    equal(codec.serialize(inventory_api.snapshot(inventory)), before_inventory)
+    equal(codec.serialize(equipment_api.snapshot(equipment)), before_equipment)
+
+    local locked = equipment_controller.handle_intent(inventory_intent(1, true), context)
+    assert(not locked.success); equal(locked.reason, "input_locked")
+    equal(codec.serialize(inventory_api.snapshot(inventory)), before_inventory)
+
+    -- Save/load persists authoritative ownership only; no click state is serialized.
+    local world = path_world(2, 1)
+    local player = actor_api.new("equip.hero", "player", 0, 0, 7, "south")
+    player.inventory, player.equipment = inventory, equipment
+    local saved = codec.deserialize(codec.serialize(save_data.capture(player, world, world.map.id)))
+    local restored_inventory = save_data.restore_inventory(saved, registry)
+    local restored_equipment = save_data.restore_equipment(saved, registry)
+    assert(inventory_api.get_item(restored_inventory, sword.item_id) == nil)
+    equal(equipment_api.get(restored_equipment, "main_hand").id, sword.item_id)
+
+    local reset_inventory = inventory_api.restore(authored_inventory, registry)
+    local reset_equipment = equipment_api.restore({ id = "equipment.click.equip", owner_id = "equip.hero",
+        slots = {} }, registry)
+    equal(inventory_api.get_count(reset_inventory), 5)
+    equal(equipment_panel.snapshot(reset_equipment, registry).occupied, 0)
+end)
+
+test("inventory equip selects canonical empty compatible slots and never swaps", function()
+    local registry = item_registry_api.new(item_definitions)
+    local inventory = inventory_api.create("inventory.multi", "multi.hero", 4, registry)
+    local equipment = equipment_api.create("equipment.multi", "multi.hero", registry)
+    for index = 1, 3 do
+        inventory_api.add_item(inventory, item_instance.new({ id = "multi.sword." .. index,
+            type = "worn_iron_sword" }, registry))
+    end
+    local function click_first()
+        local entry = inventory_panel.snapshot(inventory, registry).entries[1]
+        return equipment_controller.handle_intent({ type = "ui_click", target = {
+            target_type = "inventory_slot", index = 1, item_id = entry.item_id,
+            item_type = entry.item_type,
+        } }, { equipment = equipment, inventory = inventory, item_registry = registry })
+    end
+    local first = click_first(); assert(first.success); equal(first.slot, "main_hand")
+    local second = click_first(); assert(second.success); equal(second.slot, "off_hand")
+    local before_inventory = codec.serialize(inventory_api.snapshot(inventory))
+    local before_equipment = codec.serialize(equipment_api.snapshot(equipment))
+    local third = click_first()
+    assert(not third.success); equal(third.reason, "slot_occupied"); assert(third.slot == nil)
+    equal(codec.serialize(inventory_api.snapshot(inventory)), before_inventory)
+    equal(codec.serialize(equipment_api.snapshot(equipment)), before_equipment)
+    equal(equipment_api.get(equipment, "main_hand").id, "multi.sword.1")
+    equal(equipment_api.get(equipment, "off_hand").id, "multi.sword.2")
 end)
 
 test("inventory panel snapshots authoritative order, quantities, and identities", function()

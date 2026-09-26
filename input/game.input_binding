@@ -2,6 +2,7 @@ key_trigger {
   input: KEY_W
   action: "up"
 }
+mouse_trigger { input: MOUSE_BUTTON_1 action: "left_click" }
 key_trigger { input: KEY_E action: "interact" }
 key_trigger { input: KEY_G action: "drop_item" }
 key_trigger { input: KEY_F1 action: "debug" }

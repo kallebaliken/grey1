@@ -20,11 +20,13 @@ Container contents are private. Added instances, returned instances, and item-li
 
 `add_item` always returns `{ inserted_quantity, remainder }`. A `nil` remainder means the entire incoming quantity was accepted. On a partial insertion, `remainder` is an isolated item instance with the incoming ID and uninserted quantity; overflow is never discarded and the caller's input is never mutated.
 
+Container entries remain a compact ordered sequence rather than a sparse fixed-slot array. The public slot-drop operation makes that order intentionally mutable: dropping on an empty visible position appends the source to the occupied sequence, dropping on an occupied non-compatible entry swaps exact instances, and dropping a compatible stack transfers as much as possible into the destination while preserving the destination ID. A full compatible destination falls back to a swap; a same-slot drop is a no-op. `move_slot` provides deterministic shift-based reordering for non-UI callers. Snapshot restoration now restores exact ordered entries directly, rather than re-running insertion merging, so reordered partial stacks retain both identities and quantities across Save Format v5.
+
 ## Inventory ownership
 
 Canary's player inventory participates in the `Player`/`Cylinder` hierarchy and mixes ownership with equipment slots, protocol updates, capacity weight, and item movement. Greyhaven's `items/inventory.lua` preserves only the ownership boundary: an inventory has stable `id` and `owner_id` values and composes exactly one generic container. It stores no actor table, so the same abstraction can later be owned by an NPC, merchant, companion, or monster ID.
 
-Inventory operations delegate insertion, removal, snapshots, stack identity, overflow, and slot capacity directly to the container subsystem. The underlying container is available through `get_container` and has the deterministic ID `<inventory-id>.items`. Type queries aggregate quantities across stacks and instance states. Inventory metadata and returned item snapshots cannot be used to mutate internal state.
+Inventory operations delegate insertion, removal, explicit slot moves/drops, snapshots, stack identity, overflow, and slot capacity directly to the container subsystem. The underlying container is available through `get_container` and has the deterministic ID `<inventory-id>.items`. Type queries aggregate quantities across stacks and instance states. Inventory metadata and returned item snapshots cannot be used to mutate internal state.
 
 Removal currently removes the complete item instance identified by its stable ID. Partial stack removal is deferred because generic containers do not yet define that operation.
 

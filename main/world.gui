@@ -128,6 +128,7 @@ nodes { position { x: 203.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y
 nodes { position { x: 250.0 y: 124.0 } size { x: 34.0 y: 34.0 } color { x: 0.025 y: 0.03 z: 0.04 w: 1.0 } type: TYPE_BOX id: "inventory_16_slot" parent: "sidebar_root" layer: "panels" }
 nodes { position { x: 250.0 y: 124.0 } size { x: 28.0 y: 28.0 } type: TYPE_PIE texture: "world/fallback_01" id: "inventory_16_icon" parent: "sidebar_root" layer: "hud" enabled: 0 }
 nodes { position { x: 263.0 y: 112.0 } size { x: 28.0 y: 16.0 } color { x: 1.0 y: 0.95 z: 0.75 w: 1.0 } type: TYPE_TEXT text: "" font: "default" id: "inventory_16_quantity" parent: "sidebar_root" pivot: PIVOT_E layer: "hud" enabled: 0 }
+nodes { position { x: 0.0 y: 0.0 } size { x: 28.0 y: 28.0 } color { w: 0.72 } type: TYPE_PIE texture: "world/fallback_01" id: "drag_ghost" parent: "client_root" layer: "hud" enabled: 0 }
 nodes { position { x: 160.0 y: 52.0 } size { x: 288.0 y: 72.0 } color { x: 0.075 y: 0.09 z: 0.11 w: 1.0 } type: TYPE_BOX id: "utility_panel" parent: "sidebar_root" layer: "panels" }
 nodes { position { x: 28.0 y: 74.0 } size { x: 260.0 y: 44.0 } color { x: 0.72 y: 0.68 z: 0.58 w: 1.0 } type: TYPE_TEXT text: "QUESTS | CHARACTER" font: "default" id: "utility_label" parent: "sidebar_root" pivot: PIVOT_NW layer: "hud" }
 
