@@ -248,6 +248,7 @@ Once the locally created PNGs listed in `assets/world/ASSET_MANIFEST.md` are pre
 9. Confirm F1 reports a stable fixed-viewport render count (278 pieces at the authored exterior start before state changes), reuse while standing still, and no Sprite/Game Object capacity failures.
 10. Confirm there are no render-script, scissor, projection, GUI, or Defold runtime errors.
 11. Specifically confirm startup contains neither `table index is nil`, `Invalid state: render.enable_state(1)`, nor `attempt to call field 'set_scissor'`; verify the Defold 1.13.1 buffer clear and world-viewport clipping complete successfully.
+12. Confirm transparent pixels around the player, villager, rat, items, walls, doors, and roofs reveal the ground beneath them rather than black Sprite-quad rectangles or bands.
 
 ## Expected prototype content
 

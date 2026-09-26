@@ -8,7 +8,6 @@ function init(self)
         "Defold graphics render-state constants are unavailable")
     assert(graphics.BLEND_FACTOR_SRC_ALPHA ~= nil and graphics.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA ~= nil,
         "Defold graphics blend constants are unavailable")
-    assert(graphics.COMPARE_FUNC_LEQUAL ~= nil, "Defold graphics depth comparison constant is unavailable")
     self.world_predicate = render.predicate({ "tile" })
     self.gui_predicate = render.predicate({ "gui" })
     self.text_predicate = render.predicate({ "text" })
@@ -31,12 +30,11 @@ function update(self)
     render.set_viewport(world_x, world_y, world_width, world_height)
     render.set_projection(vmath.matrix4_orthographic(layout.WORLD.x, layout.WORLD.x + layout.WORLD.width,
         layout.WORLD.y, layout.WORLD.y + layout.WORLD.height, -1, 1))
-    render.enable_state(graphics.STATE_DEPTH_TEST)
-    render.set_depth_mask(true)
-    render.set_depth_func(graphics.COMPARE_FUNC_LEQUAL)
-    render.draw(self.world_predicate)
+    -- Atlas sprites contain transparent pixels. They must not write rectangular
+    -- sprite-quad silhouettes into the depth buffer and hide ground behind them.
     render.disable_state(graphics.STATE_DEPTH_TEST)
     render.set_depth_mask(false)
+    render.draw(self.world_predicate)
 
     render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
     render.set_view(vmath.matrix4())

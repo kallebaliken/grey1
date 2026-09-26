@@ -180,6 +180,10 @@ assert "graphics.BUFFER_TYPE_DEPTH_BIT" in render_script
 assert "graphics.BUFFER_TYPE_STENCIL_BIT" in render_script
 assert "layout.world_viewport" in render_script
 assert "render.set_viewport(world_x, world_y, world_width, world_height)" in render_script
+assert "render.disable_state(graphics.STATE_DEPTH_TEST)" in render_script
+assert "render.set_depth_mask(false)" in render_script
+assert "render.set_depth_mask(true)" not in render_script
+assert "render.set_depth_func" not in render_script
 for unsupported in ("render.BUFFER_COLOR_BIT", "render.BUFFER_DEPTH_BIT", "render.BUFFER_STENCIL_BIT",
                     "render.STATE_BLEND", "render.STATE_DEPTH_TEST", "render.STATE_SCISSOR_TEST",
                     "graphics.STATE_SCISSOR_TEST", "render.set_scissor"):
