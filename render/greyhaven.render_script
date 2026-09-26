@@ -1,0 +1,37 @@
+local layout = require "render.layout"
+
+function init(self)
+    self.world_predicate = render.predicate({ "tile" })
+    self.gui_predicate = render.predicate({ "gui" })
+    self.text_predicate = render.predicate({ "text" })
+    self.clear_color = vmath.vector4(0.015, 0.018, 0.024, 1)
+end
+
+function update(self)
+    local physical_width, physical_height = render.get_window_width(), render.get_window_height()
+    local canvas = layout.physical_transform(physical_width, physical_height)
+
+    render.set_viewport(0, 0, physical_width, physical_height)
+    render.clear({ [render.BUFFER_COLOR_BIT] = self.clear_color,
+        [render.BUFFER_DEPTH_BIT] = 1, [render.BUFFER_STENCIL_BIT] = 0 })
+
+    render.set_viewport(canvas.x, canvas.y, canvas.width, canvas.height)
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4_orthographic(0, layout.VIRTUAL_WIDTH, 0, layout.VIRTUAL_HEIGHT, -1, 1))
+    render.enable_state(render.STATE_BLEND)
+    render.set_blend_func(render.BLEND_FACTOR_SRC_ALPHA, render.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
+
+    local clip_x, clip_y, clip_width, clip_height = layout.world_scissor(canvas)
+    render.enable_state(render.STATE_DEPTH_TEST)
+    render.set_depth_mask(true)
+    render.set_depth_func(render.COMPARE_FUNC_LEQUAL)
+    render.enable_state(render.STATE_SCISSOR_TEST)
+    render.set_scissor(clip_x, clip_y, clip_width, clip_height)
+    render.draw(self.world_predicate)
+    render.disable_state(render.STATE_SCISSOR_TEST)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.set_depth_mask(false)
+
+    render.draw(self.gui_predicate)
+    render.draw(self.text_predicate)
+end

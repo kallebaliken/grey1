@@ -1,0 +1,2 @@
+prototype: "/render/world_render_piece.go"
+load_dynamically: false

@@ -1,8 +1,10 @@
 local interaction = require "simulation.interaction"
 local transitions = require "simulation.transitions"
+local item_transfers = require "simulation.item_transfers"
+local dialogue = require "dialogue.dialogue"
 local M = {}
 
-function M.register_defaults()
+function M.register_defaults(services)
     interaction.register("door", function(world, actor, instance, definition, events)
         local open = not world:object_state(instance.id).open
         world:set_object_state(instance.id, { open = open }, events)
@@ -18,5 +20,15 @@ function M.register_defaults()
         world:set_object_state(instance.id, { open = open }, events)
         return true
     end)
+    interaction.register("pickup", function(world, actor, instance, definition, events)
+        if not actor.inventory then return false, "no_inventory" end
+        local result, reason = item_transfers.pickup(world, actor.inventory, instance.id, actor.id, events)
+        return result.inserted_quantity > 0, reason
+    end)
+    if services and services.dialogue then
+        interaction.register("actor", function(world, actor, target, definition, events)
+            return dialogue.begin(services.dialogue, actor.id, target.id)
+        end)
+    else interaction.register("actor", nil) end
 end
 return M

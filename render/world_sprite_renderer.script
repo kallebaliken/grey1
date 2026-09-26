@@ -1,0 +1,84 @@
+local camera_api = require "world.camera"
+local view_model = require "main.view_model"
+local reconciler_api = require "render.sprite_reconciler"
+local diagnostics = require "render.sprite_diagnostics"
+local layout = require "render.layout"
+
+local TILE_SIZE = 32
+local DEPTH_MIN = -0.8
+local DEPTH_SPAN = 1.6
+local GAME_OBJECT_RESERVE = 32
+local SPRITE_RESERVE = 16
+
+local function sprite_url(instance_id)
+    assert(instance_id, "world sprite instance id is required")
+    return msg.url(nil, instance_id, "sprite")
+end
+
+local function depth(index, count)
+    return DEPTH_MIN + DEPTH_SPAN * index / (count + 1)
+end
+
+local function create_reconciler(self)
+    return reconciler_api.new({
+        create = function()
+            local instance_id = factory.create("#world_piece_factory")
+            if not instance_id and not self.factory_failure_reported then
+                print("ERROR: Greyhaven world sprite factory creation failed; piece skipped and will retry")
+                self.factory_failure_reported = true
+            end
+            return instance_id
+        end,
+        update = function(instance_id, command, index, count, animation_changed)
+            local x, y = camera_api.project(self.camera, command.x, command.y, TILE_SIZE)
+            x = x + camera_api.scale_pixels(self.camera, command.offset_x or 0)
+            y = y + camera_api.scale_pixels(self.camera, command.offset_y or 0)
+            go.set_position(vmath.vector3(x, y, depth(index, count)), instance_id)
+            go.set_scale(vmath.vector3(self.camera.zoom, self.camera.zoom, 1), instance_id)
+            if animation_changed then
+                sprite.play_flipbook(sprite_url(instance_id), hash(command.animation or "fallback_01"))
+            end
+        end,
+        remove = function(instance_id)
+            go.delete(instance_id)
+        end,
+    }, { max_active = self.sprite_budget })
+end
+
+local function synchronize(self, frame)
+    camera_api.follow(self.camera, frame.player_x, frame.player_y)
+    local stats = reconciler_api.synchronize(self.reconciler, frame.commands)
+    if stats.failures == 0 then self.factory_failure_reported = false end
+    diagnostics.set(stats)
+    frame.sprite_instances = stats.active
+    frame.sprite_created = stats.created
+    frame.sprite_reused = stats.reused
+    frame.sprite_removed = stats.removed
+    frame.sprite_failures = stats.failures
+    frame.sprite_deferred = stats.deferred
+end
+
+function init(self)
+    self.camera = camera_api.new(layout.WORLD.width, layout.WORLD.height,
+        sys.get_config_int("greyhaven.camera_zoom", camera_api.DEFAULT_ZOOM), layout.WORLD.x, layout.WORLD.y)
+    self.collection_capacity = sys.get_config_int("collection.max_instances", 1024)
+    self.sprite_capacity = sys.get_config_int("sprite.max_count", 128)
+    self.sprite_budget = math.max(0, math.min(
+        self.collection_capacity - GAME_OBJECT_RESERVE,
+        self.sprite_capacity - SPRITE_RESERVE))
+    print(string.format("Greyhaven renderer capacity: collection=%d sprites=%d world_piece_budget=%d",
+        self.collection_capacity, self.sprite_capacity, self.sprite_budget))
+    self.factory_failure_reported = false
+    self.reconciler = create_reconciler(self)
+end
+
+function final(self)
+    reconciler_api.clear(self.reconciler)
+    diagnostics.set(reconciler_api.get_stats(self.reconciler))
+end
+
+function on_message(self, message_id)
+    if message_id == hash("render_world") and view_model.frame then
+        synchronize(self, view_model.frame)
+    end
+end
